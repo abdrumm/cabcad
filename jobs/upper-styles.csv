@@ -1,0 +1,21 @@
+# upper_bottom=54
+# upper_offset=0
+# base_offset=0
+# base_walls=both
+# filler_side=right
+# filler=1
+# counter=laminate
+# splash_left=yes
+# splash_right=yes
+# Blank height and depth keep the style. x is the left edge of that cabinet.
+name,style,width,run,height,depth,x,drawer_front_h,handle
+Base cabinet 1,3drawer,15,base,,,0,,
+Base cabinet 2,base,30,base,,,15,6,
+Base cabinet 3,3drawer,30,base,,,45,,
+Base cabinet 4,base,27,base,,,75,6,
+Base cabinet 5,3drawer,15,base,,,102,,
+Upper 1,upper1,15,upper,,,0,,left
+Upper 2,open,30,upper,,,15,,
+Upper 3,microwave,30,upper,,,45,,
+Upper 4,upper,27,upper,,,75,,
+Upper 5,upper1,15,upper,,,102,,right

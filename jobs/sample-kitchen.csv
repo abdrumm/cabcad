@@ -1,0 +1,12 @@
+# A short kitchen. Each row is one cabinet, left to right.
+# Width is the only size you type. Blank height and depth keep the style.
+# run=base sits on the floor. run=upper hangs at upper_bottom, back against the wall.
+# gap_after is a filler space, in inches, before the next cabinet. Bases only; uppers never get a filler.
+# upper_bottom=54
+name,style,width,run,height,depth,z,x,gap_after,left,right
+Base cabinet 27,3drawer,27,base,,,,,,
+Base cabinet 18,base,18,base,,,,,,
+Base cabinet 30,3drawer,30,base,,,,,,
+Uppers 27,upper,27,upper,,,,,,
+Uppers 18,upper,18,upper,,,,,,
+Uppers 30,upper,30,upper,,,,,,
