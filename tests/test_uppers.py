@@ -206,6 +206,156 @@ def test_summary_tables_list_uppers_before_bases(tmp_path: Path):
     assert page.index(">U1<") < page.index(">B1<", page.index("CABINETS"))
 
 
+def test_single_door_upper_stops_at_24_inches(tmp_path: Path):
+    """Brook: a 1-door wall upper is 24\" at most. Wider is a pair, and an explicit
+    single-door request is converted and called out. Bases are not part of this rule."""
+    from cabgen.cli import generate
+    from cabgen.client_sheet import _features, job_from, render_pages
+    from cabgen.cutlist import to_csv
+    from cabgen.draw import shop_drawing
+    from cabgen.kitchen import layout_text
+    from cabgen.nest_project import part_labels
+    from cabgen.params import UPPER_1DOOR_MAX_WIDTH, door_rule_warnings
+    from cabgen.web import params_from_form
+
+    assert UPPER_1DOOR_MAX_WIDTH == 24
+
+    legal = Params(style="upper_1door", name="Legal", width=24, handle_side="left")
+    assert legal.doors == 1 and legal.style == "upper_1door"
+    assert door_rule_warnings(legal) == []
+    parts, layout, model = _build("upper_1door", name="Legal", width=24, handle_side="left")[1:]
+    assert [x.name for x in parts if x.name.startswith("Door")] == ["Door"]
+    assert [b.name for b in model.boxes if b.name.startswith("Door")] == ["Door, handle L"]
+    assert not any("single-door upper" in a for a in layout.assumptions)
+
+    # 9" is still a legal single door (the old minimum). A 2-door style stays a pair
+    # even when it is narrow: this rule does not take doors away.
+    assert Params(style="upper_1door", width=9).doors == 1
+    assert Params(style="upper_2doors", width=18).doors == 2
+    assert Params(style="upper_2doors", name="Already a pair", width=36).doors == 2
+    assert door_rule_warnings(Params(style="upper_2doors", width=36)) == []
+
+    for width in (24.5, 27, 30, 36):
+        p, parts, layout, model = _build("upper_1door", name=f"Upper {width:g}", width=width,
+                                         handle_side="left")
+        assert p.doors == 2 and p.style == "upper_2doors", width
+        assert p.door_count_overridden
+        warning = door_rule_warnings(p)
+        assert len(warning) == 1, width
+        assert warning[0].startswith(f"Warning: Upper {width:g} is ")
+        assert "single-door upper" in warning[0] and '24"' in warning[0]
+        assert "Asked for as one door; built as two doors." in warning[0]
+        if width == 24.5:
+            assert '24 1/2"' in warning[0]
+        doors = [x for x in parts if x.name.startswith("Door")]
+        assert [d.name for d in doors] == ["Door L", "Door R"], width
+        assert abs(doors[0].width - doors[1].width) < 1e-6
+        assert doors[0].width < width / 2
+        assert layout.door_heights and len(layout.door_heights) == 2
+        assert warning[0] in layout.assumptions
+        boxes = [b.name for b in model.boxes if b.name.startswith("Door")]
+        assert boxes == ["Door L", "Door R"], width
+        assert not any(h.diameter > 1 for h in model.holes), width   # hinge cups are the 1-door
+        labels = [lab for _part, labs in part_labels("U9", parts) for lab in labs]
+        assert "U9-DL" in labels and "U9-DR" in labels and "U9-D" not in labels
+
+    # The same conversion when the single-cabinet form posts the 1-door style.
+    posted = params_from_form({"style": "upper_1door", "width": "30", "name": "Spec"})
+    assert posted.doors == 2 and posted.style == "upper_2doors"
+    assert "Spec" in door_rule_warnings(posted)[0]
+    base_posted = params_from_form({"style": "base_1drawer_2doors", "width": "36", "name": "Base spec"})
+    assert base_posted.doors == 2 and base_posted.style == "base_1drawer_2doors"
+    assert door_rule_warnings(base_posted) == []
+
+    # A job that asks for one door on a 30" upper, plus the other widths and the bases.
+    sheet = """\
+name,style,width,run,handle
+Wide,upper1,30,upper,left
+Legal,upper1,24,upper,right
+Half,1door,24.5,upper,left
+Pair,upper,27,upper,
+Tall,upper,36,upper,
+Open,open,36,upper,
+Micro,microwave,30,upper,
+Base wide,base,36,base,
+Drawers,3drawer,36,base,
+Sink,sink,36,base,
+"""
+    from io import StringIO
+    import csv
+    rows = list(csv.DictReader(StringIO(sheet)))
+    settings = {"upper_bottom": 54.0, "counter": "none"}
+    cabs = place_kitchen(rows, settings, "wide-upper.csv")
+    by = {c.name: c for c in cabs}
+    assert by["Legal"].params.doors == 1 and by["Legal"].params.style == "upper_1door"
+    assert by["Legal"].params.handle_side == "right"
+    for name in ("Wide", "Half", "Pair", "Tall"):
+        assert by[name].params.doors == 2, name
+    assert by["Wide"].params.style == "upper_2doors"
+    assert by["Half"].params.style == "upper_2doors"
+    assert by["Open"].params.doors == 0 and by["Open"].params.style == "upper_open"
+    assert by["Micro"].params.doors == 2 and by["Micro"].params.style == "upper_microwave"
+    assert not by["Micro"].params.door_count_overridden
+    assert not by["Pair"].params.door_count_overridden
+    for name, doors in (("Base wide", 2), ("Drawers", 0), ("Sink", 2)):
+        cab = by[name]
+        assert cab.params.doors == doors and not cab.params.door_count_overridden, name
+        assert not str(cab.params.style).startswith("upper")
+    text = layout_text(cabs, settings)
+    assert "Shop-standard warnings:" in text
+    assert "Warning: Wide is 30\" wide." in text
+    assert "Warning: Half is 24 1/2\" wide." in text
+    assert "Base wide" not in text.split("Shop-standard warnings:")[1].split("|")[0]
+    assert "Legal" not in text.split("Shop-standard warnings:")[1].split("|")[0]
+
+    wide = by["Wide"].params
+    assert any("built as two doors" in line for line in _features(wide))
+    assert any(line == "2 doors" for line in _features(wide))
+    assert not any(line.startswith("1 door") for line in _features(wide))
+    assert any(line.startswith("1 door, handle on the right") for line in _features(by["Legal"].params))
+    assert _features(by["Base wide"].params)  # still describes a base, not the upper rule
+    assert not any("single-door upper" in line for line in _features(by["Base wide"].params))
+
+    job = job_from(cabs, settings, "Wide upper")
+    pages = "\n".join(page.to_string() for page in render_pages(job, date="October 30, 2026"))
+    assert "Asked for as one door; built as two doors." in pages
+    assert "Warning: Wide is" in pages
+
+    _p, parts, layout, model = _build("upper_1door", name="Wide", width=30)
+    drawing, _leftover = shop_drawing(_p, parts, layout)
+    drawn = drawing.to_string()
+    assert "Warning:" in drawn and "single-door" in drawn
+    cut = to_csv(parts)
+    assert "Door L" in cut and "Door R" in cut
+
+    # Generator output carries the same warning the shop drawing does.
+    # (generate writes the drawing files; the warning is on the result, not only the SVG.)
+    result = generate(Params(style="upper_1door", name="Wide", width=30), tmp_path)
+    assert any("Warning: Wide is 30\" wide." in w for w in result["warnings"])
+    assert result["layout"].params.doors == 2
+    base_result = generate(Params(style="base_1drawer_2doors", name="Base wide", width=36), tmp_path)
+    assert base_result["layout"].params.doors == 2
+    assert not any("single-door upper" in w for w in base_result["warnings"])
+
+
+def test_base_doors_are_unchanged_at_widths_over_24():
+    for width in (24, 30, 36):
+        p, parts, layout, model = _build("base_1drawer_2doors", width=width)
+        assert p.doors == 2 and p.style == "base_1drawer_2doors"
+        assert not p.door_count_overridden
+        assert [x.name for x in parts if x.name.startswith("Door")] == ["Door L", "Door R"]
+        d_top = layout.door_top_z
+        door_holes = sorted({round(h.origin[2], 4) for h in model.holes
+                             if h.normal == (0.0, -1.0, 0.0) and h.origin[2] < d_top})
+        assert door_holes == [round(d_top - p.pull_from_top - p.pull_span, 4),
+                              round(d_top - p.pull_from_top, 4)]
+    p, parts, layout, model = _build("base_3drawers", width=36)
+    assert p.doors == 0 and not layout.door_heights
+    p, parts, layout, model = _build("base_sink", width=36)
+    assert p.doors == 2 and [x.name for x in parts if x.name.startswith("Door")] == ["Door L", "Door R"]
+    assert not p.door_count_overridden
+
+
 def test_one_door_icon_follows_the_handle_toggle():
     page = _run_page(group_view(FORM))
     assert 'data-u="1" data-handle="left"' in page

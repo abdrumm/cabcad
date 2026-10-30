@@ -31,6 +31,8 @@ from .params import (
     MICROWAVE_SHELF_CALLED_DEPTH,
     MICROWAVE_SHELF_CORNER_R,
     SINK_FRONT_BOARD_BELOW_DOOR_TOP,
+    door_rule_warnings,
+    enforce_upper_door_limit,
 )
 
 MAT_3_4 = '3/4" melamine'
@@ -110,6 +112,8 @@ class Layout:
 
 def build_parts(p: Params) -> tuple[list[Part], Layout]:
     """Return the part list and the layout used by the drawings."""
+    # A 1-door upper over 24" becomes a pair before any door is cut or drawn.
+    enforce_upper_door_limit(p)
     parts: list[Part] = []
     layout = Layout(params=p)
     notes: list[str] = []
@@ -752,7 +756,7 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
         )
 
     layout.notes = notes
-    layout.assumptions = assumptions
+    layout.assumptions = door_rule_warnings(p) + assumptions
     return parts, layout
 
 
