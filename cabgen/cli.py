@@ -13,7 +13,7 @@ from pathlib import Path
 from .cutlist import to_csv, to_markdown, to_table_saw_sheet
 from .draw import cutlist_sheet, nesting_drawing, shop_drawing
 from .nesting import nest_by_material, uncuttable
-from .params import Params, STYLE_LABELS, STYLE_PRESETS
+from .params import Params, STYLE_LABELS, STYLE_PRESETS, door_rule_warnings
 from .parts import build_parts
 from .units import fmt_in
 
@@ -46,6 +46,7 @@ def generate(p: Params, out_dir: Path, name: str | None = None,
 
     written: list[str] = []
     warnings: list[str] = []
+    warnings.extend(door_rule_warnings(p))
 
     drawing, leftover = shop_drawing(p, parts, layout)
     svg_path = out_dir / f"{stem}-drawing.svg"
