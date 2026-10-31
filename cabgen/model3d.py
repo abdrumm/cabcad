@@ -35,6 +35,9 @@ class Box:
     # and the round is a quarter circle centred on its +x/+y (or -x / -y) corner. Omacad
     # gets a true cylinder there; the client views and AR get it as fine steps.
     shape: str = ""
+    # Finish colour (#rrggbb) for a body that shows a picked finish, from
+    # cabgen.finishes.paint_boxes. Blank keeps the role's default look.
+    color: str = ""
 
 
 @dataclass

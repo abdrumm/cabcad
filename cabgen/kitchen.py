@@ -621,6 +621,8 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
         enforce_upper_door_limit(cab.params)
     door_warns = [w for cab in cabs for w in door_rule_warnings(cab.params)]
     boxes, holes, parts = scene_of(cabs, settings)
+    from .finishes import paint_boxes
+    paint_boxes(boxes, settings)
     out_dir.mkdir(parents=True, exist_ok=True)
     from .counter import build_counter, counter_text
     counter = build_counter(cabs, settings)

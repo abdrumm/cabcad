@@ -128,3 +128,25 @@ def summary(settings: dict) -> list[tuple[str, str]]:
     """("Doors and fronts", "Walnut look") ... for the picks that are set."""
     names = {"fronts": "Doors and fronts", "box": "Box", "counter": "Countertop"}
     return [(names[u], label(f)) for u, f in picks(settings).items() if f]
+
+
+def paint_boxes(boxes, settings: dict) -> list[str]:
+    """Give each box the colour of the finish its role picked (box.color, #rrggbb).
+
+    Hardware keeps its own metal and stays blank, so the exporter leaves it alone.
+    Blank picks are left blank too: the drawing palette is the default look.
+    Returns the labels of the finishes that were applied, for a warning line.
+    """
+    from .client_sheet import role_of
+
+    pal = palette_of(settings)
+    picked = picks(settings)
+    for box in boxes:
+        role = role_of(box)
+        if role == "pull":
+            continue
+        finish = picked.get("fronts" if role == "front" else
+                            "counter" if role in ("laminate_top", "solid_top") else "box")
+        if finish:
+            box.color = pal[role]
+    return [label(f) for f in picked.values() if f]
