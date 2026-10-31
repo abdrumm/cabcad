@@ -87,6 +87,11 @@ Exceptions happen, but they are few and deliberate. Note any exception on the dr
   drawer** (i.e. an extra stretcher for the lower element).
 - **Uppers:** sides (gables) run full height; the **top and bottom are each one full-depth
   piece cut to the inside width**, captured between the sides. (Brook, 2026-10-23)
+- **Base gables are one piece.** Each side runs full height from the floor to the top
+  of the case, and that includes the toe-kick zone. The toe-kick notch (the recess,
+  3" deep by the 4" kick height) is cut into that one panel. The kick plate is a
+  separate board, set back from the front. The gable is never a second piece stacked
+  under the case for the bottom 4". (Brook, 2026-10-31)
 - Drawer sizes vary; door sizes vary. **The generator must accept these as inputs** and
   adjust the schedule of stretchers, not hard-code them.
 

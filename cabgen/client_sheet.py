@@ -447,6 +447,49 @@ def end_view(svg: Svg, job: Job, box) -> None:
         _vdim(svg, Yx(wall) + 0.4, Z(0), Z(ut), ft_in(ut), size=0.12)
 
 
+def counter_paint_rank(box, deck_z: float | None) -> int:
+    """Draw order for the 3D view, coarse layers.
+
+    The painter's own order has cycles (a long counter, a tall splash, and the
+    cabinets under them all overlap on screen). Breaking a cycle was drawing the
+    deck, then drawing a base interior on top of it, so the last cabinet looked
+    like it had a hole in the top and only the build-up frame showed. Layers keep
+    the deck in one piece: everything under it, then the build-up, then the deck,
+    then the splashes, then whatever stands above (the uppers).
+    """
+    if deck_z is None:
+        return 0
+    name = box.name
+    if "Backsplash" in name or "Side splash" in name:
+        return 3
+    if "Countertop / Top" in name:
+        return 2
+    if "Countertop /" in name:
+        return 1
+    if box.pos[2] + box.size[2] <= deck_z + 1e-4:
+        return 0
+    return 4
+
+
+def _deck_z(boxes) -> float | None:
+    tops = [b.pos[2] for b in boxes if "Countertop / Top" in b.name]
+    return min(tops) if tops else None
+
+
+def _iso_faces(box) -> tuple[str, str, str]:
+    """Fill for the top, right, and front faces.
+
+    A side splash is a thin box, so the 3D view shows its side face. That face
+    used to be shaded darker than the backsplash's front face, and the two
+    splashes read as different colours. Both are the countertop, so every face
+    of a splash is the countertop colour with no extra shade.
+    """
+    base = FILL if box.material == "filler" else _color(box)
+    if "Backsplash" in box.name or "Side splash" in box.name:
+        return base, base, base
+    return _shade(base, 1.03), _shade(base, 0.82), _shade(base, 0.94)
+
+
 def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
              ground: bool = True, dim_text: str | None = None) -> None:
     """Shaded 3D view from the front right, above. Boxes painted far to near."""
@@ -546,17 +589,19 @@ def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
         order.append(i)
         for j in after[i]:
             indeg[j] -= 1
+    deck_z = _deck_z(boxes)
+    order.sort(key=lambda i: counter_paint_rank(boxes[i], deck_z))
 
     for i in order:
         b = boxes[i]
         x, y, z = b.pos
         X1, Y1, Z1 = x + b.size[0], y + b.size[1], z + b.size[2]
-        base = FILL if b.material == "filler" else _color(b)
         edge = "none" if "pull" in b.material else _edge(b, "#5d6770")
         sw = 0.0 if "pull" in b.material else 0.004
-        poly([(x, y, Z1), (X1, y, Z1), (X1, Y1, Z1), (x, Y1, Z1)], _shade(base, 1.03), edge, sw)  # top
-        poly([(X1, y, z), (X1, Y1, z), (X1, Y1, Z1), (X1, y, Z1)], _shade(base, 0.82), edge, sw)  # right
-        poly([(x, y, z), (X1, y, z), (X1, y, Z1), (x, y, Z1)], _shade(base, 0.94), edge, sw)      # front
+        top_f, right_f, front_f = _iso_faces(b)
+        poly([(x, y, Z1), (X1, y, Z1), (X1, Y1, Z1), (x, Y1, Z1)], top_f, edge, sw)  # top
+        poly([(X1, y, z), (X1, Y1, z), (X1, Y1, Z1), (X1, y, Z1)], right_f, edge, sw)  # right
+        poly([(x, y, z), (X1, y, z), (X1, y, Z1), (x, y, Z1)], front_f, edge, sw)      # front
 
     span_b = job.run_span("base") or job.run_span("upper")
     if span_b:

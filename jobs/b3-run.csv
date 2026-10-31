@@ -1,0 +1,15 @@
+# upper_bottom=54
+# upper_offset=0
+# base_offset=0
+# base_walls=left
+# counter=laminate
+# splash_left=yes
+# splash_right=yes
+name,style,width,run,height,depth,x,drawer_front_h,handle
+Base cabinet 1,3drawer,27,base,,,0,,
+Base cabinet 2,sink,42,base,,,27,6,
+Base cabinet 3,base,30,base,,,69,6,
+Upper 1,upper1,27,upper,,,0,,right
+Upper 2,open,24,upper,,,27,,
+Upper 3,upper1,18,upper,,,51,,right
+Upper 4,microwave,30,upper,,,69,,
