@@ -71,7 +71,14 @@ def test_solid_build_up_frames_the_sheet_and_the_case_breaks():
     assert front.pos[0] + front.size[0] <= edge.pos[0] + 1e-6
     joint = by_name["Build-up, cabinet joint 1"].boxes[0]
     assert abs((joint.pos[0] + joint.size[0] / 2) - 30.0) < 1e-6     # centred on the break
+    # open right end is held back; the wall end stays flush. Laminate stays flush too.
+    assert "Hold 1/2\" back from the right end" in by_name["Build-up, right end"].notes
+    assert "solid-surface edge strip" in by_name["Build-up, right end"].notes
+    assert "Flush with the left end" in by_name["Build-up, left end"].notes
     lam = build_counter(_cabs([30, 24]), {"counter": "laminate"})
+    lam_notes = {p.name: p.notes for p in lam.pieces}
+    assert "Flush with the right end" in lam_notes["Build-up, right end"]
+    assert "Hold" not in lam_notes["Build-up, right end"]
     assert not any(p.name == "Build-up, back" for p in lam.pieces)
     assert any(p.name == "Build-up, front" for p in lam.pieces)
 

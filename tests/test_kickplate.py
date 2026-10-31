@@ -122,6 +122,7 @@ def test_form_has_kick_plate_tiles_and_defaults_off():
     assert 'name="kickplate_h"' in page and 'value="3.75"' in page
     assert 'data-v="black"' in page and 'data-v="grey"' in page
     assert "wf-counter wf-' + counter" in page
+    assert "parseFloat(wfVal('kickplate_h'))" in page
     assert "WIRE.splash_h, 'wf-splash'" not in page
     assert 'value="no"' in page
     on = group_view({"kickplate": "yes", "kickplate_color": "grey", "bw1": "27", "bs1": "3drawer"})

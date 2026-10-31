@@ -287,8 +287,15 @@ def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: s
     lx = c.x0 + (inset_open if c.left_open else 0.0)
     rx = c.x1 - (inset_open if c.right_open else 0.0)
     how = (fasten + " ") if fasten else ""
+
+    def end_note(side: str, open_end: bool) -> str:
+        if open_end and inset_open > 1e-6:
+            return (f"Hold {fmt_in(inset_open)} back from the {side} end of the counter, "
+                    f"to clear the {fmt_in(inset_open)} solid-surface edge strip.")
+        return f"Flush with the {side} end of the counter."
+
     _add(c, f"{code}L", f"{word}, left end", mat, thk, wl, length,
-         [((lx, y0, z), (wl, length, thk))], how + "Flush with the left end of the counter.")
+         [((lx, y0, z), (wl, length, thk))], how + end_note("left", c.left_open))
     import math
     for i, j in enumerate(c.joints, start=1):
         at = f"{fmt_in(j - c.x0)} from the left end"
@@ -314,7 +321,7 @@ def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: s
              [((j - STRIP_W / 2, y0, z), (STRIP_W, length, thk))],
              how + f"Centred on the joint at {at}. {joint}")
     _add(c, f"{code}R", f"{word}, right end", mat, thk, wr, length,
-         [((rx - wr, y0, z), (wr, length, thk))], how + "Flush with the right end of the counter.")
+         [((rx - wr, y0, z), (wr, length, thk))], how + end_note("right", c.right_open))
 
 
 def _splashes(c: Counter, mat: str, thk: float) -> None:

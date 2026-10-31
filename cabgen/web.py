@@ -640,7 +640,8 @@ function drawWire() {
   if (wfVal('kickplate') === 'yes' && bases.length) {
     const x0 = fillerLeft ? 0 : bases[0].x;
     const tone = wfVal('kickplate_color') === 'grey' ? 'grey' : 'black';
-    rect(x0, 0, baseEnd - x0, WIRE.kick_h, 'wf-kick-' + tone);
+    const typed = parseFloat(wfVal('kickplate_h'));
+    rect(x0, 0, baseEnd - x0, typed > 0 ? typed : WIRE.kick_h, 'wf-kick-' + tone);
   }
 
   // countertop over the base run (and the filler), splashes
