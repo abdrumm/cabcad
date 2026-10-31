@@ -72,8 +72,11 @@ def _materials(settings: dict | None = None) -> dict[str, dict]:
 def _material_of(box) -> str:
     """Same rule as client_sheet.role_of, by material name."""
     from .client_sheet import role_of
+    role = role_of(box)
+    if role == "kick":
+        return "Kick"
     return {"pull": "Pull", "solid_top": "Solid_top", "laminate_top": "Laminate_top",
-            "front": "Front", "case": "Case"}[role_of(box)]
+            "front": "Front", "case": "Case"}[role]
 
 
 # --------------------------------------------------------------------------- geometry
@@ -159,8 +162,20 @@ def build_meshes(boxes) -> tuple[dict[str, dict], tuple[float, float, float]]:
 
 
 # --------------------------------------------------------------------------- GLB
-def make_glb(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None) -> bytes:
+def _kick_mat(boxes) -> dict:
+    """One Kick material, the colour painted on the plate."""
+    from .client_sheet import role_of
+    kick = next((b for b in boxes if role_of(b) == "kick" and getattr(b, "color", "")), None)
+    if not kick:
+        return {}
+    return {"Kick": {"rgb": _hex_rgb(kick.color), "metallic": 0.0, "roughness": 0.55}}
+
+
+def make_glb(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None,
+             extra_mats: dict | None = None) -> bytes:
     mats = _materials(settings)
+    if extra_mats:
+        mats.update(extra_mats)
     order = [m for m in mats if m in meshes]
     buf = bytearray()
     views, accessors, prims = [], [], []
@@ -254,8 +269,11 @@ def usd_textures(settings: dict | None) -> list[tuple[str, bytes]]:
     return out
 
 
-def make_usda(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None) -> str:
+def make_usda(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None,
+              extra_mats: dict | None = None) -> str:
     mats = _materials(settings)
+    if extra_mats:
+        mats.update(extra_mats)
     order = [m for m in mats if m in meshes]
     out = ['#usda 1.0', '(', '    defaultPrim = "Kitchen"', '    metersPerUnit = 1',
            '    upAxis = "Y"', f'    doc = "{name} - cabgen AR export"', ')', '',
@@ -357,8 +375,9 @@ def export_job(job, out_dir: str | Path, name: str) -> dict:
     title = job.name or name
     glb_path = out_dir / f"{name}.glb"
     settings = getattr(job, "settings", None) or {}
-    glb_path.write_bytes(make_glb(meshes, title, settings))
-    usda = make_usda(meshes, title, settings)
+    extra = _kick_mat(boxes)
+    glb_path.write_bytes(make_glb(meshes, title, settings, extra))
+    usda = make_usda(meshes, title, settings, extra)
     usdc = _usdc_bytes(usda)
     layer = (f"{name}.usdc", usdc) if usdc else (f"{name}.usda", usda.encode("utf-8"))
     usdz_path = out_dir / f"{name}.usdz"

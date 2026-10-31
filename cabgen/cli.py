@@ -40,9 +40,12 @@ def svg_to_pdf(svg_path: Path) -> Path | None:
 
 
 def generate(p: Params, out_dir: Path, name: str | None = None,
-             with_omacad: bool = False) -> dict:
+             with_omacad: bool = False, extras=None, finish_settings=None,
+             extra_boxes=None) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     parts, layout = build_parts(p)
+    for part, _labels in extras or []:
+        parts.append(part)
     stem = name or (p.name.lower().replace(" ", "-") or "cabinet")
 
     written: list[str] = []
@@ -81,7 +84,7 @@ def generate(p: Params, out_dir: Path, name: str | None = None,
     cab_list = [Cab(p.name or "Cabinet", p, "upper" if str(p.style).startswith("upper") else "base",
                     0.0, 0.0, 0.0, 0.0)]
     try:
-        nests = nest_project(cab_list, p.sheet_w, p.sheet_h, p.kerf)
+        nests = nest_project(cab_list, p.sheet_w, p.sheet_h, p.kerf, extra=extras or None)
     except NestError as exc:
         warnings.append(f"nesting: {exc}")
     else:
@@ -94,7 +97,8 @@ def generate(p: Params, out_dir: Path, name: str | None = None,
     if with_omacad:
         from .omacad_export import export_omacad
 
-        ok, msg = export_omacad(p, out_dir / f"{stem}.omacad")
+        ok, msg = export_omacad(p, out_dir / f"{stem}.omacad", settings=finish_settings,
+                                extra_boxes=extra_boxes)
         if ok:
             written.append(str(out_dir / f"{stem}.omacad"))
         else:

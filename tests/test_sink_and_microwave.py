@@ -173,18 +173,23 @@ def test_microwave_shelf_has_round_front_corners():
         assert b.size[0] == b.size[1] == R
         cx, cy = qdisc_center(b)
         assert abs(cy - (front + R)) < 1e-9
-    # the square corner itself is not filled: the slices stay inside the circle
+    # the square corner itself is not filled: every corner of every slice is inside
+    # the quarter circle (a midpoint-width slice bulges past the radius)
     slices = expand_round(model.boxes)
     assert not any(b.shape.startswith("qdisc") for b in slices)
     import math
     for b in slices:
-        if b.name == "Microwave shelf heel" and b.size[0] < R - 1e-6:
-            for rb in rounds:
-                cx, cy = qdisc_center(rb)
-                if rb.pos[0] - 1e-6 <= b.pos[0] <= rb.pos[0] + R + 1e-6:
-                    far_x = b.pos[0] if "+x" in rb.shape else b.pos[0] + b.size[0]
-                    near_y = b.pos[1] + b.size[1] if b.pos[1] + b.size[1] <= cy else b.pos[1]
-                    assert math.hypot(far_x - cx, near_y - cy) <= R + 1e-6
+        if not (b.name == "Microwave shelf heel" and b.size[0] < R + 1e-6 and b.size[1] < R + 1e-6):
+            continue
+        for rb in rounds:
+            cx, cy = qdisc_center(rb)
+            if not (rb.pos[0] - 1e-6 <= b.pos[0] and b.pos[0] + b.size[0] <= rb.pos[0] + R + 1e-6):
+                continue
+            if not (rb.pos[1] - 1e-6 <= b.pos[1] and b.pos[1] + b.size[1] <= rb.pos[1] + R + 1e-6):
+                continue
+            for xx in (b.pos[0], b.pos[0] + b.size[0]):
+                for yy in (b.pos[1], b.pos[1] + b.size[1]):
+                    assert math.hypot(xx - cx, yy - cy) <= R + 1e-4
 
 
 def test_microwave_corners_go_to_omacad_as_cylinders():

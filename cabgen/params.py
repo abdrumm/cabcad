@@ -37,6 +37,12 @@ MW_DEPTH = UPPER_DEPTH          # the box matches the other uppers (Brook, 2026-
 # front corners rounded to a 2" radius.
 MICROWAVE_SHELF_CALLED_DEPTH = 16.0
 MICROWAVE_SHELF_CORNER_R = 2.0
+# Finished toe-kick face, off unless the job says kickplate=yes. 3.75" is the height
+# the owner expects inside the 4" toe kick. Change the height here; a job can override
+# it with # kickplate_h=. The skin is 1/4" applied on the room side of the structural plate.
+KICK_PLATE_H = 3.75
+KICK_PLATE_THK = 0.25
+KICK_PLATE_COLORS = {"black": "#1c1c1c", "grey": "#8e9399"}
 MW_OPENING_H = 17.25            # clear opening, microwave shelf (bottom) to the divider above.
                                 # 30 - 3/4 bottom - 17-1/4 = 12" for the divider + the 2-door box above
 # 1-door hardware (placeholders): 35 mm cup hinges, cup centre 22.5 mm in from the
@@ -66,7 +72,8 @@ SINK_BACK_STILE_H = 4.0                 # confirmed: back stile stands vertical,
 # The FINISHED height, floor to the top of the countertop, is 33-1/2" on every job
 # (inside the ADA 2010 902.3 / 606.3 34" maximum). The base case is that minus the
 # countertop build, and the 4" toe kick stays. Laminate: 3/4" ply top + 3/4" build-up
-# strips. Solid surface: 1/2" top + 1" ply stiffeners. Both 1-1/2", so the case is 32".
+# strips. Solid surface: 1/2" sheet with 3/4" ply build-up tight under it, still a
+# 1-1/2" front edge (the strip starts 1/4" above the case). Both 1-1/2", so the case is 32".
 FINISHED_COUNTER_TOP = 33.5
 COUNTER_THICKNESS = {"laminate": 0.75 + 0.75, "solid": 0.5 + 1.0, "none": 0.0}
 

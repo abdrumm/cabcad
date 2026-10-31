@@ -87,7 +87,7 @@ NOTES: list[Note] = [
          "Laminate side edges, front edge, then top.",
          lambda f: f.counter == "laminate"),
     Note("counter-solid", "shop", "COUNTERTOP",
-         '1/2" solid surface, 1/2 x 1/4" rabbet, 1-1/4" edge strip epoxied; 1" ply stiffeners. '
+         '1/2" solid surface, 4" x 3/4" ply build-up glued under the sheet, no staples. '
          'Ease edges 1/8".',
          lambda f: f.counter == "solid"),
     Note("uppers", "shop", "UPPERS",
