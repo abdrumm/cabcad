@@ -81,6 +81,25 @@ PAGE = """<!doctype html>
   .files a {{ display: inline-block; margin: .2rem .5rem .2rem 0; max-width: 100%; overflow-wrap: anywhere; }}
   img {{ max-width: 100%; height: auto; }}
   img.preview {{ width: 100%; border: 1px solid #8884; border-radius: 6px; }}
+  /* Job card (shared with the group page, which carries the same rules in RUN_CSS). */
+  .jcard {{ border: 1px solid #8885; border-radius: 12px;
+           padding: clamp(.6rem, 1.5vw, .9rem) clamp(.7rem, 1.8vw, 1.1rem); margin: .9rem 0; }}
+  .jcard h2 {{ margin: .1rem 0 .2rem; font-size: 1.05rem; }}
+  .jcard .sum {{ margin: .1rem 0 .8rem; font-size: .88rem; opacity: .8; }}
+  .jgroup {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+            gap: .6rem 1rem; margin-bottom: .7rem; }}
+  .jgroup > div {{ min-width: 0; }}
+  .jgroup h3 {{ margin: 0 0 .35rem; font-size: .72rem; text-transform: uppercase;
+               letter-spacing: .08em; opacity: .6; }}
+  .jitem {{ display: block; width: 100%; box-sizing: border-box; text-align: left;
+           border: 1px solid #8885; border-radius: 8px; padding: .45rem .6rem;
+           margin: 0 0 .35rem; text-decoration: none; color: inherit;
+           font: inherit; font-weight: 400; background: transparent; cursor: pointer; }}
+  .jitem:hover {{ border-color: #3b82f6; }}
+  .jitem strong {{ display: block; font-size: .92rem; font-weight: 650; }}
+  .jitem span {{ display: block; font-size: .78rem; opacity: .7; margin-top: .1rem; }}
+  .jmore {{ margin-top: .2rem; }}
+  .jmore summary {{ cursor: pointer; font-size: .8rem; opacity: .7; }}
   .warn {{ background: #f59e0b22; border: 1px solid #f59e0b66; padding: .5rem .7rem;
            border-radius: 6px; font-size: .85rem; max-width: 100%; overflow-wrap: break-word; }}
   ul {{ max-width: 100%; padding-left: 1.2rem; }}
@@ -163,9 +182,9 @@ def _form_html(values: dict) -> str:
         ("Finish", [f for f in FORM_FIELDS if f["type"] == "checkbox"]),
     ]
     out = ["<h1>cabgen</h1>",
-           '<p class="sub">Cabinet shop drawings, cut list and nesting - '
+           '<p class="sub">One cabinet: shop drawings, cut list and nesting - '
            'local only, nothing leaves this machine. '
-           '<a href="/run">Build a group of cabinets</a>.</p>',
+           '<a href="/">&larr; Kitchen run</a>.</p>',
            '<form method="post" action="/generate">']
     for legend, fields in groups:
         if not fields:
@@ -202,10 +221,11 @@ def _result_html(p: Params, files: list[str], warnings: list[str], out_dir: Path
         f'({p.doors} door(s), {p.drawers} drawer(s))</p>',
         warn,
         preview,
-        "<h2>Files</h2>",
+        _job_card(out_dir, (p.name.lower().replace(" ", "-") or "cabinet"), form_id=""),
+        '<details class="jmore"><summary>All files</summary>'
         '<div class="table-scroll"><table><tr><th>File</th><th>Size</th></tr>'
-        + parts_rows + "</table></div>",
-        '<p><a href="/">&larr; back to the form</a></p>',
+        + parts_rows + "</table></div></details>",
+        '<p><a href="/single">&larr; back to the form</a> · <a href="/">Kitchen run</a></p>',
     ])
 
 
@@ -622,6 +642,25 @@ RUN_CSS = """
   table.cut .num { text-align: right; font-variant-numeric: tabular-nums; }
   table.cut tr.cuthead td { font-weight: 700; padding-top: .55rem; border-bottom: 1px solid #8886; }
   #end-rule { margin: .7rem 0 0; font-size: .85rem; }
+  /* Job card: what came out of the run, grouped by who it is for. */
+  .jcard { border: 1px solid var(--line); border-radius: 12px;
+           padding: clamp(.6rem, 1.5vw, .9rem) clamp(.7rem, 1.8vw, 1.1rem); margin: .9rem 0; }
+  .jcard h2 { margin: .1rem 0 .2rem; font-size: 1.05rem; }
+  .jcard .sum { margin: .1rem 0 .8rem; font-size: .88rem; opacity: .8; }
+  .jgroup { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+            gap: .6rem 1rem; margin-bottom: .7rem; }
+  .jgroup > div { min-width: 0; }
+  .jgroup h3 { margin: 0 0 .35rem; font-size: .72rem; text-transform: uppercase;
+               letter-spacing: .08em; opacity: .6; }
+  .jitem { display: block; width: 100%; box-sizing: border-box; text-align: left;
+           border: 1px solid var(--line); border-radius: 8px; padding: .45rem .6rem;
+           margin: 0 0 .35rem; text-decoration: none; color: inherit;
+           font: inherit; background: transparent; cursor: pointer; }
+  .jitem:hover { border-color: var(--accent); }
+  .jitem strong { display: block; font-size: .92rem; font-weight: 650; }
+  .jitem span { display: block; font-size: .78rem; opacity: .7; margin-top: .1rem; }
+  .jmore { margin-top: .2rem; }
+  .jmore summary { cursor: pointer; font-size: .8rem; opacity: .7; }
   @media (max-width: 52rem) {
     .row { grid-template-columns: minmax(0, 1fr); }
     .rowside { border-right: 0; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: .55rem; }
@@ -1153,7 +1192,7 @@ def _run_fields(view: dict) -> str:
     else:
         door_rule = '<p class="warn" id="door-rule" hidden></p>'
     return f"""{RUN_CSS}
-<form method="post" action="/run" class="cc">
+<form method="post" action="/run" class="cc" id="runform">
 <header class="bar">
 <div class="brand">CabCad<span class="muted">cabinet group</span></div>
 <div class="actions">
@@ -1241,30 +1280,90 @@ def _layout_table(text: str) -> str:
 
 
 NEST_LINKS = (
-    ("-nest.pdf", "Nested cut sheets (PDF, print 11x17 at 100%)"),
-    ("-nest-cutlist.md", "Nested cut list, cut order (text)"),
-    ("-nest-cutlist.csv", "Nested cut list (CSV)"),
-    ("-cutlist.csv", "Parts cut list (CSV)"),
+    ("-nest.pdf", "Nest sheets (PDF)", "Parts labelled, offcuts to keep, cut order - print 11x17 at 100%"),
+    ("-nest-cutlist.md", "Nest cut list (text)", "Strip by strip, the same order as the sheets"),
+    ("-nest-cutlist.csv", "Nest cut list (CSV)", "The same layout for a spreadsheet"),
+    ("-cutlist.csv", "Cut list (CSV)", "Every part, for the saw"),
+    ("-layout.md", "Layout and widths (text)", "Which cabinet sits where, and why"),
 )
 
 
-def _nest_links(out_dir: Path, stem: str) -> str:
-    """Links to the whole-group nest files that exist."""
-    items = []
-    for suffix, text in NEST_LINKS:
-        if (out_dir / f"{stem}{suffix}").is_file():
-            name = html.escape(f"{stem}{suffix}")
-            items.append(f'<li><a href="/files/{name}" target="_blank">{html.escape(text)}</a></li>')
-    return "<h2>Cut sheets</h2><ul>" + "".join(items) + "</ul>" if items else ""
+def _nest_summary(out_dir: Path, stem: str) -> str:
+    """One line per material from the nest cut list: sheets, yield, offcuts kept."""
+    path = out_dir / f"{stem}-nest-cutlist.md"
+    if not path.is_file():
+        return ""
+    out, in_summary = [], False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## Summary"):
+            in_summary = True
+            continue
+        if not in_summary:
+            continue
+        if line.startswith("## "):
+            break
+        if not line.startswith("| ") or line.startswith("|---") or "Material" in line:
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 6:
+            continue
+        sheets = cells[1]
+        out.append(f"{cells[0]}: {sheets} sheet{'s' if sheets != '1' else ''}, "
+                   f"{cells[3]} yield, {cells[4]} sq ft of offcuts kept")
+    return " · ".join(out)
+
+
+def _job_card(out_dir: Path, stem: str, form_id: str = "runform") -> str:
+    """What this run produced, grouped by who it is for (Brook, Oct 31).
+
+    The card sits outside the run form, so its buttons point back at that form
+    (`form="runform"`) and submit the widths and finishes on it. The single
+    cabinet page passes form_id="" and gets links only.
+    """
+    def link(suffix: str, title: str, note: str) -> str:
+        name = f"{stem}{suffix}"
+        if not (out_dir / name).is_file():
+            return ""
+        return (f'<a class="jitem" href="/files/{html.escape(name)}" target="_blank">'
+                f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></a>')
+
+    def button(action: str, title: str, note: str) -> str:
+        if not form_id:
+            return ""
+        return (f'<button class="jitem" type="submit" form="{form_id}" formaction="{action}">'
+                f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></button>')
+
+    groups = [
+        ("Shop floor", "".join(link(*item) for item in NEST_LINKS)),
+        ("Client", button("/client-sheet", "Client sheet (PDF)",
+                          "One page: colours, notes and the iso view") +
+                   button("/client-email", "Draft client email",
+                          "PDF + render + AR in a draft. Nothing is sent")),
+        ("Model", button("/run", "Show in Omacad", "Builds the model and opens it") +
+                  button("/ar", "AR view", "QR code and phone page for the model") +
+                  link(".omacad", "Model file (.omacad)", "The 3D model on disk")),
+    ]
+    body = ""
+    for title, items in groups:
+        if items:
+            body += f'<div><h3>{title}</h3>{items}</div>'
+    if not body:
+        return ""
+    summary = _nest_summary(out_dir, stem)
+    line = f'<p class="sum">{html.escape(summary)}</p>' if summary else ""
+    return (f'<section class="jcard"><h2>This job</h2>{line}'
+            f'<div class="jgroup">{body}</div></section>')
 
 
 def _run_page(view: dict, note: str = "", error: str = "", layout: str = "",
-              links: str = "", ar: str = "") -> str:
+              links: str = "", ar: str = "", card: str = "") -> str:
     parts = [_run_fields(view)]
     if ar:
         parts.append(ar)
     if error:
         parts.append(f'<p class="warn">{html.escape(error)}</p>')
+    if card:
+        parts.append(card)
     if note:
         parts.append(f'<p class="sub">{html.escape(note)}</p>')
     if links:
@@ -1272,7 +1371,7 @@ def _run_page(view: dict, note: str = "", error: str = "", layout: str = "",
     if layout:
         parts.append("<h2>This run</h2>")
         parts.append(_layout_table(layout))
-    parts.append('<p><a href="/">Single cabinet drawings</a></p>')
+    parts.append('<p><a href="/single">Single cabinet drawings</a></p>')
     return "".join(parts)
 
 
@@ -1291,10 +1390,9 @@ def _handle_run(form: dict, out_dir: Path) -> str:
     layout_path = out_dir / "base-run-layout.md"
     if layout_path.is_file():
         layout = layout_path.read_text(encoding="utf-8")
-    links = _nest_links(out_dir, "base-run")
     if not ok:
-        return _run_page(view, error=msg, layout=layout, links=links)
-    return _run_page(view, note=msg, layout=layout, links=links)
+        return _run_page(view, error=msg, layout=layout)
+    return _run_page(view, note=msg, layout=layout, card=_job_card(out_dir, "base-run"))
 
 
 def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
@@ -1526,11 +1624,11 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if not self._local():
                 self._html("<h1>Forbidden</h1><p>Only the AR pages are shared on the network.</p>", 403)
                 return
-            if path in ("/", "/index.html"):
-                self._page(_form_html(defaults()))
-                return
-            if path == "/run":
+            if path in ("/", "/index.html", "/run"):
                 self._page(_run_page(group_view(None)))
+                return
+            if path == "/single":
+                self._page(_form_html(defaults()))
                 return
             if path.startswith("/files/"):
                 name = Path(path[len("/files/"):]).name
