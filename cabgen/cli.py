@@ -65,6 +65,20 @@ def generate(p: Params, out_dir: Path, name: str | None = None,
         if p2:
             written.append(str(p2))
 
+    from types import SimpleNamespace
+    from .laminate_cut import write_laminate
+    lam_pages, _takeoff = write_laminate(
+        [SimpleNamespace(name=p.name, params=p)], None, out_dir, stem, p.name,
+    )
+    for i, page in enumerate(lam_pages, start=1):
+        lp = out_dir / f"{stem}-laminate-{i}.svg"
+        page.write(str(lp))
+        written.append(str(lp))
+        lpdf = svg_to_pdf(lp)
+        if lpdf:
+            written.append(str(lpdf))
+    written.append(str(out_dir / f"{stem}-laminate-cutlist.csv"))
+
     (out_dir / f"{stem}-cutlist.csv").write_text(to_csv(parts), encoding="utf-8")
     (out_dir / f"{stem}-cutlist.md").write_text(to_markdown(parts), encoding="utf-8")
     (out_dir / f"{stem}-table-saw.txt").write_text(to_table_saw_sheet(parts), encoding="utf-8")

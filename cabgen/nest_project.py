@@ -198,6 +198,10 @@ class Piece:
     width: float      # across the grain
     length: float     # along the grain
     grain: bool = False
+    eb_mask: str = "0000"
+    eb: str = ""
+    eb_spec: str = ""
+    notch: tuple | None = None
 
 
 @dataclass
@@ -352,6 +356,10 @@ def project_pieces(cabs, grain: dict | None = None, extra=None) -> list[Piece]:
                     group=group_name(part), thk=part.thk,
                     width=part.width, length=part.length,
                     grain=grain_for(part.material, grain),
+                    eb_mask=getattr(part, "eb_mask", "") or "0000",
+                    eb=getattr(part, "eb", "") or "",
+                    eb_spec=getattr(part, "eb_spec", "") or "",
+                    notch=getattr(part, "notch", None),
                 ))
     for part, labels in extra or []:
         if "solid surface" in part.material.lower():
@@ -361,6 +369,10 @@ def project_pieces(cabs, grain: dict | None = None, extra=None) -> list[Piece]:
                 label=lab, cabinet="Countertop", part=part.name, group=group_name(part),
                 thk=part.thk, width=part.width, length=part.length,
                 grain=grain_for(part.material, grain),
+                eb_mask=getattr(part, "eb_mask", "") or "0000",
+                eb=getattr(part, "eb", "") or "",
+                eb_spec=getattr(part, "eb_spec", "") or "",
+                notch=getattr(part, "notch", None),
             ))
     return out
 
@@ -704,11 +716,20 @@ def sheet_page(sheet: Sheet, group: Group, title: str, page: int, pages: int) ->
                      fill=fill, stroke=INK, sw=0.012)
         else:
             svg.rect(x, y, w, h, fill=fill, stroke=INK, sw=0.012)
+        from .edgeband import band_color, draw_edge_marks
+        draw_edge_marks(
+            svg, x, y, w, h,
+            length=p.piece.length, width=p.piece.width,
+            mask=p.piece.eb_mask, notch=p.piece.notch,
+            along_x=not p.turned, color=band_color(p.piece.eb_spec), sw=0.028,
+        )
         size = f"{_sz(p.piece.width)} x {_sz(p.piece.length)}" + (" T" if p.turned else "")
         if p.piece.part == "Microwave shelf":    # the nester packs rectangles; call out the radius
             size += '  2" R front corners'
-        _fit_text(svg, x + w / 2, y + h / 2, w, h,
-                  [(p.piece.label, 0.19, "bold"), (size, 0.14, "normal")])
+        lines = [(p.piece.label, 0.19, "bold"), (size, 0.14, "normal")]
+        if p.piece.eb:
+            lines.append((p.piece.eb, 0.13, "bold"))
+        _fit_text(svg, x + w / 2, y + h / 2, w, h, lines)
 
     # strip letters and rip widths on the left, sheet sizes on top
     for i, s in enumerate(sheet.strips):
@@ -742,6 +763,11 @@ def sheet_page(sheet: Sheet, group: Group, title: str, page: int, pages: int) ->
     svg.text(lx, ly + 1.48, "A, B ... = rip strips, top down", size=0.1)
     svg.text(lx, ly + 1.66, "B1-GL = base 1, gable left", size=0.1)
     svg.text(lx, ly + 1.84, "U2-DR = upper 2, door right", size=0.1)
+    svg.line(lx, ly + 2.08, lx + 0.4, ly + 2.08, stroke="#2F6F8F", sw=0.045, cap="square")
+    svg.text(lx + 0.5, ly + 2.12, "thick line = PVC edge band", size=0.1)
+    svg.text(lx, ly + 2.32, "L1 L2 length, W1 W2 ends", size=0.09)
+    svg.text(lx, ly + 2.48, "N1 = top of toe-kick notch", size=0.09)
+    svg.text(lx, ly + 2.64, "dashed = notch in the side", size=0.09)
 
     # cut order below the sheet, in columns
     steps = cut_steps(sheet)
@@ -836,14 +862,18 @@ def summary_page(groups: dict[str, Group], title: str, cabs, kerf: float, pages:
 
 
 def write_project_nest(groups: dict[str, Group], out_dir: Path, stem: str, title: str,
-                       cabs, kerf: float = KERF) -> list[Path]:
-    """PDF (summary + one page per sheet), cut list .csv and .md. Returns the paths."""
+                       cabs, kerf: float = KERF, extra_pages: list | None = None) -> list[Path]:
+    """PDF (summary + one page per sheet), cut list .csv and .md. Returns the paths.
+
+    ``extra_pages`` (the laminate cut list) are appended and counted in the page total.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     pages_dir = out_dir / f"{stem}-nest-pages"
     pages_dir.mkdir(exist_ok=True)
     for old in pages_dir.glob("*.svg"):
         old.unlink()
-    total = 1 + sum(len(g.sheets) for g in groups.values())
+    extra_pages = list(extra_pages or [])
+    total = 1 + sum(len(g.sheets) for g in groups.values()) + len(extra_pages)
     svgs = []
     first = pages_dir / "p01-summary.svg"
     summary_page(groups, title, cabs, kerf, total).write(str(first))
@@ -856,6 +886,11 @@ def write_project_nest(groups: dict[str, Group], out_dir: Path, stem: str, title
             path = pages_dir / f"p{page:02d}-{safe}-{sh.index}.svg"
             sheet_page(sh, g, title, page, total).write(str(path))
             svgs.append(path)
+    for extra in extra_pages:
+        page += 1
+        path = pages_dir / f"p{page:02d}-laminate.svg"
+        extra.write(str(path))
+        svgs.append(path)
     written = []
     pdf = out_dir / f"{stem}-nest.pdf"
     if _svgs_to_pdf(svgs, pdf):

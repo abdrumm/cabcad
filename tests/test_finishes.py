@@ -87,11 +87,17 @@ def test_blank_means_white_melamine_and_a_row_can_override(tmp_path: Path):
         hit = [b for b in boxes if fragment in b.name]
         assert hit, fragment
         return hit[0].color
-    assert color("Oak / Gable L") == WHITE_HEX
+    from cabgen.finishes import RAW_CASE_HEX, resolved_finished_ends
+    # Neither end of Oak is open (the next cabinet is the right side), so the
+    # gable stays the raw case colour. Storm's right end is open.
+    assert resolved_finished_ends(oak.params) == "none"
+    assert resolved_finished_ends(storm.params) == "right"
+    assert color("Oak / Gable L") == RAW_CASE_HEX
     assert color("Oak / Drawer front 1") == lookup("5786-NG").hex
     assert color("Oak / Back panel") == WHITE_HEX
     assert color("Storm / Drawer front 1") == lookup("912").hex
-    assert color("Storm / Gable L") == lookup("9529").hex
+    assert color("Storm / Gable L") == RAW_CASE_HEX
+    assert color("Storm / Gable R") == lookup("9529").hex
     assert color("Countertop / Top") == lookup("3450-58").hex
     assert any("Formica 5786-NG Ashwood Oak" in p.laminate for p in parts)
     assert "finish_warnings" not in settings or settings["finish_warnings"] == []
@@ -190,7 +196,8 @@ def test_omacad_payload_carries_body_colours():
     oak = lookup("5786-NG").hex.lstrip("#")
     assert door["color"][0] == round(int(oak[0:2], 16) / 255, 4)
     assert door["color"][3] == 1.0
+    from cabgen.finishes import RAW_CASE_HEX
     gable = next(b for b in payload["boxes"] if "Gable L" in b["name"])
-    white = WHITE_HEX.lstrip("#")
-    assert gable["color"][0] == round(int(white[0:2], 16) / 255, 4)
+    raw = RAW_CASE_HEX.lstrip("#")
+    assert gable["color"][0] == round(int(raw[0:2], 16) / 255, 4)
     assert "body_colors" in BUILDER and "def paint" in BUILDER

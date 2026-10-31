@@ -1,17 +1,49 @@
-manufacturer,number,name,hex,approximate,texture,kind,aliases
-Formica,5786-NG,Ashwood Oak,#C6B396,yes,,laminate,5786
-Formica,912,Storm,#3E4448,yes,,laminate,
-Formica,3450-58,Mineral Jet,#2A2C2E,yes,,laminate,3450
-Formica,9529,Seasalt,#D5D8D2,yes,,laminate,
-Formica,JO718,Fenix Grigio Londra,#8E8A84,yes,,laminate,Grigio Londra|Fenix Grigio Londra
-Formica,5789,Clove Spice Cherry,#7A4032,yes,,laminate,
-Wilsonart,7995-38,Sterling Ash,#B7A898,yes,,laminate,7995
-Wilsonart,7909-60,Fusion Maple,#E0C89A,yes,,laminate,7909
-Wilsonart,7924K-07,Biltmore Cherry,#8C4A38,yes,,laminate,7924K|7924
-SparkleLam,,Light Aqua,#6FCFC6,yes,,laminate,SparkleLam Light Aqua
-,white,White melamine,#F4F1EA,yes,,melamine,melamine|white melamine
-Corian,Glacier White,Glacier White,#F4F7F6,yes,,solid,Corian Glacier White
-Corian,Dove,Dove,#D9D4CC,yes,,solid,Corian Dove
-Corian,Cloud White,Cloud White,#F1EEE8,yes,,solid,Corian Cloud White
-Meganite,Jet Black,Jet Black,#141414,yes,,solid,Meganite Jet Black
-HI-MACS,Black Pearl,Black Pearl,#1A1C1E,yes,,solid,HI-MACS Black Pearl|HIMACS Black Pearl
+manufacturer,number,name,finish,group,staple,hex,approximate,texture,kind,aliases,tbd,swatch_note
+,TBD-WHITE,White,TBD,white,no,#F3F1EA,yes,,laminate,White (TBD)|white tbd,yes,"flat approximation, not a manufacturer swatch"
+,TBD-BLACK,Black,TBD,black,no,#2C2C2C,yes,,laminate,Black (TBD)|black tbd,yes,"flat approximation, not a manufacturer swatch"
+,TBD-WOOD,Woodgrain,TBD,woodgrain,no,#CDB892,yes,,laminate,Woodgrain (TBD)|woodgrain tbd,yes,"flat approximation, not a manufacturer swatch"
+,TBD-GREY,Grey,TBD,grey,no,#9C9C98,yes,,laminate,Grey (TBD)|Gray (TBD)|grey tbd,yes,"flat approximation, not a manufacturer swatch"
+Formica,949-58,White,Matte,white,yes,#F7F7F4,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,909-58,Black,Matte,black,yes,#1A1A1A,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,8844-WR,Aged Ash,Woodbrook,woodgrain,yes,#C4B496,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Corian,Cloud White,Cloud White,,white,no,#F1EEE8,yes,,solid,Corian Cloud White,no,"flat approximation, not a manufacturer swatch"
+Corian,Dove,Dove,,white,no,#D9D4CC,yes,,solid,Corian Dove,no,"flat approximation, not a manufacturer swatch"
+Corian,Glacier White,Glacier White,,white,no,#F4F7F6,yes,,solid,Corian Glacier White,no,"flat approximation, not a manufacturer swatch"
+Formica,9429-58,Seasalt,Matte,white,no,#E4E2D8,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,949-90,White,Gloss,white,no,#F4F4F4,yes,,laminate,949-90C,no,"flat approximation, not a manufacturer swatch"
+Formica,949C-90,White ColorCore 2,Gloss,white,no,#FBFBFB,yes,,laminate,949-CC90|949C90,no,"flat approximation, not a manufacturer swatch"
+Formica,9529,Seasalt,,white,no,#D5D8D2,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+,white,White melamine,,white,no,#F4F1EA,yes,,melamine,melamine|white melamine,no,"flat approximation, not a manufacturer swatch"
+Formica,3450-58,Mineral Jet,,black,no,#2A2C2E,yes,,laminate,3450,no,"flat approximation, not a manufacturer swatch"
+HI-MACS,Black Pearl,Black Pearl,,black,no,#1A1C1E,yes,,solid,HI-MACS Black Pearl|HIMACS Black Pearl,no,"flat approximation, not a manufacturer swatch"
+Meganite,Jet Black,Jet Black,,black,no,#141414,yes,,solid,Meganite Jet Black,no,"flat approximation, not a manufacturer swatch"
+Formica,3505-58,Storm Solidz,Matte,grey,no,#5E676E,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,902-58,Platinum,Matte,grey,no,#C8C9CC,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,912,Storm,,grey,no,#3E4448,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,912-58,Storm,Matte,grey,no,#5A6166,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,9243-58,Zen Grey,Matte,grey,no,#8D8D88,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,925-58,Mouse,Matte,grey,no,#8F877C,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,JO718,Fenix Grigio Londra,,grey,no,#8E8A84,yes,,laminate,Grigio Londra|Fenix Grigio Londra,no,"flat approximation, not a manufacturer swatch"
+Formica,346-58,Natural Oak,Matte,woodgrain,no,#C6A36A,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,5786-NG,Ashwood Oak,,woodgrain,no,#C6B396,yes,,laminate,5786,no,"flat approximation, not a manufacturer swatch"
+Formica,5789,Clove Spice Cherry,,woodgrain,no,#7A4032,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,7012-58,Amber Maple,Matte,woodgrain,no,#C4923E,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,8843-WR,Natural Ash,Woodbrook,woodgrain,no,#D9C7A6,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,8910-NG,Raw Birchply,,woodgrain,no,#E4CFA8,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,9012-26,Ebony Oiled Wood,Oiled,woodgrain,no,#3C3028,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,7850-60,Vert Beigewood,,woodgrain,no,#C4B08A,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,7909-60,Fusion Maple,,woodgrain,no,#E0C89A,yes,,laminate,7909,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,7924K-07,Biltmore Cherry,,woodgrain,no,#8C4A38,yes,,laminate,7924K|7924,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,7995-38,Sterling Ash,,woodgrain,no,#B7A898,yes,,laminate,7995,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,8201K-12,Grey Elm,,woodgrain,no,#A89888,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,8214K-28,Phantom Charcoal,,woodgrain,no,#4E4A46,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,8221-38,Sap Walnut,,woodgrain,no,#6A4A30,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,8251K-79,Fremont Oak,,woodgrain,no,#A67C52,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,410,Argento Terrazzo Matrix,,pattern,no,#C5C2BA,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,6695-58,Paloma Polar,Matte,pattern,no,#E7E2D6,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Formica,781,Luna Concrete,,pattern,no,#B5B1AC,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,4143-60,Neutral Glace,,pattern,no,#D2CDC4,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,4878-38,Pewter Mesh,,pattern,no,#8E9498,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Wilsonart,9218CM,Grey Beola,,pattern,no,#9A9B9E,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+Pionite,SB006,Indigo Blue,Suede,color,no,#2E4A86,yes,,laminate,,no,"flat approximation, not a manufacturer swatch"
+SparkleLam,,Light Aqua,,color,no,#6FCFC6,yes,,laminate,SparkleLam Light Aqua,no,"flat approximation, not a manufacturer swatch"

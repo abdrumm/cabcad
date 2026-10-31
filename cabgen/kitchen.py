@@ -20,7 +20,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .cutlist import to_csv
-from .finishes import JOB_KEYS, job_top_spec, paint_boxes, paint_counter_boxes, row_finish
+from .finishes import (
+    JOB_KEYS, job_top_spec, paint_boxes, paint_counter_boxes, posted_finish, row_finish,
+)
 from .model3d import Box, HoleSpec, build_model
 from .params import STYLE_PRESETS, Params, door_rule_warnings, enforce_upper_door_limit, min_width
 from .parts import build_parts
@@ -98,8 +100,8 @@ def load_kitchen(path: Path) -> tuple[dict, list[dict]]:
                 if key in ("upper_bottom", "upper_offset", "base_offset", "filler",
                            "sheet_w", "sheet_l", "kerf", "kickplate_h"):
                     settings[key] = _float(value, f"{path.name} {key}")
-                elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right",
-                             "kickplate", "kickplate_color"):
+                elif key in ("base_walls", "upper_walls", "filler_side", "counter", "splash_left",
+                             "splash_right", "kickplate", "kickplate_color"):
                     settings[key] = value
                 elif key in JOB_KEYS:
                     settings[JOB_KEYS[key]] = value
@@ -146,8 +148,9 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
         if run == "upper" and gap:
             raise KitchenError(f"{source} line {number}: uppers never get a filler, so leave gap_after blank")
         drawer_h = _optional(row.get("drawer_front_h"), f"{source} line {number} drawer_front_h")
+        finished = _finished_ends(row.get("finished_ends"), f"{source} line {number}")
         params = Params(style=style, name=name, width=width, height=height, depth=depth,
-                        drawer_front_h=drawer_h, handle_side=handle,
+                        drawer_front_h=drawer_h, handle_side=handle, finished_ends=finished,
                         finish_case=row_finish(row, "finish_case", settings.get("finish_case", "")),
                         finish_doors=row_finish(row, "finish_doors", settings.get("finish_doors", "")),
                         finish_top=row_finish(row, "finish_top", settings.get("finish_top", "")),
@@ -423,6 +426,8 @@ def _counter_reach(cabs: list[Cab], facts: dict) -> str:
 def apply_discovered_rules(cabs: list[Cab], settings: dict) -> None:
     """Put the known end rules on the base run. Sheets without them stay as they were."""
     if "base_walls" not in settings:
+        if "upper_walls" in settings:
+            _apply_upper_ends(cabs, settings)
         return
     facts = end_facts(settings)
     bases = [cab for cab in cabs if cab.run == "base"]
@@ -436,6 +441,7 @@ def apply_discovered_rules(cabs: list[Cab], settings: dict) -> None:
         params.has_spacer = False
         params.spacer_side = ""
         params.laminate_right_side = params.right_side != "wall"
+    _apply_upper_ends(cabs, settings)
     if facts["filler"] and bases:
         end = bases[0] if facts["filler_side"] == "left" else bases[last]
         end.params.has_spacer = True
@@ -468,13 +474,13 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
                 if settings.get("kickplate_h") not in (None, ""):
                     lines.append(f"# kickplate_h={float(settings['kickplate_h']):g}")
     lines.append("# Blank height and depth keep the style. x is the left edge of that cabinet.")
-    lines.append("name,style,width,run,height,depth,x,drawer_front_h,handle")
+    lines.append("name,style,width,run,height,depth,x,drawer_front_h,handle,finished_ends")
     for cab in cabinets:
         drawer = cab.get("drawer")
         drawer_text = f"{drawer:g}" if drawer else ""
         lines.append(
             f"{cab['name']},{cab['style']},{cab['width']:g},{cab['run']},,,{cab['x']:g},"
-            f"{drawer_text},{cab.get('handle') or ''}"
+            f"{drawer_text},{cab.get('handle') or ''},{cab.get('finished_ends') or ''}"
         )
     lines.append("")
     return "\n".join(lines)
@@ -506,9 +512,13 @@ def group_settings(form: dict) -> dict:
             raise KitchenError(f"side splash on the {side} is yes or no")
         splash[f"splash_{side}"] = raw
     finishes = {}
+    for key in ("case", "doors", "top", "interior"):
+        val = posted_finish(form, key)
+        if val:
+            finishes[JOB_KEYS[key]] = val
     for form_key, field in JOB_KEYS.items():
         raw = form.get(form_key)
-        if field not in finishes and raw is not None and str(raw).strip():
+        if field not in finishes and raw is not None and str(raw).strip() and str(raw).strip() != "__custom__":
             finishes[field] = str(raw).strip()
     from .kickplate import color_name
     kick = str(form.get("kickplate") or "no").strip().lower()
@@ -544,8 +554,8 @@ def group_settings(form: dict) -> dict:
 def parse_group(form: dict) -> list[dict]:
     """Uppers and bases from the run form. The rows are separate."""
     settings = group_settings(form)
-    bases = _members(form, "bw", "bs", "base cabinet", BASE_CHOICES, "3drawer", "bd")
-    uppers = _members(form, "uw", "us", "upper", UPPER_CHOICES, "upper", "ud", "uh")
+    bases = _members(form, "bw", "bs", "base cabinet", BASE_CHOICES, "3drawer", "bd", end_prefix="bfe")
+    uppers = _members(form, "uw", "us", "upper", UPPER_CHOICES, "upper", "ud", "uh", end_prefix="ufe")
     if not bases and not uppers:
         raise KitchenError("add at least one cabinet")
     facts = end_facts(settings)
@@ -570,7 +580,7 @@ def parse_group(form: dict) -> list[dict]:
 
 
 def _members(form, width_prefix, style_prefix, label, choices, default_style, drawer_prefix=None,
-             handle_prefix=None) -> list[dict]:
+             handle_prefix=None, end_prefix=None) -> list[dict]:
     present = posted_indexes(form, width_prefix)
     if present and present != list(range(1, present[-1] + 1)):
         raise KitchenError(f"{label}s have a gap")
@@ -599,8 +609,51 @@ def _members(form, width_prefix, style_prefix, label, choices, default_style, dr
             drawer = float(DRAWER_DEFAULT) if raw_d is None or str(raw_d).strip() == "" else _float(raw_d, f"{label} {i} drawer")
             if drawer not in DRAWER_HEIGHTS:
                 raise KitchenError(f"{label} {i}: the drawer is 4 to 8 inches tall")
-        found.append({"style": style, "width": width, "drawer": drawer, "handle": handle})
+        ends = ""
+        if end_prefix:
+            ends = _finished_ends(form.get(f"{end_prefix}{i}"), f"{label} {i} finished end")
+        found.append({"style": style, "width": width, "drawer": drawer, "handle": handle,
+                      "finished_ends": ends})
     return found
+
+
+def _finished_ends(cell, label: str) -> str:
+    """Blank or auto means the run ends decide. Otherwise left, right, both, or none."""
+    raw = str(cell or "").strip().lower()
+    if raw in ("", "auto"):
+        return ""
+    if raw not in ("left", "right", "both", "none"):
+        raise KitchenError(f"{label}: finished end is left, right, both, none, or blank")
+    return raw
+
+
+def _apply_upper_ends(cabs, settings: dict) -> None:
+    """Upper ends follow ``# upper_walls=`` when the job has it, else the base walls.
+
+    Same idea as the bases: an end that is not against a wall, and not against
+    the next upper, is open. Uppers never get a filler. A cabinet that names
+    ``finished_ends`` keeps that note; the sides still update.
+    """
+    if "upper_walls" not in settings and "base_walls" not in settings:
+        return
+    spec = settings["upper_walls"] if "upper_walls" in settings else settings.get("base_walls")
+    walls = str(spec or "left").strip().lower()
+    if walls in ("0", "none", "no", "open"):
+        left_wall, right_wall = False, False
+    elif walls == "left":
+        left_wall, right_wall = True, False
+    elif walls == "right":
+        left_wall, right_wall = False, True
+    elif walls == "both":
+        left_wall, right_wall = True, True
+    else:
+        return
+    uppers = [cab for cab in cabs if cab.run == "upper"]
+    last = len(uppers) - 1
+    for i, cab in enumerate(uppers):
+        cab.params.left_side = "wall" if i > 0 or left_wall else "open"
+        cab.params.right_side = "wall" if i < last or right_wall else "open"
+        cab.params.laminate_right_side = cab.params.right_side != "wall"
 
 
 def _offset(cell, label: str) -> float:
@@ -677,7 +730,10 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
     except NestError as exc:
         extra = "".join(f"\n! {w}" for w in door_warns)
         return False, f"nesting: {exc}{extra}"
-    nest_files = write_project_nest(groups, out_dir, stem, name, cabs, kerf)
+    from .laminate_cut import write_laminate
+    lam_pages, _takeoff = write_laminate(cabs, settings, out_dir, stem, name)
+    nest_files = write_project_nest(groups, out_dir, stem, name, cabs, kerf, extra_pages=lam_pages)
+    nest_files.append(out_dir / f"{stem}-laminate-cutlist.csv")
     counter_path = out_dir / f"{stem}-counter.md"
     if counter:
         counter_path.write_text(counter_text(counter), encoding="utf-8")
