@@ -35,6 +35,7 @@ from .params import (
 
 MAT_3_4 = '3/4" melamine'
 MAT_1_2 = '1/2" melamine'
+MAT_1_4 = '1/4" melamine'   # drawer box bottoms (Brook, Oct 30: 1/4", not 1/2")
 MAT_1_2_CORIAN = '1/2" Corian'
 MAT_1_MDF = '1" MDF'
 
@@ -549,7 +550,8 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
         )
         parts.append(
             Part("Drawer box bottom", qty=len(layout.drawer_heights),
-                 material=MAT_1_2, thk=p.drawer_box_bottom_thk,
+                 material=MAT_1_4 if abs(p.drawer_box_bottom_thk - 0.25) < 1e-6
+                 else f'{fmt(p.drawer_box_bottom_thk)} melamine', thk=p.drawer_box_bottom_thk,
                  width=bottom_w, length=bottom_d, banding="None (concealed).",
                  notes=(
                      f"In a {fmt(p.drawer_groove)} groove, "

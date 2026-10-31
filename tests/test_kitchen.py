@@ -259,3 +259,15 @@ def test_uppers_never_have_drawers(tmp_path: Path):
     else:
         raise AssertionError("the form should refuse an upper drawer")
 
+
+
+def test_drawer_bottom_is_labelled_quarter_inch():
+    """Brook, Oct 30: drawer bottoms are 1/4" melamine; the label matches the thickness."""
+    from cabgen.params import Params
+    from cabgen.parts import build_parts
+    for style in ("base_1drawer_2doors", "base_3drawers"):
+        parts, _ = build_parts(Params(style=style))
+        bottoms = [pt for pt in parts if pt.name == "Drawer box bottom"]
+        assert bottoms, style
+        for pt in bottoms:
+            assert pt.thk == 0.25 and pt.material == '1/4" melamine', (style, pt.material)
