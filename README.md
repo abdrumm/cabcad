@@ -46,7 +46,9 @@ only window. `--no-show` writes the file and leaves the window alone.
 | `<name>-cutlist.csv` | cut list for the saw (qty, part, material, thk, width, length, banding, laminate, notes) |
 | `<name>-cutlist.md` | the same, readable |
 | `<name>-table-saw.txt` | one line per piece, the way it is read off the list |
-| `<name>-nest-<material>-<n>.svg/.pdf` | nesting sheets, 4x8, 3/16" kerf, grain along the length |
+| `<name>-nest.pdf` | nesting sheets, 4x8, 3/16" kerf: parts labelled as in the cut list, offcuts to keep, scrap hatched, cut order below each sheet (print 11x17 at 100%) |
+| `<name>-nest-cutlist.md` / `.csv` | the same nest as text: strip by strip cut order, labels, offcuts to keep |
+| `<name>-nest-pages/` | the individual nest SVG pages that went into the PDF |
 | `<name>-params.json` | every parameter, so a job can be replayed |
 | `<name>.omacad` | the 3D model: one named body per part, in mm, opens in Omacad |
 

@@ -11,8 +11,9 @@ import sys
 from pathlib import Path
 
 from .cutlist import to_csv, to_markdown, to_table_saw_sheet
-from .draw import cutlist_sheet, nesting_drawing, shop_drawing
-from .nesting import nest_by_material, uncuttable
+from .draw import cutlist_sheet, shop_drawing
+from .nest_project import NestError, nest_project, write_project_nest
+from .nesting import uncuttable
 from .params import Params, STYLE_LABELS, STYLE_PRESETS, door_rule_warnings
 from .parts import build_parts
 from .units import fmt_in
@@ -74,19 +75,18 @@ def generate(p: Params, out_dir: Path, name: str | None = None,
         str(out_dir / f"{stem}-table-saw.txt"),
     ]
 
-    nests = nest_by_material(parts, p.sheet_w, p.sheet_h, p.kerf)
-    for material, sheets in nests.items():
-        safe = material.replace('"', "").replace(" ", "-").replace("/", "-")
-        if not sheets:
-            continue
-        for sheet in sheets:
-            svg = nesting_drawing(sheets, f"{material} - nesting", p.kerf, p.sheet_w, p.sheet_h)
-            np = out_dir / f"{stem}-nest-{safe}-{sheet.index}.svg"
-            svg.write(str(np))
-            written.append(str(np))
-            npdf = svg_to_pdf(np)
-            if npdf:
-                written.append(str(npdf))
+    nests: dict = {}
+    from .kitchen import Cab
+
+    cab_list = [Cab(p.name or "Cabinet", p, "upper" if str(p.style).startswith("upper") else "base",
+                    0.0, 0.0, 0.0, 0.0)]
+    try:
+        nests = nest_project(cab_list, p.sheet_w, p.sheet_h, p.kerf)
+    except NestError as exc:
+        warnings.append(f"nesting: {exc}")
+    else:
+        written += [str(path) for path in
+                    write_project_nest(nests, out_dir, stem, p.name or stem, cab_list, p.kerf)]
 
     (out_dir / f"{stem}-params.json").write_text(json.dumps(p.to_dict(), indent=2), encoding="utf-8")
     written.append(str(out_dir / f"{stem}-params.json"))
