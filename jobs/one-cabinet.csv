@@ -1,0 +1,5 @@
+# One cabinet. Change width. Leave height and depth blank to keep this style:
+# base 3-drawer is 33.5 high and 23.5 deep.
+# Styles: 3drawer, base (1 drawer over 2 doors), upper (2 doors; uppers never have drawers)
+name,style,width,run,height,depth
+Base cabinet,3drawer,27,base,,
