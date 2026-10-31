@@ -259,6 +259,9 @@ def group_view(form: dict | None) -> dict:
             view["filler_side"] = str(form.get("filler_side")).strip()
         if form.get("filler") is not None and str(form.get("filler")).strip() != "":
             view["filler"] = str(form.get("filler")).strip()
+        for key in ("job", "client", "job_no", "rev", "finish_fronts", "finish_box", "finish_counter"):
+            if form.get(key) is not None:
+                view[key] = str(form.get(key)).strip()
         for key in ("counter", "splash_left", "splash_right"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
@@ -503,6 +506,10 @@ RUN_CSS = """
   #wire .wf-dim { stroke: currentColor; stroke-width: .2; opacity: .7; }
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
+  .jobline { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 .3rem; }
+  .jobline label { display: flex; flex-direction: column; font-size: .72rem; opacity: .9; margin: 0; flex: 1 1 12rem; }
+  .jobline label.sm { flex: 0 0 6rem; }
+  .jobline input { padding: .3rem .5rem; font-size: .9rem; }
   .cutlive summary { cursor: pointer; display: flex; gap: .8rem; align-items: baseline; list-style: none; }
   #cutlist { max-height: 22rem; overflow: auto; margin-top: .4rem; }
   table.cut { font-size: .78rem; margin: 0; }
@@ -937,6 +944,12 @@ def _run_fields(view: dict) -> str:
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 </div>
 </header>
+<section class="jobline" aria-label="Job">
+<label>Job<input type="text" name="job" id="job" value="{html.escape(view.get("job", ""))}" placeholder="Smith kitchen"></label>
+<label>Client<input type="text" name="client" id="client" value="{html.escape(view.get("client", ""))}" placeholder="Client name"></label>
+<label class="sm">Job no.<input type="text" name="job_no" id="job_no" value="{html.escape(view.get("job_no", ""))}"></label>
+<label class="sm">Rev<input type="text" name="rev" id="rev" value="{html.escape(view.get("rev", "A"))}"></label>
+</section>
 <p class="lead">Each row builds left to right. The + adds a cabinet on the right end of that row.
 Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and depth stay with the style.</p>
 <section class="row" aria-label="Uppers">

@@ -48,4 +48,4 @@ def test_one_detail_page_per_style_about_one_cabinet_only():
     assert "BASE, 3 DRAWERS" in three and "W = 27&quot;" in three
     assert "drawn on this page" in three and ">B3<" in three
     assert ">B2<" not in three and ">U1<" not in three   # nothing from the neighbours
-    assert "Page 3 of 5" in three
+    assert ">SHEET<" in three and ">3 of 5<" in three

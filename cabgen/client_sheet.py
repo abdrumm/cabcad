@@ -104,7 +104,8 @@ def load_job(sheet: Path, name: str | None = None) -> Job:
     settings, rows = load_kitchen(sheet)
     cabs = place_kitchen(rows, settings, sheet.name)
     apply_discovered_rules(cabs, settings)
-    return job_from(cabs, settings, name or sheet.stem.replace("-", " ").replace("_", " ").title())
+    return job_from(cabs, settings, name or settings.get("job")
+                    or sheet.stem.replace("-", " ").replace("_", " ").title())
 
 
 _PIECE_NO = re.compile(r"(?<=[A-Z])\d+[AB]?(?= )|\s\d+(?: (?:left|right) half)?$")
@@ -182,17 +183,47 @@ def job_from(cabs, settings: dict, name: str) -> Job:
     return Job(name, cabs, settings, keep, cabinet_codes(cabs), filler, counter)
 
 
-def _color(box) -> str:
+# The colours in use. The defaults are the drawing palette above; a job's finish picks
+# (doors/fronts, box, countertop) swap them in for its pages, render and AR model.
+import contextlib
+import contextvars
+
+DEFAULT_PALETTE = {"case": CASE, "front": FRONT, "pull": PULL, "laminate_top": LAMTOP,
+                   "solid_top": SOLID}
+_PALETTE: contextvars.ContextVar[dict] = contextvars.ContextVar("palette", default=DEFAULT_PALETTE)
+
+
+def pal() -> dict:
+    return _PALETTE.get()
+
+
+@contextlib.contextmanager
+def palette_for(job):
+    """Draw with the job's finish colours inside this block."""
+    from .finishes import palette_of
+    token = _PALETTE.set(palette_of(getattr(job, "settings", None) or {}))
+    try:
+        yield pal()
+    finally:
+        _PALETTE.reset(token)
+
+
+def role_of(box) -> str:
+    """Which finish a box shows: front, case, pull, laminate_top or solid_top."""
     mat = box.material
     if "pull" in mat or "hardware" in mat:
-        return PULL
+        return "pull"
     if "solid surface" in mat:
-        return SOLID
+        return "solid_top"
     if "plywood" in mat:
-        return LAMTOP
+        return "laminate_top"
     if "laminate" in mat:
-        return FRONT
-    return CASE
+        return "front"
+    return "case"
+
+
+def _color(box) -> str:
+    return pal()[role_of(box)]
 
 
 def _filler_box(job: Job):
@@ -356,8 +387,8 @@ def plan_view(svg: Svg, job: Job, box) -> None:
     svg.line(X(x0) - 0.15, Y(wall), X(x1) + 0.15, Y(wall), stroke=INK, sw=0.012)
     for c in job.bases:
         p = c.params
-        svg.rect(X(c.x), Y(c.y + p.depth), p.width * s, p.depth * s, fill=CASE, stroke=INK, sw=0.009)
-        svg.rect(X(c.x + 0.25), Y(c.y), (p.width - 0.5) * s, 0.75 * s, fill=FRONT, stroke="#56606b",
+        svg.rect(X(c.x), Y(c.y + p.depth), p.width * s, p.depth * s, fill=pal()["case"], stroke=INK, sw=0.009)
+        svg.rect(X(c.x + 0.25), Y(c.y), (p.width - 0.5) * s, 0.75 * s, fill=pal()["front"], stroke="#56606b",
                  sw=0.005)
         svg.text(X(c.x + p.width / 2), Y(c.y + p.depth * 0.28) + 0.05, job.codes[c.name], size=0.15,
                  anchor="middle", weight="bold", fill=INK)
@@ -367,7 +398,7 @@ def plan_view(svg: Svg, job: Job, box) -> None:
         svg.rect(X(f0), Y(dep), (f1 - f0) * s, (dep + 0.75) * s, fill=FILL, stroke=INK, sw=0.007)
     ct = job.counter
     if ct:
-        color = SOLID if ct.kind == "solid" else LAMTOP
+        color = pal()["solid_top"] if ct.kind == "solid" else pal()["laminate_top"]
         svg.rect(X(ct.x0), Y(ct.y_back), ct.length * s, ct.depth * s, fill=color, stroke=INK, sw=0.012)
         st = ct.splash_thk
         svg.rect(X(ct.x0), Y(ct.y_back), ct.length * s, st * s, fill=_shade(color, 0.85), stroke=INK, sw=0.006)
@@ -442,10 +473,12 @@ def end_view(svg: Svg, job: Job, box) -> None:
 
 
 def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
-             ground: bool = True, dim_text: str | None = None) -> None:
+             ground: bool = True, dim_text: str | None = None, heading: bool = True,
+             dims: bool = True, floor_fill: str = "#eef0f2", wall_fill: str = "#f6f7f8") -> None:
     """Shaded 3D view from the front right, above. Boxes painted far to near."""
     bx, by, bw, bh = box
-    _heading(svg, bx, by + 0.15, "3D VIEW")
+    if heading:
+        _heading(svg, bx, by + 0.15, "3D VIEW")
     phi = math.radians(phi_deg)
     v = (-math.sin(phi), math.cos(phi), -tilt)
     n = math.sqrt(sum(c * c for c in v))
@@ -487,8 +520,8 @@ def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
         svg.poly([P(p) for p in points], fill=fill, stroke=stroke, sw=sw)
 
     if ground:
-        poly([(x0, -14, z0), (x1, -14, z0), (x1, wall, z0), (x0, wall, z0)], "#eef0f2")
-    poly([(x0, wall, z0), (x1, wall, z0), (x1, wall, top), (x0, wall, top)], "#f6f7f8")
+        poly([(x0, -14, z0), (x1, -14, z0), (x1, wall, z0), (x0, wall, z0)], floor_fill)
+    poly([(x0, wall, z0), (x1, wall, z0), (x1, wall, top), (x0, wall, top)], wall_fill)
 
     # order: a box behind (larger y), to the left (smaller x) or below another is drawn first
     def before(a, b) -> bool | None:
@@ -553,7 +586,7 @@ def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
         poly([(x, y, z), (X1, y, z), (X1, y, Z1), (x, y, Z1)], _shade(base, 0.94), edge, sw)      # front
 
     span_b = job.run_span("base") or job.run_span("upper")
-    if span_b:
+    if span_b and dims:
         zb = min(c.z for c in job.cabs)
         a, b_ = P((span_b[0], -0.75, zb)), P((span_b[1], -0.75, zb))
         off = 0.18
@@ -622,29 +655,49 @@ def schedule(svg: Svg, job: Job, box) -> None:
             svg.text(x0 + colw - 1.4, y, sizes, size=size, fill=INK)
 
 
+def _fit(text: str, size: float, width: float) -> str:
+    """Trim text that would run past `width` (DejaVu Sans averages ~0.56 em a glyph)."""
+    room = max(3, int(width / (size * 0.56)))
+    return text if len(text) <= room else text[:room - 1].rstrip() + "\u2026"
+
+
 def title_block(svg: Svg, job: Job, box, date: str, drawing: str = "Kitchen layout - client presentation",
                 cabinets: str | None = None, page: str = "") -> None:
+    """Minimal Coppinger title block: logo and address, job, then the facts in two
+    columns of label / value. Hairlines, one accent (navy), no boxes inside boxes."""
+    from . import branding as br
     bx, by, bw, bh = box
-    svg.rect(bx, by, bw, bh, fill="#ffffff", stroke=INK, sw=0.012)
-    svg.line(bx, by + 0.55, bx + bw, by + 0.55, stroke=INK, sw=0.008)
-    svg.text(bx + 0.15, by + 0.38, job.name, size=0.26, weight="bold", fill=INK)
+    st = job.settings or {}
+    svg.rect(bx, by, bw, bh, fill="#ffffff", stroke=br.RULE, sw=0.008)
+    svg.line(bx, by, bx + bw, by, stroke=br.NAVY, sw=0.03)            # the one accent rule
+    pad = 0.14
+    svg.group(br.logo_svg(bx + pad, by + 0.1, 0.34))
+    for i, line in enumerate((br.COMPANY, br.STREET, f"{br.CITY} · {br.PHONE}")):
+        svg.text(bx + bw - pad, by + 0.17 + i * 0.105, line, size=0.08,
+                 anchor="end", fill=br.NAVY if i == 0 else br.SOFT, weight="bold" if i == 0 else "normal")
+    svg.line(bx + pad, by + 0.53, bx + bw - pad, by + 0.53, stroke=br.RULE, sw=0.006)
+    title = job.name + (f"  \u00b7  No. {st['job_no']}" if st.get("job_no") else "")
+    svg.text(bx + pad, by + 0.76, _fit(title, 0.19, bw - 2 * pad), size=0.19, weight="bold", fill=br.INK)
     nb, nu = len(job.bases), len(job.uppers)
-    rows = [
-        ("Drawing", drawing),
-        ("Date", date + (f"      Page {page}" if page else "")),
-        ("Cabinets", cabinets or f"{nb + nu} ({nb} base, {nu} upper)"),
-        ("Countertop", job.counter.description if job.counter else "none"),
-        ("Prepared by", ""),
-    ]
-    y = by + 0.76
-    for k, v in rows:
-        svg.text(bx + 0.15, y, k.upper(), size=0.09, fill=SOFT)
-        svg.text(bx + 1.3, y, v, size=0.13, fill=INK)
-        if k == "Prepared by":
-            svg.line(bx + 1.3, y + 0.03, bx + bw - 0.2, y + 0.03, stroke=SOFT, sw=0.005)
-        y += 0.18
-    svg.text(bx + 0.15, by + bh - 0.08,
-             "Preliminary, for discussion. Not for construction.", size=0.1, fill=SOFT)
+    sheet = page.replace("Page ", "") if page else "1 of 1"
+    left = [("Client", st.get("client") or "\u2014"), ("Date", date),
+            ("Revision", st.get("rev") or "\u2014"), ("Sheet", sheet)]
+    right = [("Drawing", drawing), ("Cabinets", cabinets or f"{nb + nu} ({nb} base, {nu} upper)")]
+    if bw > 5:
+        right += [("Countertop", job.counter.description if job.counter else "none"),
+                  ("Prepared by", "")]
+    colw = (bw - 2 * pad) / 2
+    for c, rows in enumerate((left, right)):
+        x0 = bx + pad + c * colw
+        lab = 0.62 if c == 0 else 0.78
+        for r, (k, v) in enumerate(rows):
+            y = by + 0.98 + r * 0.155
+            svg.text(x0, y, k.upper(), size=0.068, fill=br.SOFT)
+            svg.text(x0 + lab, y, _fit(str(v), 0.1, colw - lab - 0.08), size=0.1, fill=br.INK)
+            if k == "Prepared by":
+                svg.line(x0 + lab, y + 0.03, x0 + colw - 0.1, y + 0.03, stroke=br.RULE, sw=0.005)
+    svg.text(bx + pad, by + bh - 0.08, "Preliminary, for discussion. Not for construction.",
+             size=0.07, fill=br.SOFT)
 
 
 # --------------------------------------------------------------------------- detail pages
@@ -1017,11 +1070,16 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
 
 
 def render_pages(job: Job, date: str | None = None) -> list[Svg]:
+    with palette_for(job):
+        return _render_pages(job, date)
+
+
+def _render_pages(job: Job, date: str | None = None) -> list[Svg]:
     date = date or _dt.date.today().strftime("%B %-d, %Y")
     groups = style_groups(job)
     extra = 1 if job.counter else 0
     total = 1 + extra + len(groups)
-    pages = [render(job, date, page=f"1 of {total}")]
+    pages = [_render(job, date, page=f"1 of {total}")]
     if job.counter:
         pages.append(counter_page(job, date, f"2 of {total}"))
     for i, (style, cabs) in enumerate(groups, start=2 + extra):
@@ -1031,6 +1089,11 @@ def render_pages(job: Job, date: str | None = None) -> list[Svg]:
 
 def render(job: Job, date: str | None = None, page: str = "") -> Svg:
     """Page 1: the whole kitchen."""
+    with palette_for(job):
+        return _render(job, date, page)
+
+
+def _render(job: Job, date: str | None = None, page: str = "") -> Svg:
     date = date or _dt.date.today().strftime("%B %-d, %Y")
     svg = Svg(PAGE_W, PAGE_H)
     svg.rect(M / 2, M / 2, PAGE_W - M, PAGE_H - M, fill="none", stroke=INK, sw=0.014)

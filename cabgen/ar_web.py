@@ -115,13 +115,18 @@ def phone_page(base: str, version: str, title: str) -> str:
     glb_url = f"{base}/ar/{AR_STEM}.glb?v={version}"
     usdz = f"/ar/{AR_STEM}.usdz?v={version}"
     t = html.escape(title)
+    from .branding import logo_data_uri
+    logo = logo_data_uri()
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{t} - AR</title>
 <style>body{{font-family:system-ui,sans-serif;margin:1.2rem;line-height:1.4;color-scheme:light dark}}
-a.btn{{display:block;margin:1rem 0;padding:1rem;border-radius:12px;background:#2563eb;color:#fff;
+a.btn{{display:block;margin:1rem 0;padding:1rem;border-radius:12px;background:#263460;color:#fff;
 text-align:center;text-decoration:none;font-weight:600}} img{{width:100%;max-width:360px;border-radius:12px}}
-.sub{{opacity:.7;font-size:.9rem}}</style></head><body>
+.sub{{opacity:.7;font-size:.9rem}}
+.mark{{display:inline-block;background:#fff;border-radius:8px;padding:.3rem .5rem}}
+.mark img{{height:28px;width:auto;border-radius:0;display:block}}</style></head><body>
+<span class="mark"><img src="{logo}" alt="Coppinger Exhibits"></span>
 <h1>{t}</h1>
 <p><b>iPhone / iPad:</b> tap the picture.</p>
 <a rel="ar" href="{usdz}"><img src="/ar/preview.svg" alt="View the cabinets in your room"></a>

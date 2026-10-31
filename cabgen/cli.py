@@ -223,6 +223,21 @@ def cmd_client(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render(args: argparse.Namespace) -> int:
+    from .client_sheet import load_job
+    from .kitchen import KitchenError
+    from .render import write_render
+
+    sheet = Path(args.sheet)
+    try:
+        png = write_render(load_job(sheet, args.name), Path(args.out), args.stem or f"{sheet.stem}-render")
+    except (KitchenError, RuntimeError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  {png}")
+    return 0
+
+
 def cmd_styles(args: argparse.Namespace) -> int:
     for key, preset in STYLE_PRESETS.items():
         print(f"{key:<22} {preset['label']}")
@@ -304,6 +319,13 @@ def build_parser() -> argparse.ArgumentParser:
     cs.add_argument("--name", default=None, help="job name on the page (default: file name)")
     cs.add_argument("--stem", default=None, help="output file name stem")
     cs.set_defaults(func=cmd_client)
+
+    rd = sub.add_parser("render", help="client render (PNG) of a kitchen sheet, logo in the corner")
+    rd.add_argument("sheet", help="kitchen CSV")
+    rd.add_argument("--out", default="out/render")
+    rd.add_argument("--name", default=None)
+    rd.add_argument("--stem", default=None)
+    rd.set_defaults(func=cmd_render)
 
     op = sub.add_parser("open", help="open the generated model in Omacad")
     op.add_argument("--name", default="Base cabinet")

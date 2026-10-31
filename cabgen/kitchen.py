@@ -98,7 +98,9 @@ def load_kitchen(path: Path) -> tuple[dict, list[dict]]:
                 if key in ("upper_bottom", "upper_offset", "base_offset", "filler",
                            "sheet_w", "sheet_l", "kerf"):
                     settings[key] = _float(value, f"{path.name} {key}")
-                elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right"):
+                elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right",
+                             "job", "client", "job_no", "rev",
+                             "finish_fronts", "finish_box", "finish_counter"):
                     settings[key] = value
             continue
         body.append(raw)
@@ -419,6 +421,10 @@ def apply_discovered_rules(cabs: list[Cab], settings: dict) -> None:
         end.params.spacer_side = facts["filler_side"]
 
 
+# Job facts and finish picks that ride along in the CSV as "# key=value" lines.
+JOB_TEXT_KEYS = ("job", "client", "job_no", "rev", "finish_fronts", "finish_box", "finish_counter")
+
+
 def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
     """CSV for one group. Each row keeps its own x, measured from the left."""
     lines = ["# upper_bottom=54"]
@@ -433,6 +439,9 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
             lines.append(f"# counter={settings['counter']}")
             lines.append(f"# splash_left={settings.get('splash_left', 'yes')}")
             lines.append(f"# splash_right={settings.get('splash_right', 'yes')}")
+        for key in JOB_TEXT_KEYS:
+            if settings.get(key):
+                lines.append(f"# {key}={settings[key]}")
     lines.append("# Blank height and depth keep the style. x is the left edge of that cabinet.")
     lines.append("name,style,width,run,height,depth,x,drawer_front_h,handle")
     for cab in cabinets:
@@ -471,7 +480,13 @@ def group_settings(form: dict) -> dict:
         if raw not in ("yes", "no"):
             raise KitchenError(f"side splash on the {side} is yes or no")
         splash[f"splash_{side}"] = raw
+    text = {}
+    for key in JOB_TEXT_KEYS:
+        raw = " ".join(str(form.get(key) or "").split())[:80]   # one line, no newlines
+        if raw:
+            text[key] = raw
     return {
+        **text,
         "counter": counter,
         **splash,
         "upper_offset": _offset(form.get("uoff"), "upper offset from the wall"),
