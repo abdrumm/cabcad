@@ -48,9 +48,11 @@ def test_kick_plate_is_one_piece_across_touching_bases(tmp_path: Path):
     recess = job.bases[0].params.toe_kick_recess
     assert abs(plate.pos[1] + plate.size[1] - recess) < 1e-6
     assert plate.pos[1] > 0
-    gables = [b for b in job.boxes if "/ Gable " in b.name]
-    assert len(gables) == 4 and all(b.pos[2] == 0 for b in gables)
-    assert all(abs(b.size[2] - job.bases[0].params.case_top_z) < 1e-6 for b in gables)
+    # the kick plate spans the whole run; the gable notch leaves the front of the kick clear
+    toe = job.bases[0].params.toe_kick_h
+    front_gables = [b for b in job.boxes if "/ Gable " in b.name and "heel" not in b.name
+                    and b.pos[1] < recess and b.pos[2] < toe - 1e-6]
+    assert front_gables == []
     text = render(job, date="October 31, 2026").to_string()
     assert "Kick plate" in text and "black" in text
     assert KICK_PLATE_COLORS["black"] in text
@@ -117,7 +119,10 @@ def test_form_has_kick_plate_tiles_and_defaults_off():
     page = _run_page(group_view(None))
     assert 'name="kickplate"' in page and 'data-v="yes"' in page and 'data-v="no"' in page
     assert 'name="kickplate_color"' in page
+    assert 'name="kickplate_h"' in page and 'value="3.75"' in page
     assert 'data-v="black"' in page and 'data-v="grey"' in page
+    assert "wf-counter wf-' + counter" in page
+    assert "WIRE.splash_h, 'wf-splash'" not in page
     assert 'value="no"' in page
     on = group_view({"kickplate": "yes", "kickplate_color": "grey", "bw1": "27", "bs1": "3drawer"})
     assert on["kickplate"] == "yes" and on["kickplate_color"] == "grey"
@@ -127,6 +132,11 @@ def test_form_has_kick_plate_tiles_and_defaults_off():
     text = group_sheet([{"name": "Base cabinet 1", "style": "3drawer", "width": 27, "run": "base",
                          "x": 0, "drawer": None, "handle": ""}], settings)
     assert "# kickplate=yes" in text and "# kickplate_color=grey" in text
+    assert "# kickplate_h=3.25" in group_sheet(
+        [{"name": "Base cabinet 1", "style": "3drawer", "width": 27, "run": "base",
+          "x": 0, "drawer": None, "handle": ""}],
+        group_settings({"kickplate": "yes", "kickplate_color": "black", "kickplate_h": "3.25",
+                        "walls": "left"}))
     try:
         group_settings({"kickplate": "yes", "kickplate_color": "blue", "walls": "left"})
     except KitchenError as exc:

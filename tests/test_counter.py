@@ -58,8 +58,17 @@ def test_solid_build_up_frames_the_sheet_and_the_case_breaks():
         assert abs(piece.width - STRIP_W) < 1e-6
         box = piece.boxes[0]
         assert abs(box.pos[2] + box.size[2] - (ct.z0 + 1.0)) < 1e-6  # tight to the sheet
-    assert by_name["Build-up, front"].length == ct.length
-    assert by_name["Build-up, back"].length == ct.length
+    # the sample cabinets are open on the right, so front and back stop short of that edge strip
+    assert ct.right_open and not ct.left_open
+    assert abs(by_name["Build-up, front"].length - (ct.length - 0.5)) < 1e-6
+    assert abs(by_name["Build-up, back"].length - (ct.length - 0.5)) < 1e-6
+    assert "edge strip" in by_name["Build-up, front"].notes
+    assert "stapled" not in by_name["Build-up, front"].notes.lower()
+    assert "stapled" not in by_name["Build-up, cabinet joint 1"].notes.lower()
+    assert "no staples" in by_name["Build-up, cabinet joint 1"].notes.lower()
+    front = by_name["Build-up, front"].boxes[0]
+    edge = next(p for p in ct.pieces if p.name.startswith("Edge strip, right")).boxes[0]
+    assert front.pos[0] + front.size[0] <= edge.pos[0] + 1e-6
     joint = by_name["Build-up, cabinet joint 1"].boxes[0]
     assert abs((joint.pos[0] + joint.size[0] / 2) - 30.0) < 1e-6     # centred on the break
     lam = build_counter(_cabs([30, 24]), {"counter": "laminate"})

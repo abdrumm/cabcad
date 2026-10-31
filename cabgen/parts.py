@@ -228,8 +228,8 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
                 else _finish_note(p.finish_case).rstrip()
             ),
             notes=(
-                f"Notch the front bottom {fmt(p.toe_kick_recess)} deep by "
-                f"{fmt(p.toe_kick_h)} tall. "
+                f"One piece, full height. Notch the front bottom {fmt(p.toe_kick_recess)} "
+                f"deep by {fmt(p.toe_kick_h)} tall; do not cut the side into two parts. "
                 if is_base else ""
             ) + (
                 f"Shelf-pin holes {fmt(p.shelf_pin_dia)} dia, {fmt(p.shelf_pin_depth)} "
@@ -761,19 +761,15 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
     from .finishes import resolved_finished_ends
     ends = resolved_finished_ends(p)
     if p.laminate and ends != "none":
-        notch = ""
-        if p.has_toe_kick:
-            notch = (
-                " The side is one piece; the toe-kick notch is cut out of it, "
-                "not a second board and not a solid rectangle."
-            )
         assumptions.append(
-            f"Finished end ({ends}): laminate the outside face with the case laminate "
-            f"and band the visible edges.{notch}"
+            f"Finished end ({ends}): case laminate on the outside face, PVC on the visible edges. "
+            "A base side is one piece; the toe-kick notch is cut out of it."
+            if p.has_toe_kick else
+            f"Finished end ({ends}): case laminate on the outside face, PVC on the visible edges."
         )
     assumptions.append(
-        "Edge banding is 0.5-2 mm PVC, color-matched, and does not change any part dimension. "
-        "The code (L1 L2 W1 W2, and N1 on a base side) is the shop table in cabgen/edgeband.py."
+        "Edge banding is 0.5-2 mm and does not change the part size. "
+        "EB column: L1 L2 along the length, W1 W2 the ends, N1 the top of the toe-kick notch."
     )
     from .edgeband import stamp_parts
     stamp_parts(parts, p)
