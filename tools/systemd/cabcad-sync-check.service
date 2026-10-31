@@ -1,0 +1,13 @@
+[Unit]
+Description=CabCad sync check (git repos vs iMac master)
+After=graphical-session.target network-online.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 20
+ExecStart=%h/.local/bin/cabcad-sync-check
+SuccessExitStatus=1
+
+[Install]
+WantedBy=graphical-session.target

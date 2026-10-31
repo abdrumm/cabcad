@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# cabcad-sync-check — keep CabCad repos in sync with the iMac master copy.
+# Works on the iMac (remotes = local bare repos) and the laptop (remotes = ssh URLs).
+# Usage: cabcad-sync-check            run one check
+#        cabcad-sync-check --quiet    no notification when in sync (used by the timer)
+#        cabcad-sync-check --watch-resume   block, run a check after each resume from sleep
+# Never auto-commits. Only fast-forward pulls and plain pushes; diverged = report only.
+
+# ---------------- CONFIG ----------------
+# One entry per repo: "<working tree>|<remote name>|<branch>"
+# iMac:   cabinet-gen -> origin = ~/Work/git/cabinet-gen.git ; omacad -> imac = ~/Work/git/omacad.git
+# Laptop: same remote names, but URLs like ssh://abdrumm@100.66.33.81/home/abdrumm/Work/git/cabinet-gen.git
+REPOS=(
+  "$HOME/Work/cabinet-gen|origin|main"
+  "$HOME/Work/omacad|imac|main"
+)
+LOG="$HOME/.local/state/cabcad-sync.log"
+FETCH_TIMEOUT=30          # seconds before a fetch counts as "can't reach iMac"
+RESUME_DELAY=20           # seconds to wait after resume for network
+# ----------------------------------------
+
+set -u
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=10}"
+export GIT_TERMINAL_PROMPT=0
+SELF="$(readlink -f "$0")"
+QUIET=0
+
+if [[ "${1:-}" == "--watch-resume" ]]; then
+  # logind emits PrepareForSleep(false) on resume; readable by any user, no root needed.
+  gdbus monitor --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1 |
+  while read -r line; do
+    if [[ "$line" == *PrepareForSleep*false* ]]; then
+      sleep "$RESUME_DELAY"; "$SELF" || true
+    fi
+  done
+  exit 0
+fi
+[[ "${1:-}" == "--quiet" ]] && QUIET=1
+
+mkdir -p "$(dirname "$LOG")"
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/cabcad-sync-check.lock"
+flock -n 9 || { echo "another cabcad-sync-check is running"; exit 0; }
+
+problems=(); actions=(); heads=()
+
+for entry in "${REPOS[@]}"; do
+  IFS='|' read -r dir remote branch <<<"$entry"
+  name="$(basename "$dir")"
+  if ! git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
+    problems+=("$name: not a git repo at $dir"); heads+=("$name=none"); continue
+  fi
+  g() { git -C "$dir" "$@"; }
+  cur="$(g symbolic-ref --short -q HEAD || echo DETACHED)"
+  dirty=0
+  if [[ -n "$(g status --porcelain)" ]]; then
+    dirty=1; problems+=("$name: uncommitted changes (commit them yourself)")
+  fi
+  if ! timeout "$FETCH_TIMEOUT" git -C "$dir" fetch -q "$remote" 2>/dev/null; then
+    problems+=("$name: can't reach iMac ($remote)")
+    heads+=("$name=$(g rev-parse --short HEAD 2>/dev/null)"); continue
+  fi
+  if ! g rev-parse -q --verify "refs/remotes/$remote/$branch" >/dev/null; then
+    if [[ $dirty -eq 0 ]] && g rev-parse -q --verify "refs/heads/$branch" >/dev/null && g push -q "$remote" "$branch" 2>/dev/null; then
+      actions+=("$name: pushed new $branch")
+    else
+      problems+=("$name: $remote/$branch missing")
+    fi
+    heads+=("$name=$(g rev-parse --short HEAD)"); continue
+  fi
+  read -r ahead behind < <(g rev-list --left-right --count "refs/heads/$branch...refs/remotes/$remote/$branch")
+  if [[ "$ahead" -gt 0 && "$behind" -gt 0 ]]; then
+    problems+=("$name: diverged ($ahead ahead, $behind behind) — fix by hand")
+  elif [[ "$behind" -gt 0 ]]; then
+    if [[ $dirty -eq 1 ]]; then
+      problems+=("$name: $behind behind, not pulled because of uncommitted changes")
+    elif [[ "$cur" != "$branch" ]]; then
+      problems+=("$name: $behind behind, not on $branch (on $cur)")
+    elif g merge -q --ff-only "refs/remotes/$remote/$branch" 2>/dev/null; then
+      actions+=("$name: pulled $behind")
+    else
+      problems+=("$name: fast-forward pull failed")
+    fi
+  elif [[ "$ahead" -gt 0 ]]; then
+    if g push -q "$remote" "$branch" 2>/dev/null; then
+      actions+=("$name: pushed $ahead")
+    else
+      problems+=("$name: push of $ahead commits failed")
+    fi
+  fi
+  heads+=("$name=$(g rev-parse --short "refs/heads/$branch" 2>/dev/null || g rev-parse --short HEAD)")
+done
+
+ts="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+host="$(hostname 2>/dev/null || cat /etc/hostname)"
+if [[ ${#problems[@]} -eq 0 ]]; then
+  status=OK
+  body="All repos match the iMac.${actions:+ $(IFS='; '; echo "${actions[*]}")}"
+  [[ $QUIET -eq 0 || ${#actions[@]} -gt 0 ]] && notify-send -u normal -a CabCad "CabCad in sync" "$body" 2>/dev/null
+  rc=0
+else
+  status=OUT_OF_SYNC
+  body="$(printf '%s\n' "${problems[@]}")"
+  notify-send -u critical -a CabCad "CabCad OUT OF SYNC" "$body" 2>/dev/null
+  rc=1
+fi
+line="$ts host=$host status=$status ${heads[*]}"
+[[ ${#actions[@]} -gt 0 ]] && line+=" actions=[$(IFS=';'; echo "${actions[*]}")]"
+[[ ${#problems[@]} -gt 0 ]] && line+=" problems=[$(IFS=';'; echo "${problems[*]}")]"
+echo "$line" >>"$LOG"
+echo "$line"
+exit $rc

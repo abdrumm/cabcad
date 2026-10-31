@@ -1,0 +1,12 @@
+[Unit]
+Description=CabCad sync check after resume from sleep (watches logind, no root)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/cabcad-sync-check --watch-resume
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=CabCad sync check every 30 min (catches resume and missed runs)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+Unit=cabcad-sync-check-timer.service
+
+[Install]
+WantedBy=timers.target
