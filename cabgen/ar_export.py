@@ -40,23 +40,40 @@ def _hex_rgb(h: str) -> tuple[float, float, float]:
     return tuple(round(lin(int(h[i:i + 2], 16) / 255.0), 4) for i in (0, 2, 4))
 
 
-def _materials() -> dict[str, dict]:
-    """name -> linear colour, metallic, roughness. Colours from the client sheet."""
+def _materials(settings: dict | None = None) -> dict[str, dict]:
+    """name -> linear colour, metallic, roughness, and for a wood or stone finish a texture
+    (path, tile size in metres). Colours from the client sheet unless the job picked a
+    finish for that role (cabgen.finishes)."""
     from .client_sheet import CASE, FRONT, LAMTOP, PULL, SOLID
-    return {
+    mats = {
         "Case": {"rgb": _hex_rgb(CASE), "metallic": 0.0, "roughness": 0.75},
         "Front": {"rgb": _hex_rgb(FRONT), "metallic": 0.0, "roughness": 0.55},
         "Pull": {"rgb": _hex_rgb(PULL), "metallic": 0.8, "roughness": 0.35},
         "Laminate_top": {"rgb": _hex_rgb(LAMTOP), "metallic": 0.0, "roughness": 0.45},
         "Solid_top": {"rgb": _hex_rgb(SOLID), "metallic": 0.0, "roughness": 0.3},
     }
+    if settings:
+        from .finishes import roles_of, texture_path
+        for role, fin in roles_of(settings).items():
+            if not fin:
+                continue
+            m = mats[role]
+            m["rgb"] = _hex_rgb(fin["color"])
+            m["roughness"] = float(fin.get("roughness", m["roughness"]))
+            m["finish"] = fin["id"]
+            tex = texture_path(fin)
+            if tex is not None:
+                w, h = fin.get("tile_in") or (24, 24)
+                m["texture"] = tex
+                m["tile_m"] = (w * IN_TO_M, h * IN_TO_M)
+    return mats
 
 
 def _material_of(box) -> str:
-    """Same rule as client_sheet._color, by material name."""
-    from .client_sheet import CASE, FRONT, LAMTOP, PULL, SOLID, _color
-    return {PULL: "Pull", SOLID: "Solid_top", LAMTOP: "Laminate_top",
-            FRONT: "Front", CASE: "Case"}.get(_color(box), "Case")
+    """Same rule as client_sheet.role_of, by material name."""
+    from .client_sheet import role_of
+    return {"pull": "Pull", "solid_top": "Solid_top", "laminate_top": "Laminate_top",
+            "front": "Front", "case": "Case"}[role_of(box)]
 
 
 # --------------------------------------------------------------------------- geometry
@@ -107,6 +124,17 @@ def _box_faces(lo, hi):
     return verts, norms, tris
 
 
+def _uv(point, normal) -> tuple[float, float]:
+    """Texture coordinates in metres: v runs up on the fronts and sides (wood grain
+    vertical on doors, as the textures are stored), along the depth on top faces."""
+    x, y, z = point
+    if abs(normal[1]) > 0.5:          # top / bottom
+        return (x, z)
+    if abs(normal[0]) > 0.5:          # left / right ends
+        return (z, y)
+    return (x, y)                     # front / back
+
+
 def build_meshes(boxes) -> tuple[dict[str, dict], tuple[float, float, float]]:
     """Merge the boxes into one mesh per material, centred on the footprint, floor at 0.
     Returns ({material: {points, normals, tris}}, (width, height, depth) in metres)."""
@@ -116,21 +144,23 @@ def build_meshes(boxes) -> tuple[dict[str, dict], tuple[float, float, float]]:
     shift = (-(lo[0] + hi[0]) / 2, -lo[1], -(lo[2] + hi[2]) / 2)
     meshes: dict[str, dict] = {}
     for box, (blo, bhi) in zip(boxes, spans):
-        m = meshes.setdefault(_material_of(box), {"points": [], "normals": [], "tris": []})
+        m = meshes.setdefault(_material_of(box), {"points": [], "normals": [], "tris": [], "uvs": []})
         blo = tuple(blo[i] + shift[i] for i in range(3))
         bhi = tuple(bhi[i] + shift[i] for i in range(3))
         v, n, t = _box_faces(blo, bhi)
         k = len(m["points"])
         m["points"] += v
         m["normals"] += n
+        m.setdefault("uvs", [])
+        m["uvs"] += [_uv(p, nn) for p, nn in zip(v, n)]
         m["tris"] += [(a + k, b + k, c + k) for a, b, c in t]
     size = tuple(round(hi[i] - lo[i], 6) for i in range(3))
     return meshes, size
 
 
 # --------------------------------------------------------------------------- GLB
-def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
-    mats = _materials()
+def make_glb(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None) -> bytes:
+    mats = _materials(settings)
     order = [m for m in mats if m in meshes]
     buf = bytearray()
     views, accessors, prims = [], [], []
@@ -157,8 +187,29 @@ def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
         accessors.append({"bufferView": idx, "componentType": 5125 if big else 5123,
                           "count": len(flat), "type": "SCALAR"})
         a = len(accessors)
-        prims.append({"attributes": {"POSITION": a - 3, "NORMAL": a - 2}, "indices": a - 1,
-                      "material": mi, "mode": 4})
+        attrs = {"POSITION": a - 3, "NORMAL": a - 2}
+        mat = mats[key]
+        if mat.get("texture"):
+            tw, th = mat["tile_m"]
+            uv = add_view(b"".join(struct.pack("<2f", u / tw, 1.0 - v / th) for u, v in m["uvs"]), 34962)
+            accessors.append({"bufferView": uv, "componentType": 5126, "count": len(pts), "type": "VEC2"})
+            attrs["TEXCOORD_0"] = len(accessors) - 1
+        prims.append({"attributes": attrs, "indices": a - 1, "material": mi, "mode": 4})
+    images, textures, gl_mats = [], [], []
+    for k in order:
+        pbr = {"baseColorFactor": [*mats[k]["rgb"], 1.0],
+               "metallicFactor": mats[k]["metallic"], "roughnessFactor": mats[k]["roughness"]}
+        if mats[k].get("texture") and "TEXCOORD_0" in prims[order.index(k)]["attributes"]:
+            data = Path(mats[k]["texture"]).read_bytes()
+            while len(buf) % 4:
+                buf.append(0)
+            views.append({"buffer": 0, "byteOffset": len(buf), "byteLength": len(data)})
+            buf.extend(data)
+            images.append({"bufferView": len(views) - 1, "mimeType": "image/jpeg"})
+            textures.append({"sampler": 0, "source": len(images) - 1})
+            pbr["baseColorFactor"] = [1.0, 1.0, 1.0, 1.0]
+            pbr["baseColorTexture"] = {"index": len(textures) - 1}
+        gl_mats.append({"name": k, "pbrMetallicRoughness": pbr})
     while len(buf) % 4:
         buf.append(0)
     gltf = {
@@ -167,14 +218,14 @@ def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
         "scenes": [{"name": name, "nodes": [0]}],
         "nodes": [{"name": name, "mesh": 0}],
         "meshes": [{"name": name, "primitives": prims}],
-        "materials": [{"name": k, "pbrMetallicRoughness": {
-            "baseColorFactor": [*mats[k]["rgb"], 1.0],
-            "metallicFactor": mats[k]["metallic"], "roughnessFactor": mats[k]["roughness"]}}
-            for k in order],
+        "materials": gl_mats,
         "accessors": accessors,
         "bufferViews": views,
         "buffers": [{"byteLength": len(buf)}],
     }
+    if images:
+        gltf.update(images=images, textures=textures,
+                    samplers=[{"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497}])
     js = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
     js += b" " * (-len(js) % 4)
     total = 12 + 8 + len(js) + 8 + len(buf)
@@ -192,8 +243,19 @@ def _tup(t) -> str:
     return "(" + ", ".join(_f(x) for x in t) + ")"
 
 
-def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
-    mats = _materials()
+def usd_textures(settings: dict | None) -> list[tuple[str, bytes]]:
+    """(path inside the USDZ, bytes) for each texture the job's finishes use."""
+    out, seen = [], set()
+    for m in _materials(settings).values():
+        tex = m.get("texture")
+        if tex and tex.name not in seen:
+            seen.add(tex.name)
+            out.append((f"textures/{tex.name}", Path(tex).read_bytes()))
+    return out
+
+
+def make_usda(meshes: dict[str, dict], name: str = "Kitchen", settings: dict | None = None) -> str:
+    mats = _materials(settings)
     order = [m for m in mats if m in meshes]
     out = ['#usda 1.0', '(', '    defaultPrim = "Kitchen"', '    metersPerUnit = 1',
            '    upAxis = "Y"', f'    doc = "{name} - cabgen AR export"', ')', '',
@@ -201,15 +263,36 @@ def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
     out += ['    def Scope "Materials"', '    {']
     for k in order:
         m = mats[k]
+        base = f"/Kitchen/Materials/{k}"
+        tex = m.get("texture")
+        diffuse = (f'                color3f inputs:diffuseColor.connect = <{base}/Tex.outputs:rgb>'
+                   if tex else f'                color3f inputs:diffuseColor = {_tup(m["rgb"])}')
         out += [
             f'        def Material "{k}"', '        {',
-            f'            token outputs:surface.connect = </Kitchen/Materials/{k}/Surface.outputs:surface>',
+            f'            token outputs:surface.connect = <{base}/Surface.outputs:surface>']
+        if tex:
+            out += ['            token inputs:frame:stPrimvarName = "st"']
+        out += [
             '            def Shader "Surface"', '            {',
             '                uniform token info:id = "UsdPreviewSurface"',
-            f'                color3f inputs:diffuseColor = {_tup(m["rgb"])}',
+            diffuse,
             f'                float inputs:metallic = {_f(m["metallic"])}',
             f'                float inputs:roughness = {_f(m["roughness"])}',
-            '                token outputs:surface', '            }', '        }']
+            '                token outputs:surface', '            }']
+        if tex:
+            out += [
+                '            def Shader "StReader"', '            {',
+                '                uniform token info:id = "UsdPrimvarReader_float2"',
+                f'                token inputs:varname.connect = <{base}.inputs:frame:stPrimvarName>',
+                '                float2 outputs:result', '            }',
+                '            def Shader "Tex"', '            {',
+                '                uniform token info:id = "UsdUVTexture"',
+                f'                asset inputs:file = @textures/{Path(tex).name}@',
+                f'                float2 inputs:st.connect = <{base}/StReader.outputs:result>',
+                '                token inputs:wrapS = "repeat"', '                token inputs:wrapT = "repeat"',
+                '                token inputs:sourceColorSpace = "sRGB"',
+                '                float3 outputs:rgb', '            }']
+        out += ['        }']
     out += ['    }']
     for k in order:
         m = meshes[k]
@@ -224,6 +307,8 @@ def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
             f'        point3f[] points = [{", ".join(_tup(p) for p in pts)}]',
             f'        normal3f[] normals = [{", ".join(_tup(n) for n in m["normals"])}] (',
             '            interpolation = "vertex"', '        )',
+            *([f'        texCoord2f[] primvars:st = [{", ".join(_tup((u / mats[k]["tile_m"][0], v / mats[k]["tile_m"][1])) for u, v in m["uvs"])}] (',
+               '            interpolation = "vertex"', '        )'] if mats[k].get("texture") else []),
             '        uniform token orientation = "rightHanded"',
             '        uniform token subdivisionScheme = "none"',
             '        uniform bool doubleSided = 0',
@@ -271,12 +356,13 @@ def export_job(job, out_dir: str | Path, name: str) -> dict:
     meshes, size = build_meshes(boxes)
     title = job.name or name
     glb_path = out_dir / f"{name}.glb"
-    glb_path.write_bytes(make_glb(meshes, title))
-    usda = make_usda(meshes, title)
+    settings = getattr(job, "settings", None) or {}
+    glb_path.write_bytes(make_glb(meshes, title, settings))
+    usda = make_usda(meshes, title, settings)
     usdc = _usdc_bytes(usda)
     layer = (f"{name}.usdc", usdc) if usdc else (f"{name}.usda", usda.encode("utf-8"))
     usdz_path = out_dir / f"{name}.usdz"
-    write_usdz(usdz_path, [layer])
+    write_usdz(usdz_path, [layer] + usd_textures(settings))   # the layer must come first
     return {"glb": str(glb_path), "usdz": str(usdz_path), "boxes": len(boxes),
             "size_m": size, "usd_layer": layer[0]}
 

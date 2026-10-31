@@ -1089,8 +1089,10 @@ def _render_pages(job: Job, date: str | None = None) -> list[Svg]:
 
 def client_notes(job: Job, limit: int = 5) -> list[tuple[str, str]]:
     """The few notes that apply to this job, for the client (cabgen.notes)."""
+    from .finishes import summary
     from .notes import facts_from_job, select
-    return select(facts_from_job(job), "client")[:limit]
+    fin = summary(job.settings or {})
+    return fin + select(facts_from_job(job), "client")[:max(2, limit - len(fin))]
 
 
 def notes_block(svg: Svg, notes, x: float, y: float) -> None:

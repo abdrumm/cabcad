@@ -1,0 +1,206 @@
+{
+ "version": 1,
+ "note": "Starter finishes (Oct 30, 2026) until the real list from Archie's estimates / historical purchases arrives. Generic names; 'close_to' is set only for a real brand match.",
+ "finishes": [
+  {
+   "id": "lam-white",
+   "name": "White",
+   "kind": "laminate",
+   "family": "solid",
+   "color": "#f1f0ec",
+   "roughness": 0.55,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-black",
+   "name": "Black",
+   "kind": "laminate",
+   "family": "solid",
+   "color": "#232427",
+   "roughness": 0.5,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-gray",
+   "name": "Gray",
+   "kind": "laminate",
+   "family": "solid",
+   "color": "#8c8f92",
+   "roughness": 0.55,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-navy",
+   "name": "Navy",
+   "kind": "laminate",
+   "family": "solid",
+   "color": "#2c3a5e",
+   "roughness": 0.5,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-sage",
+   "name": "Sage",
+   "kind": "laminate",
+   "family": "solid",
+   "color": "#9aa68f",
+   "roughness": 0.6,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-maple",
+   "name": "Maple look",
+   "kind": "laminate",
+   "family": "wood",
+   "color": "#b09065",
+   "roughness": 0.55,
+   "texture": "textures/maple.jpg",
+   "tile_in": [
+    24,
+    24
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Wood048), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-white-oak",
+   "name": "White oak look",
+   "kind": "laminate",
+   "family": "wood",
+   "color": "#7b634d",
+   "roughness": 0.55,
+   "texture": "textures/white-oak.jpg",
+   "tile_in": [
+    24,
+    24
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Wood049), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-walnut",
+   "name": "Walnut look",
+   "kind": "laminate",
+   "family": "wood",
+   "color": "#3f220f",
+   "roughness": 0.55,
+   "texture": "textures/walnut.jpg",
+   "tile_in": [
+    24,
+    24
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Wood027), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "lam-birch-ply",
+   "name": "Birch ply look",
+   "kind": "laminate",
+   "family": "wood",
+   "color": "#ad8c62",
+   "roughness": 0.55,
+   "texture": "textures/birch-ply.jpg",
+   "tile_in": [
+    24,
+    24
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Wood090A), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "ss-white",
+   "name": "Solid white",
+   "kind": "solid_surface",
+   "family": "solid",
+   "color": "#f4f3ef",
+   "roughness": 0.35,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "ss-warm-gray",
+   "name": "Warm gray",
+   "kind": "solid_surface",
+   "family": "solid",
+   "color": "#b9b3a8",
+   "roughness": 0.35,
+   "texture": null,
+   "tile_in": null,
+   "source": "plain colour (no texture)",
+   "license": "n/a",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "ss-veined-quartz",
+   "name": "Gray-veined quartz look",
+   "kind": "solid_surface",
+   "family": "stone",
+   "color": "#c9c9cf",
+   "roughness": 0.25,
+   "texture": "textures/white-quartz.jpg",
+   "tile_in": [
+    30,
+    30
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Marble012), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  },
+  {
+   "id": "ss-concrete",
+   "name": "Concrete gray look",
+   "kind": "solid_surface",
+   "family": "stone",
+   "color": "#b8b8b8",
+   "roughness": 0.5,
+   "texture": "textures/concrete-gray.jpg",
+   "tile_in": [
+    48,
+    24
+   ],
+   "source": "ambientCG (https://ambientcg.com/a/Concrete034), CC0 1.0",
+   "license": "CC0-1.0",
+   "close_to": null,
+   "on_estimate": false
+  }
+ ]
+}

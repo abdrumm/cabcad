@@ -344,6 +344,46 @@ def _counter_fields(view: dict) -> str:
     )
 
 
+FINISH_USES = (("finish_fronts", "Doors and fronts", ("laminate",)),
+               ("finish_box", "Box", ("laminate",)),
+               ("finish_counter", "Countertop", ("laminate", "solid_surface")))
+
+
+def _finish_select(name: str, current: str, kinds) -> str:
+    from .finishes import KINDS, choices, label
+    opts = [f'<option value=""{" selected" if not current else ""}>Drawing colours</option>']
+    for kind in kinds:
+        items = "".join(
+            f'<option value="{html.escape(f["id"])}"{" selected" if f["id"] == current else ""}>'
+            f'{html.escape(label(f))}</option>' for f in choices(kind))
+        opts.append(f'<optgroup label="{KINDS[kind]}" data-kind="{kind}">{items}</optgroup>')
+    return (f'<span class="swatch" data-for="{name}"></span>'
+            f'<select id="{name}" name="{name}" class="finish">{"".join(opts)}</select>')
+
+
+def _finish_fields(view: dict) -> str:
+    """Finish picks (doors/fronts, box, countertop) and the custom-finish stub."""
+    from .finishes import catalog
+    bits = []
+    for name, text, kinds in FINISH_USES:
+        bits.append(f'<div class="opt"><span class="optlabel">{text}</span>'
+                    f'{_finish_select(name, view.get(name, ""), kinds)}</div>')
+    data = {f["id"]: {"color": f["color"], "kind": f["kind"], "name": f["name"]} for f in catalog()}
+    return (
+        '<section class="opts fin" aria-label="Finishes">' + "".join(bits)
+        + '<details class="addfin"><summary>Add custom finish</summary>'
+        '<div class="addrow"><input id="cf_name" placeholder="Name, e.g. Kensington Maple">'
+        '<input id="cf_code" placeholder="Code, e.g. 7972-60" class="code">'
+        '<select id="cf_kind"><option value="laminate">Laminate</option>'
+        '<option value="solid_surface">Solid surface</option></select>'
+        '<input id="cf_color" type="color" value="#b9a07a" aria-label="Colour">'
+        '<button type="button" class="ghost" id="cf_save">Save finish</button>'
+        '<span class="optlabel" id="cf_msg">Saved to the catalog; the assistant matches a texture later.</span>'
+        '</div></details></section>'
+        f'<script>const FINISHES = {json.dumps(data)};</script>'
+    )
+
+
 def _card(style_name, width_name, row, choices, noun, data_name, i, on, num=None) -> str:
     """One cabinet tile. `i` reads the row lists; `num` (default i) goes in the names,
     so the page template can be drawn with num="__N__"."""
@@ -506,6 +546,16 @@ RUN_CSS = """
   #wire .wf-dim { stroke: currentColor; stroke-width: .2; opacity: .7; }
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
+  .fin { margin-top: .9rem; }
+  .fin select.finish { width: auto; max-width: 15rem; padding: .25rem .4rem; font-size: .85rem; }
+  .swatch { display: inline-block; width: 1.1rem; height: 1.1rem; border-radius: 4px;
+            border: 1px solid var(--line); background: transparent; vertical-align: middle; }
+  .addfin summary { cursor: pointer; font-size: .8rem; opacity: .75; }
+  .addrow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-top: .4rem; }
+  .addrow input { width: 14rem; padding: .25rem .45rem; }
+  .addrow input.code { width: 8rem; }
+  .addrow input[type=color] { width: 2.4rem; height: 1.9rem; padding: 0; }
+  .addrow select { width: auto; }
   .jobline { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 .3rem; }
   .jobline label { display: flex; flex-direction: column; font-size: .72rem; opacity: .9; margin: 0; flex: 1 1 12rem; }
   .jobline label.sm { flex: 0 0 6rem; }
@@ -715,6 +765,47 @@ document.addEventListener('pointercancel', end);
 RUN_FORM.addEventListener('change', drawWire);
 RUN_FORM.addEventListener('input', drawWire);
 drawWire();
+/* ---- finishes: swatches, countertop kind filter, colours in the front view ---- */
+function finColor(id) { const f = (typeof FINISHES !== 'undefined') && FINISHES[wfVal(id)]; return f ? f.color : ''; }
+function syncFinishes() {
+  document.querySelectorAll('.swatch').forEach((sw) => { sw.style.background = finColor(sw.dataset.for) || 'transparent'; });
+  const kind = wfVal('counter') === 'solid' ? 'solid_surface' : 'laminate';
+  const sel = document.getElementById('finish_counter');
+  if (sel) {
+    sel.disabled = wfVal('counter') === 'none';
+    sel.querySelectorAll('optgroup').forEach((g) => { g.hidden = g.dataset.kind !== kind; g.disabled = g.dataset.kind !== kind; });
+    const f = FINISHES[sel.value];
+    if (f && f.kind !== kind) sel.value = '';
+  }
+  const svg = document.getElementById('wire');
+  if (!svg) return;
+  const paint = (sel_, color) => svg.querySelectorAll(sel_).forEach((n) => { n.style.fill = color || ''; });
+  paint('.wf-front', finColor('finish_fronts'));
+  paint('.wf-case', finColor('finish_box'));
+  paint('.wf-laminate, .wf-solid', finColor('finish_counter'));
+  paint('.wf-filler', finColor('finish_fronts'));
+}
+RUN_FORM.addEventListener('change', syncFinishes);
+RUN_FORM.addEventListener('input', syncFinishes);
+const _drawWire0 = drawWire;
+drawWire = function () { _drawWire0(); syncFinishes(); };
+drawWire();
+const cfSave = document.getElementById('cf_save');
+if (cfSave) cfSave.addEventListener('click', () => {
+  const body = new URLSearchParams({ name: wfVal('cf_name'), code: wfVal('cf_code'), kind: wfVal('cf_kind'), color: wfVal('cf_color') });
+  fetch('/finishes', { method: 'POST', body }).then((r) => r.json()).then((f) => {
+    const msg = document.getElementById('cf_msg');
+    if (f.error) { msg.textContent = f.error; return; }
+    FINISHES[f.id] = { color: f.color, kind: f.kind, name: f.name };
+    document.querySelectorAll('select.finish').forEach((sel) => {
+      const g = sel.querySelector('optgroup[data-kind="' + f.kind + '"]');
+      if (!g) return;
+      const o = document.createElement('option'); o.value = f.id; o.textContent = f.label; g.appendChild(o);
+    });
+    msg.textContent = 'Saved: ' + f.label + '. It is in the dropdowns now.';
+    syncFinishes();
+  });
+});
 /* ---- live cut list: the server builds it from the same parts code ---- */
 let CUT_T = null, CUT_N = 0;
 function refreshCut() {
@@ -980,6 +1071,7 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="opt" id="filler-box"{filler_hidden}><span class="optlabel">Filler width</span>{filler_seg}<span class="optlabel">on the</span>{side_seg}</div>
 {_counter_fields(view)}
 </section>
+{_finish_fields(view)}
 <section class="wire" aria-label="Front view">
 <div class="wirehead"><span class="rowname">Front view</span><span class="optlabel">simple wireframe, to scale, updates as you change the form</span></div>
 <svg id="wire" role="img" aria-label="Front view of the cabinets" preserveAspectRatio="xMidYMid meet"></svg>
@@ -1286,6 +1378,16 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 return
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
+                return
+            if path == "/finishes":
+                from .finishes import add_custom, label
+                try:
+                    f = add_custom(form.get("name", ""), form.get("code", ""),
+                                   form.get("kind", "laminate"), form.get("color", ""))
+                    body = {**f, "label": label(f)}
+                except ValueError as exc:
+                    body = {"error": str(exc)}
+                self._send(json.dumps(body).encode("utf-8"), "application/json")
                 return
             if path == "/cutlist":
                 self._html(live_cutlist(form, out_dir))
