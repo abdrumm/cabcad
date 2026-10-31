@@ -1,8 +1,9 @@
 """A kitchen is a spreadsheet of cabinets.
 
 Each row is one cabinet. Width is the size you type. Height and depth stay at
-the style (the current base is 33.5 high and 23.5 deep; a wall upper is 30 by
-12) unless that cell is filled in.
+the style unless that cell is filled in. A base finishes at 33.5 with its countertop
+(the case is 33.5 minus the countertop build, 32 for laminate or solid surface; 33.5
+with no countertop), 23.5 deep; a wall upper is 30 by 12.
 
 Rows in the same run sit side by side, left to right. A `base` run stands on
 the floor. An `upper` run hangs with its bottom at `upper_bottom` (54 inches
@@ -142,6 +143,14 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
         if run == "upper" and gap:
             raise KitchenError(f"{source} line {number}: uppers never get a filler, so leave gap_after blank")
         drawer_h = _optional(row.get("drawer_front_h"), f"{source} line {number} drawer_front_h")
+        if height is None and run == "base":
+            # 33-1/2" finished, counter included: the case is that minus this countertop
+            from .counter import kind_of
+            from .params import base_case_height
+            try:
+                height = base_case_height(kind_of(settings))
+            except ValueError:
+                height = None
         params = Params(style=style, name=name, width=width, height=height, depth=depth,
                         drawer_front_h=drawer_h, handle_side=handle)
         draft.append({
@@ -548,7 +557,7 @@ def run_sheet(widths: list[float]) -> str:
     """CSV for copies of the current 3-drawer base. Height and depth stay blank."""
     lines = [
         "# Copies of the current cabinet: base, 3 drawers.",
-        "# Leave height and depth blank. The style stays 33.5 high and 23.5 deep.",
+        "# Leave height and depth blank. Bases finish at 33.5 with the countertop; 23.5 deep.",
         "name,style,width,run,height,depth",
     ]
     for i, width in enumerate(widths, start=1):

@@ -60,6 +60,22 @@ SINK_FRONT_BOARD_BELOW_DOOR_TOP = 0.5   # TO CONFIRM (Brook: "I think"): the fro
                                         # from the case top to this far below the top of the doors
 SINK_BACK_STILE_H = 4.0                 # confirmed: back stile stands vertical, 4" tall
 
+# --- base height (Brook, Oct 30) --------------------------------------------------
+# The FINISHED height, floor to the top of the countertop, is 33-1/2" on every job
+# (inside the ADA 2010 902.3 / 606.3 34" maximum). The base case is that minus the
+# countertop build, and the 4" toe kick stays. Laminate: 3/4" ply top + 3/4" build-up
+# strips. Solid surface: 1/2" top + 1" ply stiffeners. Both 1-1/2", so the case is 32".
+FINISHED_COUNTER_TOP = 33.5
+COUNTER_THICKNESS = {"laminate": 0.75 + 0.75, "solid": 0.5 + 1.0, "none": 0.0}
+
+
+def base_case_height(counter_kind: str = "laminate") -> float:
+    """Floor to the top of the base case (toe kick included) for that countertop."""
+    return round(FINISHED_COUNTER_TOP - COUNTER_THICKNESS.get(counter_kind, 1.5), 4)
+
+
+BASE_CASE_H = base_case_height("laminate")   # 32": the preset, a countertop goes on top
+
 STYLE_PRESETS: dict[str, dict[str, Any]] = {
     STYLE_BASE_1D2D: {
         "label": "Base — 1 drawer over 2 doors",
@@ -69,7 +85,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "doors": 2,
         "drawer_front_h": 6.0,
         "width": 27.0,
-        "height": 33.5,
+        "height": BASE_CASE_H,
         "depth": 23.5,
         "has_shelf": True,
     },
@@ -81,7 +97,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "doors": 2,
         "drawer_front_h": 6.0,
         "width": 30.0,
-        "height": 33.5,
+        "height": BASE_CASE_H,
         "depth": 23.5,
         "has_shelf": False,
         "sink": True,
@@ -94,7 +110,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "doors": 0,
         "drawer_front_h": 6.0,
         "width": 27.0,
-        "height": 33.5,
+        "height": BASE_CASE_H,
         "depth": 23.5,
         "has_shelf": False,
     },
@@ -277,7 +293,7 @@ class Params:
 
     # --- drawer box ---------------------------------------------------------
     slide_clearance: float = 0.5      # each side, between the box and the gable
-    drawer_box_h: float = 4.0         # typical drawer box height
+    drawer_box_h: float = 4.0         # legacy; boxes now follow drawer_box_height() (front - 2)
     drawer_box_short: float = 2.0     # box is this much shorter than its front (fallback)
     drawer_box_above_rail: float = 0.25  # bottom of drawer/slides 0.25" from top face of bottom drawer stile
     drawer_groove: float = 0.25       # dado/groove for bottom

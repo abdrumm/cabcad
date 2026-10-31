@@ -559,7 +559,7 @@ function drawWire() {
   x = uoff;
   uppers.forEach((c) => { c.x = x; x += c.w; });
   const upperEnd = x;
-  const baseTop = Math.max(0, ...bases.map((c) => (S[c.style] || {}).height || 0));
+  const baseTop = Math.max(0, ...bases.map((c) => { const s = S[c.style] || {}; return (counter === 'none' && s.none ? s.none.height : s.height) || 0; }));
   const upperTop = Math.max(0, ...uppers.map((c) => WIRE.upper_bottom + ((S[c.style] || {}).height || 0)));
   const runR = Math.max(baseEnd, upperEnd, 12);
   const top = Math.max(upperTop, baseTop + 20) + 14;
@@ -577,7 +577,8 @@ function drawWire() {
     else line(xc - len / 2, z0, xc + len / 2, z0, 'wf-pull');
   }
   function cabinet(c, zBase, isUpper) {
-    const s = S[c.style];
+    let s = S[c.style];
+    if (s && !isUpper && counter === 'none' && s.none) s = Object.assign({}, s, s.none);
     if (!s || c.w <= 0) return;
     const g = el('g', { class: 'wf-cab' });
     const r = s.reveal, fw = c.w - 2 * r;
@@ -1434,6 +1435,16 @@ def _wire_data() -> dict:
                 str(h): fronts(Params(style=STYLES[key], drawer_front_h=float(h)))
                 for h in DRAWER_HEIGHTS
             }
+        if p.has_toe_kick:
+            # no countertop: the case runs to the full 33-1/2" finished height
+            from .params import base_case_height
+            hn = base_case_height("none")
+            pn = Params(style=STYLES[key], height=hn)
+            info["none"] = {"height": hn, **fronts(pn)}
+            if key in DRAWER_STYLES:
+                info["none"]["by_drawer"] = {
+                    str(h): fronts(Params(style=STYLES[key], height=hn, drawer_front_h=float(h)))
+                    for h in DRAWER_HEIGHTS}
         styles[key] = info
     ref = Params()
     return {

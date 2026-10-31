@@ -23,9 +23,9 @@ def test_width_changes_and_style_size_stays(tmp_path: Path):
     settings, rows = load_kitchen(sheet)
     cabs = place_kitchen(rows, settings, sheet.name)
     base, narrow, upper = cabs
-    assert base.params.height == 33.5 and base.params.depth == 23.5
+    assert base.params.height == 32.0 and base.params.depth == 23.5
     assert base.params.width == 27 and narrow.params.width == 18
-    assert narrow.params.height == 33.5 and narrow.params.depth == 23.5
+    assert narrow.params.height == 32.0 and narrow.params.depth == 23.5
     assert upper.params.height == 30 and upper.params.depth == 12
     assert base.x == 0 and narrow.x == 27
     assert upper.z == 54 and upper.y == 23.5 - 12
@@ -63,7 +63,7 @@ def test_three_widths_of_the_same_cabinet(tmp_path: Path):
     assert row_labels(cabs) == []
     assert [c.x for c in cabs] == [0, 18, 45]
     assert {c.params.style for c in cabs} == {"base_3drawers"}
-    assert {c.params.height for c in cabs} == {33.5}
+    assert {c.params.height for c in cabs} == {32.0}   # 33.5 finished minus the 1.5 counter
     assert {c.params.depth for c in cabs} == {23.5}
     try:
         parse_run_widths({"count": "5", "w1": "18"})

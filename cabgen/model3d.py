@@ -331,7 +331,8 @@ def _drawer_boxes(add, p: Params, layout: Layout) -> None:
                 rail_top = r_top
                 break
         z0 = (rail_top if rail_top is not None else b_bot) + p.drawer_box_above_rail
-        box_h = getattr(p, 'drawer_box_h', None) or p.drawer_box_height(_b_top - b_bot)
+        # same rule as the cut list: box = front height - 2" (Brook, Oct 30; more rules to come)
+        box_h = p.drawer_box_height(_b_top - b_bot)
         add(f"Drawer box side {i}", (x0, 0, z0), (bt, depth, box_h), '3/4" melamine')
         add(f"Drawer box side {i} (far)", (x0 + outer - bt, 0, z0),
             (bt, depth, box_h), '3/4" melamine')
