@@ -547,6 +547,9 @@ RUN_CSS = """
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
   .fin { margin-top: .9rem; }
+  .draft textarea { width: 100%; font: .85rem/1.45 ui-monospace, monospace; border: 1px solid var(--line);
+                    border-radius: 6px; padding: .6rem; background: #fafafa; }
+  .draft ul.files { margin: .3rem 0 .6rem 1.1rem; padding: 0; font-size: .9rem; }
   .fin select.finish { width: auto; max-width: 15rem; padding: .25rem .4rem; font-size: .85rem; }
   .swatch { display: inline-block; width: 1.1rem; height: 1.1rem; border-radius: 4px;
             border: 1px solid var(--line); background: transparent; vertical-align: middle; }
@@ -1033,6 +1036,7 @@ def _run_fields(view: dict) -> str:
 <button type="submit">Show in Omacad</button>
 <button type="submit" class="ghost" formaction="/client-sheet" formtarget="_blank">Client sheet (PDF)</button>
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
+<button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
 </div>
 </header>
 <section class="jobline" aria-label="Job">
@@ -1211,6 +1215,51 @@ def _handle_ar(form: dict, out_dir: Path, host: str, port: int) -> str:
     return _run_page(view, ar=panel)
 
 
+def _draft_panel(title: str, d: dict, note: str) -> str:
+    """Result panel for the two email-draft buttons. Nothing is sent from CabCad."""
+    files = "".join(f"<li>{html.escape(f.name)}</li>" for f in d["files"])
+    to = html.escape(", ".join(d["to"]) or "(no recipient: paste it in your mail app)")
+    opened = "The folder is open in the file manager." if d["opened"] else "Open the folder above."
+    link = (f'<a href="{html.escape(d["mailto"])}">Start the email in your mail app</a> '
+            '(then attach the files from the folder) &nbsp; ' if d.get("mailto") else "")
+    return (
+        f'<section class="arpanel draft" id="draft"><h2>{html.escape(title)}</h2>'
+        f'<p class="sub">Draft only, nothing was sent. {note} {opened}</p>'
+        f'<p class="mono">{html.escape(str(d["folder"]))}</p>'
+        f'<p><b>To:</b> {to}<br><b>Subject:</b> {html.escape(d["subject"])}</p>'
+        f'<ul class="files">{files}<li>email.eml (double-click to open as a draft with the files attached)</li></ul>'
+        f'<p>{link}<button type="button" class="ghost" id="copybody">Copy email text</button></p>'
+        f'<textarea id="draftbody" rows="14" readonly>{html.escape(d["body"])}</textarea>'
+        "</section><script>document.getElementById('draft').scrollIntoView();"
+        "document.getElementById('copybody').onclick=()=>{const t=document.getElementById('draftbody');"
+        "t.select();navigator.clipboard.writeText(t.value).catch(()=>document.execCommand('copy'));"
+        "document.getElementById('copybody').textContent='Copied';};</script>")
+
+
+def _handle_draft(form: dict, out_dir: Path, kind: str) -> str:
+    """'Email AR to me' (kind='ar') or 'Draft client email' (kind='client')."""
+    from . import drafts
+    from .client_sheet import load_job
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / f"email-{kind}.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        if kind == "ar":
+            d = drafts.draft_ar_email(job, out_dir)
+            panel = _draft_panel("Email AR to me", d, "USDZ for iPhone and GLB for Android are attached.")
+    except (KitchenError, RuntimeError, OSError, ValueError) as exc:
+        return _run_page(view, error=f"email draft: {exc}")
+    return _run_page(view, ar=panel)
+
+
 def live_cutlist(form: dict, out_dir: Path) -> str:
     """The cut list for exactly the widths on the form right now (Brook, Oct 30: it must
     follow the widths as they change). Same parts code as Show in Omacad; no files kept
@@ -1378,6 +1427,9 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 return
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
+                return
+            if path == "/email-ar":
+                self._page(_handle_draft(form, out_dir, "ar"))
                 return
             if path == "/finishes":
                 from .finishes import add_custom, label

@@ -1,0 +1,13 @@
+{
+  "_comment": "CabCad email drafts. Nothing is ever sent: CabCad writes .eml drafts and opens the folder. Only entries with enabled=true are put on the To: line.",
+  "ar_recipients": [
+    {"name": "Brook", "email": "brook@printrbot.com", "enabled": true},
+    {"name": "Rick", "email": "ricks@cexhibits.com", "enabled": false,
+     "_comment": "Future recipient. Disabled on purpose (Brook, Oct 30): do not add him until Brook says so."}
+  ],
+  "client_email": {
+    "to": "",
+    "_comment": "Client drafts are test mode: no address is filled in; Brook pastes the body into his own mail."
+  },
+  "signature": "Brook\nCoppinger Exhibits\n9955 Westpoint Dr, Suite 150, Indianapolis, IN 46256\n(317) 913-1400"
+}
