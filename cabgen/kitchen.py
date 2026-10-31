@@ -22,7 +22,7 @@ from pathlib import Path
 from .cutlist import to_csv
 from .finishes import JOB_KEYS, job_top_spec, paint_boxes, paint_counter_boxes, row_finish
 from .model3d import Box, HoleSpec, build_model
-from .params import STYLE_PRESETS, Params, min_width
+from .params import STYLE_PRESETS, Params, door_rule_warnings, enforce_upper_door_limit, min_width
 from .parts import build_parts
 from .units import fmt_in
 
@@ -45,7 +45,7 @@ STYLES = {
     "upper": "upper_2doors",
     "upper_2doors": "upper_2doors",
     "2door": "upper_2doors",
-    "upper1": "upper_1door",
+    "upper1": "upper_1door",   # one door only through 24"; wider is built as a pair
     "upper_1door": "upper_1door",
     "1door": "upper_1door",
     "open": "upper_open",
@@ -260,6 +260,8 @@ def row_labels(cabs: list[Cab]) -> list[dict]:
 
 
 def layout_text(cabs: list[Cab], settings: dict) -> str:
+    for cab in cabs:
+        enforce_upper_door_limit(cab.params)
     lines = [
         "# Kitchen layout",
         "",
@@ -268,6 +270,11 @@ def layout_text(cabs: list[Cab], settings: dict) -> str:
         "sit on the same wall as the deepest base.",
         "",
     ]
+    warns = [w for cab in cabs for w in door_rule_warnings(cab.params)]
+    if warns:
+        lines.append("Shop-standard warnings:")
+        lines.extend(f"- {w}" for w in warns)
+        lines.append("")
     if "base_walls" in settings:
         facts = end_facts(settings)
         lines.append(facts["text"])
@@ -313,7 +320,7 @@ BASE_CHOICES = (
     ("sink", "Sink: false drawer front over 2 doors"),
 )
 UPPER_CHOICES = (
-    ("upper", "2 doors"),
+    ("upper", "2 doors"),   # also any upper1 wider than 24" (Brook, 2026-10-30)
     ("upper1", "1 door"),
     ("open", "Open shelves"),
     ("microwave", "Microwave shelf, 2 doors above"),
@@ -612,6 +619,9 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
     settings.update({k: v for k, v in (nest or {}).items() if v is not None})
     cabs = place_kitchen(rows, settings, sheet.name)
     apply_discovered_rules(cabs, settings)
+    for cab in cabs:
+        enforce_upper_door_limit(cab.params)
+    door_warns = [w for cab in cabs for w in door_rule_warnings(cab.params)]
     boxes, holes, parts = scene_of(cabs, settings)
     out_dir.mkdir(parents=True, exist_ok=True)
     from .counter import build_counter, counter_text
@@ -624,7 +634,8 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
                               float(settings.get("sheet_l", SHEET_L)), kerf,
                               extra=counter.parts() if counter else None)
     except NestError as exc:
-        return False, f"nesting: {exc}"
+        extra = "".join(f"\n! {w}" for w in door_warns)
+        return False, f"nesting: {exc}{extra}"
     nest_files = write_project_nest(groups, out_dir, stem, name, cabs, kerf)
     counter_path = out_dir / f"{stem}-counter.md"
     if counter:
@@ -638,8 +649,10 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
     from .omacad_export import export_scene
     ok, msg = export_scene(name, boxes, holes, model, row_labels(cabs))
     if not ok:
-        return False, msg
-    summary = [
+        extra = "".join(f"\n! {w}" for w in door_warns)
+        return False, f"{msg}{extra}"
+    summary = [f"! {w}" for w in door_warns]
+    summary += [
         f"{name}: {len(cabs)} cabinets -> {out_dir}",
         f"  {out_dir / f'{stem}-layout.md'}",
         f"  {out_dir / f'{stem}-cutlist.csv'}",

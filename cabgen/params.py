@@ -25,6 +25,8 @@ STYLE_UPPER_MW = "upper_microwave"
 # PLACEHOLDERS, to confirm with Brook's shop plans. Change them here.
 UPPER_1DOOR_WIDTH = 18.0        # typical 1-door upper is 9" to 24" wide
 UPPER_1DOOR_MIN_WIDTH = 9.0     # a 1-door upper may go down to 9"
+# Exactly 24" may still be one door. Wider than this is a pair (Brook, 2026-10-30).
+UPPER_1DOOR_MAX_WIDTH = 24.0
 UPPER_OPEN_SHELVES = 2          # adjustable shelves in a 30" open upper
 UPPER_DEPTH = 12.0              # every upper, the microwave upper too (Brook, 2026-10-27)
 MW_WIDTH = 30.0                 # microwave upper, overall width
@@ -160,7 +162,7 @@ MIN_WIDTH = 12.0
 # while the width is empty or still the old style's default. Common stock sizes
 # (3" steps). Keys are the form's style keys.
 DEFAULT_WIDTH_UPPER_2DOORS = 30.0   # W3030, the most common wall cabinet
-DEFAULT_WIDTH_UPPER_1DOOR = 18.0    # single doors are stock 9"-21" (24" at most)
+DEFAULT_WIDTH_UPPER_1DOOR = 18.0    # single doors are stock 9"-21"; 24" is the most (UPPER_1DOOR_MAX_WIDTH)
 DEFAULT_WIDTH_UPPER_OPEN = 24.0
 DEFAULT_WIDTH_UPPER_MW = 30.0       # microwave shelf: 30" fits a countertop microwave + trim
 DEFAULT_WIDTH_BASE_3DRAWERS = 18.0  # drawer bases are stock 12"-24"; 18" is the usual one
@@ -309,6 +311,7 @@ class Params:
                 setattr(self, key, "")
             else:
                 setattr(self, key, str(val).strip())
+        self.door_count_overridden = False
         preset = STYLE_PRESETS[self.style]
         for key in ("width", "height", "depth", "drawer_front_h"):
             if getattr(self, key) is None and key in preset:
@@ -327,6 +330,7 @@ class Params:
             for key in ("drawer_front_h", "width", "height", "depth"):
                 if key in preset:
                     setattr(self, key, preset[key])
+        enforce_upper_door_limit(self)
 
     # --- derived ------------------------------------------------------------
     @property
@@ -453,6 +457,57 @@ class Params:
         clean = {k: _coerce(v) for k, v in clean.items()}
         p = cls(**clean)
         return p
+
+
+def _is_wall_upper(p: Params) -> bool:
+    """Wall cabinets only. A base style never starts with ``upper``."""
+    return str(p.style).startswith("upper")
+
+
+def enforce_upper_door_limit(p: Params) -> str | None:
+    """A single-door wall upper is 24\" at most. Wider ones are built as a pair.
+
+    Exactly 24\" stays one door. Open shelves and the microwave upper are not
+    single-door cabinets, so they are left alone. Base cabinets are not touched.
+    When a job asked for one door and this converts it, the cabinet keeps a
+    warning (see ``door_rule_warnings``) instead of being built silently.
+    """
+    if not _is_wall_upper(p):
+        return None
+    too_wide = (
+        p.doors == 1
+        and p.width is not None
+        and p.width > UPPER_1DOOR_MAX_WIDTH
+        and not p.open_shelves
+        and not p.is_microwave
+    )
+    if not too_wide:
+        # A legal 1-door (24\" or under) should not keep a warning from an
+        # earlier, wider size on the same object.
+        if p.doors == 1 and p.width is not None and p.width <= UPPER_1DOOR_MAX_WIDTH:
+            p.door_count_overridden = False
+        return None
+    p.doors = 2
+    if p.style == STYLE_UPPER_1D:
+        p.style = STYLE_UPPER_2D
+    p.door_count_overridden = True
+    return upper_door_warning(p)
+
+
+def upper_door_warning(p: Params) -> str:
+    from .units import fmt_in
+    return (
+        f"Warning: {p.name} is {fmt_in(p.width)} wide. "
+        f"A single-door upper is {fmt_in(UPPER_1DOOR_MAX_WIDTH)} at most (Brook). "
+        f"Asked for as one door; built as two doors."
+    )
+
+
+def door_rule_warnings(p: Params) -> list[str]:
+    """The shop-standard warning when a single-door upper was over 24\"."""
+    if getattr(p, "door_count_overridden", False):
+        return [upper_door_warning(p)]
+    return []
 
 
 def _coerce(value: Any) -> Any:

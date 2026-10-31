@@ -19,6 +19,7 @@ from .params import (
     MICROWAVE_SHELF_CALLED_DEPTH,
     MICROWAVE_SHELF_CORNER_R,
     UPPER_PULL_CC, UPPER_PULL_EDGE_INSET, UPPER_PULL_FROM_BOTTOM, UPPER_PULL_HOLE_DIA,
+    enforce_upper_door_limit,
 )
 from .parts import Layout, door_name, open_pin_rows, open_pin_y, open_shelf_z
 
@@ -55,6 +56,8 @@ class Model:
 
 def build_model(p: Params, layout: Layout) -> Model:
     """Return every solid and the holes drilled into them."""
+    # Same 24" single-door limit as the cut list, so the 3D model cannot keep one door.
+    enforce_upper_door_limit(p)
     model = Model()
     t = p.carcass_thk
     bt = p.back_thk

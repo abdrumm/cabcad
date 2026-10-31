@@ -121,12 +121,26 @@ Brook's shop plans**. The numbers live at the top of `cabgen/params.py`.
 - **2 doors** (`upper`): unchanged. 30" tall, 12" deep, no shelf (as built so far).
 - **1 door** (`upper1`): one door over the full opening. Default 18" wide; typical
   9"-24", and the form and CSV accept down to 9" (other cabinets stay 12" minimum).
+  Wider than 24" is not built as one door; see the rule below.
   The tile has a **Handle L/R** toggle (CSV column `handle`): the pull goes on that
   side, 1-1/2" in from the edge; the **hinges go on the other side**: two 35 mm cups,
   1/2" deep, 22.5 mm from the hinge edge, 3" from the top and the bottom. The model
   names the door `Door, handle L|R` and shows hinge plates; the client sheet draws
   the dashed swing V (point = hinge side) and lists the handle side. Label `U#-D`.
   To confirm: hinge brand/overlay, hinge count on tall doors, pull position.
+- **Single-door upper, 24" maximum (Brook, 2026-10-30).** A wall upper with one
+  door is never wider than 24". Exactly 24" is still one door. Any upper wider
+  than 24" that would have been one door is built as a pair (two doors). If the
+  form, the CSV (`upper1` / `1door` / `upper_1door`), or a style pick asks for
+  one door on an upper over 24", CabCAD does not build that single door: it
+  switches the cabinet to two doors and writes a warning on the layout, the
+  shop-drawing notes, the generator output, and the client-sheet detail.
+  Open shelves and the microwave upper are not single-door cabinets, so this
+  does not add doors to them. Base cabinets are not covered; a base keeps its
+  own door count. Constant `UPPER_1DOOR_MAX_WIDTH` in `cabgen/params.py`.
+  Enforced when the style is applied and again when parts, the 3D model, and
+  the kitchen layout are built. The live front view uses the same limit
+  (`WIRE.upper_1door_max`).
 - **Open shelves** (`open`): no doors, 30" wide default, 2 adjustable 3/4" shelves
   spaced evenly in the clear height, 1/8" side gap, 1/4" set back, on 1/4" pins
   (rows at each shelf and 2" either side, columns 2" from the front and the back).
@@ -425,7 +439,7 @@ in `cabgen/params.py`. Common stock sizes, 3" steps:
 | Style | Form key | Default | Why |
 |---|---|---|---|
 | Upper, 2 doors | `upper` | 30" | W3030 is the most common wall cabinet |
-| Upper, 1 door | `upper1` | 18" | single doors are stock 9"-21" (24" max) |
+| Upper, 1 door | `upper1` | 18" | single doors are stock 9"-21"; 24" is the most. Wider is built as 2 doors, with a warning |
 | Upper, open shelves | `open` | 24" | mid-size open shelf |
 | Upper, microwave | `microwave` | 30" | fits a countertop microwave plus clearance; 12" box, shelf projects to 16-1/2" |
 | Base, 3 drawers | `3drawer` | 18" | drawer bases are stock 12"-24"; 18" is the usual |

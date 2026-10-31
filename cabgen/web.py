@@ -14,10 +14,13 @@ from urllib.parse import parse_qs, urlparse
 
 from .cli import generate
 from .kitchen import (
-    BASE_CHOICES, HANDLE_STYLES, KitchenError, UPPER_CHOICES, posted_indexes, WALL_CHOICES,
+    BASE_CHOICES, HANDLE_STYLES, KitchenError, STYLES, UPPER_CHOICES, posted_indexes, WALL_CHOICES,
     group_settings, parse_group, group_sheet, write_kitchen,
 )
-from .params import DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, _coerce
+from .params import (
+    DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH, _coerce,
+    door_rule_warnings,
+)
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -593,7 +596,10 @@ function drawWire() {
       if (!s.false_front) pull(c.x + c.w / 2, zBase + (z0 + z1) / 2, WIRE.base_pull.span, false);
     });
     if (f.doors) {
-      const [d0, d1] = f.doors, n = s.ndoors;
+      const [d0, d1] = f.doors;
+      // Brook, 2026-10-30: a single-door upper wider than upper_1door_max is a pair.
+      let n = s.ndoors;
+      if (isUpper && n === 1 && c.w > WIRE.upper_1door_max) n = 2;
       const dw = (fw - s.gap * (n - 1)) / n;
       for (let k = 0; k < n; k += 1) {
         const dx = c.x + r + k * (dw + s.gap);
@@ -639,6 +645,23 @@ function drawWire() {
   }
   if (uppers.length) dim(uppers[0].x, upperEnd, upperTop + 7, 'uppers ' + fmtIn(upperEnd - uppers[0].x));
   if (bases.length) dim(fillerLeft ? 0 : bases[0].x, baseEnd, -11, 'bases ' + fmtIn(baseEnd - (fillerLeft ? 0 : bases[0].x)));
+
+  if (typeof syncDrawers === 'function') syncDrawers();
+  const rule = document.getElementById('door-rule');
+  if (rule) {
+    const max = WIRE.upper_1door_max;
+    const inches = (x) => fmtIn(x).split(' (')[0];
+    const notes = [];
+    uppers.forEach((c) => {
+      const st = S[c.style];
+      if (st && st.ndoors === 1 && c.w > max)
+        notes.push('Warning: ' + c.tag + ' is ' + inches(c.w) + ' wide. A single-door upper is ' +
+          inches(max) + ' at most (Brook). Asked for as one door; drawn as two doors.');
+    });
+    rule.hidden = notes.length === 0;
+    rule.style.whiteSpace = 'pre-line';
+    rule.textContent = notes.join('\n');
+  }
 }
 
 /* ---- drag a tile by its header to move it along its own row ---- */
@@ -776,6 +799,16 @@ function addCabinet(kind, styleId, widthId, styleValue) {
   setRow(kind, next);
   if (width) { width.focus(); width.select(); }
 }
+function singleDoorUpperTooWide(styleEl) {
+  // Same limit as UPPER_1DOOR_MAX_WIDTH, injected as WIRE.upper_1door_max.
+  if (typeof WIRE === 'undefined' || WIRE.upper_1door_max == null) return false;
+  if (!styleEl || styleEl.value !== 'upper1') return false;
+  const m = /^us(\\d+)$/.exec(styleEl.id);
+  if (!m) return false;
+  const w = document.getElementById('uw' + m[1]);
+  const width = w ? parseFloat(w.value) : NaN;
+  return width > WIRE.upper_1door_max;
+}
 function syncDrawers() {
   document.querySelectorAll('.drawer-pick').forEach((box) => {
     const style = document.getElementById(box.dataset.styleFor);
@@ -787,7 +820,8 @@ function syncDrawers() {
   document.querySelectorAll('.handle-pick').forEach((box) => {
     const style = document.getElementById(box.dataset.styleFor);
     const card = box.closest('.card');
-    const show = !!style && style.value === 'upper1';
+    let show = !!style && style.value === 'upper1';
+    if (show && typeof singleDoorUpperTooWide === 'function' && singleDoorUpperTooWide(style)) show = false;
     box.hidden = !show;
     const inp = box.querySelector('input');
     if (card) card.dataset.handle = (inp && inp.value === 'left') ? 'left' : 'right';
@@ -900,10 +934,16 @@ def _run_fields(view: dict) -> str:
                       (("1", '1"'), ("2", '2"'), ("3", '3"')), not both, label="Filler width")
     side_seg = _seg("filler_side", side, (("left", "Left"), ("right", "Right")), not both,
                     label="Filler side")
-    wire = "<script>const WIRE = " + json.dumps(_wire_data()) + ";</script>" + WIRE_JS
+    wire_data = "<script>const WIRE = " + json.dumps(_wire_data()) + ";</script>"
     js = (RUN_JS.replace("DEFAULTW", json.dumps(DEFAULT_WIDTHS))
           .replace("UCOUNT", str(view["uppers"]["count"]))
           .replace("BCOUNT", str(view["bases"]["count"])))
+    door_notes = _upper_door_form_warnings(view)
+    if door_notes:
+        door_rule = ('<p class="warn" id="door-rule">'
+                     + "<br>".join(html.escape(n) for n in door_notes) + "</p>")
+    else:
+        door_rule = '<p class="warn" id="door-rule" hidden></p>'
     return f"""{RUN_CSS}
 <form method="post" action="/run" class="cc">
 <header class="bar">
@@ -948,11 +988,12 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="wirehead"><span class="rowname">Front view</span><span class="optlabel">simple wireframe, to scale, updates as you change the form</span></div>
 <svg id="wire" role="img" aria-label="Front view of the cabinets" preserveAspectRatio="xMidYMid meet"></svg>
 </section>
+{door_rule}
 <p class="sub" id="end-rule">The left end is a wall, so the counter is flush there. The open right end overhangs 1 inch.</p>
 <p class="foot">4" backsplash on the wall; open ends get a finished edge with a 1" overhang. The countertop and splashes are drawn, and their parts go in the cut list and nest.
 Building takes about a minute; the model opens full screen on workspace 3.</p>
 </form>
-{js}{wire}"""
+{wire_data}{js}{WIRE_JS}"""
 
 
 def _layout_table(text: str) -> str:
@@ -1218,7 +1259,11 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             warnings = [str(u) for u in result["uncuttable"]]
             warnings += list(result.get("warnings", []))
             warnings += list(getattr(result["layout"], "assumptions", []))
-            self._page(_result_html(p, result["written"], warnings, out_dir))
+            deduped: list[str] = []
+            for w in warnings:
+                if w not in deduped:
+                    deduped.append(w)
+            self._page(_result_html(p, result["written"], deduped, out_dir))
 
     return Handler
 
@@ -1305,11 +1350,39 @@ def _drawer_pick(style_name: str, i: int, row: dict, card_off: bool, num=None) -
     )
 
 
+def _upper_door_form_warnings(view: dict) -> list[str]:
+    """Warnings for 1-door uppers the form is about to build wider than 24\"."""
+    notes: list[str] = []
+    row = view["uppers"]
+    for i in range(1, int(row["count"]) + 1):
+        raw = _at(row["widths"], i, "")
+        if str(raw).strip() == "":
+            continue
+        try:
+            width = float(raw)
+        except ValueError:
+            continue
+        style = str(_at(row["styles"], i, "upper")).strip().lower().replace(" ", "_").replace("-", "_")
+        resolved = STYLES.get(style)
+        if not resolved:
+            continue
+        p = Params(style=resolved, name=f"Upper {i}", width=width)
+        notes.extend(door_rule_warnings(p))
+    return notes
+
+
 def _handle_pick(style_name: str, i: int, row: dict, card_off: bool, num=None) -> str:
     """1-door upper: which side the handle goes on. The hinges go on the other side."""
     n = i if num is None else num
     field = f"uh{n}"
     shown = row["styles"][i - 1] in HANDLE_STYLES
+    if shown:
+        raw_w = _at(row.get("widths"), i, "")
+        try:
+            if float(raw_w) > UPPER_1DOOR_MAX_WIDTH:
+                shown = False   # over 24" it is a pair; the handle side does not apply
+        except (TypeError, ValueError):
+            pass
     hidden = "" if shown else " hidden"
     current = _at(row.get("handles"), i, "right") or "right"
     return (
@@ -1333,7 +1406,7 @@ def _wire_data() -> dict:
     cabinets, so the page does not keep its own copy of the numbers."""
     from .counter import EDGE, OPEN_OVERHANG as CT_OVERHANG, SPLASH_H
     from .kitchen import DRAWER_HEIGHTS, DRAWER_STYLES, STYLES, UPPER_BOTTOM
-    from .params import (Params, UPPER_PULL_CC, UPPER_PULL_EDGE_INSET,
+    from .params import (Params, UPPER_1DOOR_MAX_WIDTH, UPPER_PULL_CC, UPPER_PULL_EDGE_INSET,
                          UPPER_PULL_FROM_BOTTOM)
     from .parts import build_parts, open_shelf_z
 
@@ -1366,6 +1439,7 @@ def _wire_data() -> dict:
     return {
         "styles": styles,
         "upper_bottom": UPPER_BOTTOM,
+        "upper_1door_max": UPPER_1DOOR_MAX_WIDTH,
         "counter_edge": EDGE,
         "splash_h": SPLASH_H,
         "splash_thk": {"laminate": 0.75, "solid": 0.5},   # as counter.Counter.splash_thk

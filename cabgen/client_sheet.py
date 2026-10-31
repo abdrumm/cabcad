@@ -23,7 +23,7 @@ from .kitchen import (
     apply_discovered_rules, end_facts, load_kitchen, place_kitchen, scene_of,
 )
 from .nest_project import cabinet_codes
-from .params import STYLE_PRESETS
+from .params import STYLE_PRESETS, door_rule_warnings, enforce_upper_door_limit
 from .svg import Svg, hatch
 from .units import fmt_in
 
@@ -713,7 +713,8 @@ def _swing_marks(svg: Svg, boxes, X, Z) -> None:
 
 
 def _features(p, has_counter: bool = False) -> list[str]:
-    out = []
+    enforce_upper_door_limit(p)
+    out = list(door_rule_warnings(p))
     if p.doors == 1:
         out.append(f"1 door, handle on the {p.handle_side}, hinged on the {p.hinge_side} "
                    "(dashed V points to the hinges)")
