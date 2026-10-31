@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""plans-page: CABCAD-PLAN.md + CABCAD-IDEAS.md -> one quiet HTML dashboard.
+
+    tools/plans-page                       # writes ~/Work/CABCAD-PLANS.html
+    tools/plans-page --out x.html --plan P.md --ideas I.md
+
+Reads, never edits, the two docs. Conventions it understands:
+  IDEAS:  "- BUILT — text"  (also NEXT, LATER, OPEN QUESTION; DONE counts as BUILT,
+          NOW as NEXT), optionally followed by an indented "- Test: how to test" line.
+  PLAN:   the "Build order" table (a Status column if present), "Open items" and
+          "Open questions" sections (each bullet is an open question), "Next concrete steps".
+Stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import html
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+WORK = Path.home() / "Work"
+STATUSES = ("BUILT", "NEXT", "LATER", "OPEN QUESTION")
+ALIASES = {"DONE": "BUILT", "NOW": "NEXT", "OPEN": "OPEN QUESTION", "QUESTION": "OPEN QUESTION"}
+ITEM = re.compile(r"^- (BUILT|DONE|NOW|NEXT|LATER|OPEN QUESTION|OPEN|QUESTION)\s*[—–-]+\s*(.+)$")
+TEST = re.compile(r"^\s+- (?:Test|How to test)\s*:\s*(.+)$", re.I)
+
+
+def inline(text: str) -> str:
+    out = html.escape(text, quote=False)
+    out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
+    out = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", out)
+    out = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<i>\1</i>", out)
+    return out
+
+
+def sections(md: str) -> list[tuple[str, list[str]]]:
+    out, title, lines = [], "", []
+    for line in md.splitlines():
+        if line.startswith("## ") or line.startswith("### "):
+            out.append((title, lines))
+            title, lines = line.lstrip("# ").strip(), []
+        else:
+            lines.append(line)
+    out.append((title, lines))
+    return out
+
+
+def parse_ideas(md: str) -> list[dict]:
+    items, group = [], ""
+    for title, lines in sections(md):
+        group = title or group
+        for line in lines:
+            m = ITEM.match(line)
+            if m:
+                status = ALIASES.get(m.group(1), m.group(1))
+                items.append({"group": group, "status": status, "text": m.group(2).strip(), "test": ""})
+                continue
+            t = TEST.match(line)
+            if t and items:
+                items[-1]["test"] = t.group(1).strip()
+    return items
+
+
+def parse_table(lines: list[str]) -> list[dict]:
+    rows = [l for l in lines if l.strip().startswith("|")]
+    if len(rows) < 2:
+        return []
+    cells = lambda r: [c.strip() for c in r.strip().strip("|").split("|")]
+    head = [h.lower() for h in cells(rows[0])]
+    return [dict(zip(head, cells(r))) for r in rows[2:]]
+
+
+def bullets(lines: list[str]) -> list[str]:
+    out = []
+    for line in lines:
+        if re.match(r"^(- |\d+\. )", line):
+            out.append(re.sub(r"^(- |\d+\. )", "", line).strip())
+        elif line.startswith("  ") and out and line.strip():
+            out[-1] += " " + line.strip()
+    return out
+
+
+def parse_plan(md: str) -> dict:
+    plan = {"title": "CabCad plan", "updated": "", "build": [], "questions": [], "steps": [], "prose": []}
+    first = md.splitlines()[0] if md else ""
+    if first.startswith("# "):
+        plan["title"] = first[2:].strip()
+    m = re.search(r"Updated ([0-9-]+[^.\n]*)", md)
+    plan["updated"] = m.group(1) if m else ""
+    for title, lines in sections(md):
+        low = title.lower()
+        if low.startswith("build order"):
+            plan["build"] = parse_table(lines)
+        elif low.startswith("open"):
+            plan["questions"] += bullets(lines)
+        elif low.startswith("next concrete"):
+            plan["steps"] = bullets(lines)
+        elif title and not low.startswith(("goal", "who gets")):
+            plan["prose"].append((title, bullets(lines)))
+    return plan
+
+
+def badge(status: str) -> str:
+    s = (status or "").upper().strip()
+    s = ALIASES.get(s, s)
+    cls = {"BUILT": "built", "NEXT": "next", "LATER": "later", "OPEN QUESTION": "open"}.get(s, "later")
+    return f'<span class="st {cls}">{html.escape(s.title() if s else "–")}</span>'
+
+
+CSS = """
+:root { --ink:#1d1d1f; --soft:#6e6e73; --line:#e3e3e6; --navy:#263460; --bg:#ffffff; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 15px/1.55 "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 64px 40px 96px; }
+header { display: flex; justify-content: space-between; align-items: baseline;
+         border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 44px; }
+h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+h1 span { color: var(--navy); }
+.meta { color: var(--soft); font-size: 13px; }
+h2 { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+     color: var(--soft); margin: 56px 0 14px; }
+.counts { display: flex; gap: 40px; margin: 0 0 8px; }
+.counts div { font-size: 13px; color: var(--soft); }
+.counts b { display: block; font-size: 30px; font-weight: 300; color: var(--ink); }
+.counts .o b { color: var(--navy); font-weight: 500; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+     color: var(--soft); padding: 0 12px 8px 0; border-bottom: 1px solid var(--ink); }
+td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.s { width: 128px; white-space: nowrap; }
+td.n { width: 28px; color: var(--soft); }
+td.g { width: 140px; color: var(--soft); font-size: 13px; }
+.test { display: block; margin-top: 4px; color: var(--soft); font-size: 13px; }
+.test::before { content: "How to test  "; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+                color: var(--navy); font-weight: 600; }
+.st { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--soft); }
+.st.built { background: var(--navy); border-color: var(--navy); color: #fff; }
+.st.next { border-color: var(--navy); color: var(--navy); }
+.st.open { background: #fff6d6; border-color: #e8cf73; color: #6b5200; }
+.questions { border-left: 3px solid var(--navy); background: #f6f7fa; padding: 18px 24px; margin: 0; list-style: none; }
+.questions li { padding: 6px 0; }
+.questions li + li { border-top: 1px solid var(--line); }
+.steps li { padding: 3px 0; }
+code { font: 12.5px ui-monospace, "JetBrains Mono", monospace; background: #f3f3f5; padding: 1px 5px; border-radius: 4px; }
+details { margin-top: 8px; border-top: 1px solid var(--line); }
+details summary { cursor: pointer; padding: 12px 0; color: var(--soft); font-size: 14px; }
+details ul { margin: 0 0 16px; color: var(--ink); }
+footer { margin-top: 72px; color: var(--soft); font-size: 12px; }
+"""
+
+
+def page(plan: dict, ideas: list[dict], sources: list[Path]) -> str:
+    q_ideas = [i for i in ideas if i["status"] == "OPEN QUESTION"]
+    questions = [inline(q) for q in plan["questions"]] + [
+        f'{inline(i["text"])} <span class="meta">· {html.escape(i["group"])}</span>' for i in q_ideas]
+    count = {s: sum(1 for i in ideas if i["status"] == s) for s in STATUSES}
+    count["OPEN QUESTION"] = len(questions)
+    out = [f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
+           f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+           f'<title>CabCad plans</title><style>{CSS}</style></head><body><main>',
+           f'<header><h1>Cab<span>Cad</span> plans</h1>'
+           f'<div class="meta">Plan updated {html.escape(plan["updated"] or "–")} · '
+           f'page built {datetime.now():%b %d, %Y %H:%M}</div></header>',
+           '<div class="counts">'
+           + "".join(f'<div class="{"o" if s == "OPEN QUESTION" else ""}"><b>{count[s]}</b>{s.title()}</div>'
+                     for s in STATUSES) + '</div>']
+    if questions:
+        out.append('<h2>Open questions</h2><ul class="questions">'
+                   + "".join(f"<li>{q}</li>" for q in questions) + "</ul>")
+    if plan["build"]:
+        out.append('<h2>Build order</h2><table><tr><th></th><th>Step</th><th>Done when</th><th>Status</th></tr>')
+        for r in plan["build"]:
+            out.append(f'<tr><td class="n">{inline(r.get("#", ""))}</td><td>{inline(r.get("step", ""))}</td>'
+                       f'<td>{inline(r.get("done when", ""))}</td><td class="s">{badge(r.get("status", ""))}</td></tr>')
+        out.append("</table>")
+    if plan["steps"]:
+        out.append('<h2>Next concrete steps</h2><ul class="steps">'
+                   + "".join(f"<li>{inline(s)}</li>" for s in plan["steps"]) + "</ul>")
+    order = {s: n for n, s in enumerate(STATUSES)}
+    rest = [i for i in ideas if i["status"] != "OPEN QUESTION"]
+    if rest:
+        out.append('<h2>Features and ideas</h2><table><tr><th>Status</th><th>Item</th><th>Area</th></tr>')
+        for i in sorted(rest, key=lambda i: order[i["status"]]):
+            test = f'<span class="test">{inline(i["test"])}</span>' if i["test"] else ""
+            out.append(f'<tr><td class="s">{badge(i["status"])}</td><td>{inline(i["text"])}{test}</td>'
+                       f'<td class="g">{html.escape(i["group"])}</td></tr>')
+        out.append("</table>")
+    if plan["prose"]:
+        out.append("<h2>Plan details</h2>")
+        for title, items in plan["prose"]:
+            if items:
+                out.append(f"<details><summary>{inline(title)}</summary><ul>"
+                           + "".join(f"<li>{inline(b)}</li>" for b in items) + "</ul></details>")
+    out.append('<footer>Generated by <code>tools/plans-page</code> from '
+               + ", ".join(f"<code>{html.escape(str(p))}</code>" for p in sources)
+               + ". Edit the markdown, not this page.</footer></main></body></html>")
+    return "\n".join(out)
+
+
+def build(plan_path: Path, ideas_path: Path, out_path: Path) -> Path:
+    plan = parse_plan(plan_path.read_text(encoding="utf-8")) if plan_path.is_file() else parse_plan("")
+    ideas = parse_ideas(ideas_path.read_text(encoding="utf-8")) if ideas_path.is_file() else []
+    out_path.write_text(page(plan, ideas, [plan_path, ideas_path]), encoding="utf-8")
+    return out_path
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--plan", type=Path, default=WORK / "CABCAD-PLAN.md")
+    ap.add_argument("--ideas", type=Path, default=WORK / "CABCAD-IDEAS.md")
+    ap.add_argument("--out", type=Path, default=WORK / "CABCAD-PLANS.html")
+    a = ap.parse_args(argv)
+    print(build(a.plan, a.ideas, a.out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

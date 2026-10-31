@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# cabcad-plans: rebuild the CabCad plans page and show it on workspace 9.
+#   cabcad-plans          rebuild, then (re)open the window on workspace 9 and go there
+#   cabcad-plans --login  rebuild and open quietly (Hyprland autostart; focus stays put)
+# The window rule in ~/.config/hypr/hyprland.lua sends the app window to workspace 9.
+set -u
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+PAGE="$HOME/Work/CABCAD-PLANS.html"
+WS=9
+CLASS='^chrome-__home_.*_CABCAD-PLANS\.html-Default$'
+
+python3 "$HERE/plans-page" --out "$PAGE" >/dev/null || exit 1
+
+addr() { hyprctl clients -j | jq -r --arg c "$CLASS" '[.[] | select(.class | test($c))][0].address // empty'; }
+
+old="$(addr)"
+if [ -n "$old" ]; then          # reopen so the page shows the fresh build
+  hyprctl dispatch "hl.dsp.window.close({ window = \"address:$old\" })" >/dev/null 2>&1 \
+    || hyprctl dispatch closewindow "address:$old" >/dev/null 2>&1
+  for _ in $(seq 20); do [ -z "$(addr)" ] && break; sleep 0.1; done
+fi
+setsid nohup omarchy-launch-webapp "file://$PAGE" >/dev/null 2>&1 &
+
+if [ "${1:-}" != "--login" ]; then
+  for _ in $(seq 50); do [ -n "$(addr)" ] && break; sleep 0.1; done
+  hyprctl dispatch "hl.dsp.focus({ workspace = \"$WS\" })" >/dev/null 2>&1 \
+    || hyprctl dispatch workspace "$WS" >/dev/null 2>&1
+fi
