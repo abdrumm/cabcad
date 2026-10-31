@@ -243,6 +243,8 @@ def group_view(form: dict | None) -> dict:
         "counter": "laminate",
         "splash_left": "yes",
         "splash_right": "yes",
+        "kickplate": "no",
+        "kickplate_color": "black",
     }
     n = len(view["uppers"]["widths"])
     handles = ["right"] * n
@@ -262,7 +264,7 @@ def group_view(form: dict | None) -> dict:
             view["filler_side"] = str(form.get("filler_side")).strip()
         if form.get("filler") is not None and str(form.get("filler")).strip() != "":
             view["filler"] = str(form.get("filler")).strip()
-        for key in ("counter", "splash_left", "splash_right"):
+        for key in ("counter", "splash_left", "splash_right", "kickplate", "kickplate_color"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
     return view
@@ -318,8 +320,10 @@ def _seg(name: str, current: str, choices, disabled: bool = False,
 
 
 def _counter_fields(view: dict) -> str:
-    """Countertop type, and a side splash at each wall end."""
+    """Countertop type, a side splash at each wall end, and the kick plate."""
     yes_no = (("yes", "Splash"), ("no", "None"))
+    kick_yes_no = (("yes", "Yes"), ("no", "No"))
+    kick_colors = (("black", "Black"), ("grey", "Grey"))
     walls = view["walls"]
     left_hidden = "" if walls in ("left", "both") else " hidden"
     right_hidden = "" if walls in ("right", "both") else " hidden"
@@ -330,6 +334,10 @@ def _counter_fields(view: dict) -> str:
         f'{_seg("splash_left", view["splash_left"], yes_no, label="Left wall side splash")}</div>'
         f'<div class="opt" id="splash-right-box"{right_hidden}><span class="optlabel">Right wall side splash</span>'
         f'{_seg("splash_right", view["splash_right"], yes_no, label="Right wall side splash")}</div>'
+        '<div class="opt" id="kick-box"><span class="optlabel">Kick plate</span>'
+        f'{_seg("kickplate", view.get("kickplate") or "no", kick_yes_no, label="Kick plate")}</div>'
+        '<div class="opt" id="kick-color-box"><span class="optlabel">Kick plate colour</span>'
+        f'{_seg("kickplate_color", view.get("kickplate_color") or "black", kick_colors, label="Kick plate colour")}</div>'
         '<script>(function () {'
         "function syncSplash() {"
         "  const w = (document.querySelector('input[name=\"walls\"]:checked') || {}).value || 'left';"
@@ -489,6 +497,8 @@ RUN_CSS = """
   #wire .wf-wall { fill: #8884; stroke: currentColor; stroke-width: .35; }
   #wire .wf-case { fill: #8881; stroke: currentColor; stroke-width: .35; }
   #wire .wf-kick { fill: #8884; stroke: none; }
+  #wire .wf-kick-black { fill: #1c1c1c; stroke: none; }
+  #wire .wf-kick-grey { fill: #8e9399; stroke: none; }
   #wire .wf-inside { fill: #8883; stroke: none; }
   #wire .wf-shelf { fill: #8886; stroke: currentColor; stroke-width: .2; }
   #wire .wf-front { fill: #3b82f61f; stroke: currentColor; stroke-width: .3; }
@@ -622,6 +632,11 @@ function drawWire() {
   }
   bases.forEach((c) => cabinet(c, 0, false));
   if (filler) rect(fillerLeft ? 0 : baseEnd - filler, 0, filler, baseTop, 'wf-filler');
+  if (wfVal('kickplate') === 'yes' && bases.length) {
+    const x0 = fillerLeft ? 0 : bases[0].x;
+    const tone = wfVal('kickplate_color') === 'grey' ? 'grey' : 'black';
+    rect(x0, 0, baseEnd - x0, WIRE.kick_h, 'wf-kick-' + tone);
+  }
 
   // countertop over the base run (and the filler), splashes
   if (counter !== 'none' && bases.length) {
@@ -1406,8 +1421,8 @@ def _wire_data() -> dict:
     cabinets, so the page does not keep its own copy of the numbers."""
     from .counter import EDGE, OPEN_OVERHANG as CT_OVERHANG, SPLASH_H
     from .kitchen import DRAWER_HEIGHTS, DRAWER_STYLES, STYLES, UPPER_BOTTOM
-    from .params import (Params, UPPER_1DOOR_MAX_WIDTH, UPPER_PULL_CC, UPPER_PULL_EDGE_INSET,
-                         UPPER_PULL_FROM_BOTTOM)
+    from .params import (KICK_PLATE_H, Params, UPPER_1DOOR_MAX_WIDTH, UPPER_PULL_CC,
+                         UPPER_PULL_EDGE_INSET, UPPER_PULL_FROM_BOTTOM)
     from .parts import build_parts, open_shelf_z
 
     def fronts(p: Params) -> dict:
@@ -1444,6 +1459,7 @@ def _wire_data() -> dict:
         "splash_h": SPLASH_H,
         "splash_thk": {"laminate": 0.75, "solid": 0.5},   # as counter.Counter.splash_thk
         "open_overhang": CT_OVERHANG,
+        "kick_h": KICK_PLATE_H,
         "upper_pull": {"cc": UPPER_PULL_CC, "from_bottom": UPPER_PULL_FROM_BOTTOM,
                        "inset": UPPER_PULL_EDGE_INSET},
         "base_pull": {"span": ref.pull_span, "from_top": ref.pull_from_top,

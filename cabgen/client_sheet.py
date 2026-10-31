@@ -454,21 +454,29 @@ def counter_paint_rank(box, deck_z: float | None) -> int:
     cabinets under them all overlap on screen). Breaking a cycle was drawing the
     deck, then drawing a base interior on top of it, so the last cabinet looked
     like it had a hole in the top and only the build-up frame showed. Layers keep
-    the deck in one piece: everything under it, then the build-up, then the deck,
-    then the splashes, then whatever stands above (the uppers).
+    the deck in one piece, and keep the finished kick plate in front of the
+    structural toe-kick board: case, kick plate, fronts, build-up, deck,
+    splashes, then whatever stands above (the uppers).
     """
     if deck_z is None:
         return 0
     name = box.name
+    part = name.split("/")[-1].strip()
     if "Backsplash" in name or "Side splash" in name:
-        return 3
+        return 5
     if "Countertop / Top" in name:
-        return 2
+        return 4
     if "Countertop /" in name:
+        return 3
+    # The finished kick plate sits in front of the structural toe-kick board and
+    # behind the doors. Paint it between those, or a later cabinet box covers it.
+    if part.startswith("Kick plate"):
         return 1
+    if any(word in part for word in ("Door", "Drawer front", "False front", "Wire pull", "Hinge")):
+        return 2
     if box.pos[2] + box.size[2] <= deck_z + 1e-4:
         return 0
-    return 4
+    return 6
 
 
 def _deck_z(boxes) -> float | None:
@@ -636,6 +644,10 @@ def schedule(svg: Svg, job: Job, box) -> None:
         ct = job.counter
         rows.append((ct.code, "Countertop, " + ("laminate" if ct.kind == "laminate" else "solid surface"),
                      fmt_in(ct.length), fmt_in(EDGE_T), fmt_in(ct.depth)))
+    from .kickplate import build_kick
+    for plate in build_kick(job.cabs, job.settings):
+        rows.append((plate.label, f"Kick plate, {plate.color}", fmt_in(plate.length),
+                     fmt_in(plate.height), ""))
     room = bh - 0.75
     if len(rows) * 0.18 <= room:
         # one column, the full width
@@ -680,20 +692,25 @@ def title_block(svg: Svg, job: Job, box, date: str, drawing: str = "Kitchen layo
     svg.line(bx, by + 0.55, bx + bw, by + 0.55, stroke=INK, sw=0.008)
     svg.text(bx + 0.15, by + 0.38, job.name, size=0.26, weight="bold", fill=INK)
     nb, nu = len(job.bases), len(job.uppers)
+    from .kickplate import phrase as kick_phrase
     rows = [
         ("Drawing", drawing),
         ("Date", date + (f"      Page {page}" if page else "")),
         ("Cabinets", cabinets or f"{nb + nu} ({nb} base, {nu} upper)"),
         ("Countertop", job.counter.description if job.counter else "none"),
-        ("Prepared by", ""),
     ]
+    kick = kick_phrase(job.settings, job.cabs)
+    if kick:
+        rows.append(("Kick plate", kick))
+    rows.append(("Prepared by", ""))
     y = by + 0.76
+    line = 0.15 if kick else 0.18
     for k, v in rows:
         svg.text(bx + 0.15, y, k.upper(), size=0.09, fill=SOFT)
         svg.text(bx + 1.3, y, v, size=0.13, fill=INK)
         if k == "Prepared by":
             svg.line(bx + 1.3, y + 0.03, bx + bw - 0.2, y + 0.03, stroke=SOFT, sw=0.005)
-        y += 0.18
+        y += line
     svg.text(bx + 0.15, by + bh - 0.08,
              "Preliminary, for discussion. Not for construction.", size=0.1, fill=SOFT)
 
@@ -711,11 +728,18 @@ def _style_name(style: str) -> str:
     return STYLE_PRESETS[style]["label"].replace(" (no countertop)", "").replace(" — ", ", ")
 
 
-def _single(cab, name: str) -> Job:
-    """The one cabinet alone at the origin. Nothing from its neighbours."""
+def _single(cab, name: str, settings: dict | None = None) -> Job:
+    """The one cabinet alone at the origin. Nothing from its neighbours.
+
+    A kick plate on the job still shows on this cabinet, the width of this cabinet.
+    """
     from dataclasses import replace as _replace
     lone = _replace(cab, x=0.0, y=0.0, z=0.0, gap_after=0.0)
-    job = job_from([lone], {"upper_bottom": 0.0, "counter": "none"}, name)
+    keep = {"upper_bottom": 0.0, "counter": "none"}
+    for key in ("kickplate", "kickplate_color", "kickplate_h"):
+        if settings and key in settings:
+            keep[key] = settings[key]
+    job = job_from([lone], keep, name)
     job.codes = {lone.name: "W"}
     return job
 
@@ -797,7 +821,7 @@ def _features(p, has_counter: bool = False) -> list[str]:
 def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     rep = cabs[0]
     p = rep.params
-    lone = _single(rep, job.name)
+    lone = _single(rep, job.name, job.settings)
     boxes = lone.boxes
     W, H, D = p.width, p.height, p.depth + 0.75        # depth includes the fronts
     svg = Svg(PAGE_W, PAGE_H)
@@ -855,6 +879,10 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     # what it is, and the widths of this style in the job
     bx, by = M + 9.9, M + 6.45
     feats = _features(p, job.counter is not None)
+    from .kickplate import phrase as kick_phrase
+    kick = kick_phrase(job.settings, [rep]) if not str(p.style).startswith("upper") else ""
+    if kick:
+        feats.append(f"kick plate {kick}, recessed in the toe kick")
     svg.text(bx, by, "WHAT IT IS", size=0.15, weight="bold", fill=INK)
     for i, line in enumerate(feats):
         svg.text(bx + 0.1, by + 0.25 + i * 0.2, "- " + line, size=0.12, fill=INK)

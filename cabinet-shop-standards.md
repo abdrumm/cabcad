@@ -89,9 +89,16 @@ Exceptions happen, but they are few and deliberate. Note any exception on the dr
   piece cut to the inside width**, captured between the sides. (Brook, 2026-10-23)
 - **Base gables are one piece.** Each side runs full height from the floor to the top
   of the case, and that includes the toe-kick zone. The toe-kick notch (the recess,
-  3" deep by the 4" kick height) is cut into that one panel. The kick plate is a
-  separate board, set back from the front. The gable is never a second piece stacked
-  under the case for the bottom 4". (Brook, 2026-10-31)
+  3" deep by the 4" kick height) is cut into that one panel. The structural toe-kick
+  plate is a separate board, set back from the front. The gable is never a second
+  piece stacked under the case for the bottom 4". (Brook, 2026-10-31)
+- **Finished kick plate (optional).** Off unless the job says `# kickplate=yes`.
+  Black or grey (`# kickplate_color=black` or `grey`; `gray` is grey). Height is
+  **3.75"** (`KICK_PLATE_H` in `cabgen/params.py`), overridable with `# kickplate_h=`.
+  It has to stay inside the 4" toe kick. One piece covers each stretch of bases that
+  touch, filler included on the end. A gap between bases starts another piece. It is
+  a 1/4" skin on the room side of the structural toe-kick plate. The gables stay one
+  piece. Sample jobs leave it off. (Brook, 2026-10-31)
 - Drawer sizes vary; door sizes vary. **The generator must accept these as inputs** and
   adjust the schedule of stretchers, not hard-code them.
 
