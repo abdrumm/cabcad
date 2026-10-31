@@ -266,13 +266,16 @@ def _side_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, float
 
     svg.line(t.x(x_front) - 0.25, t.y(0), t.x(x_back) + 0.25, t.y(0), stroke=INK, sw=0.014)
 
-    # side panel: full height above the kick, notched below it
+    # one gable: full height, with the toe-kick notch cut into it (no seam line)
     if p.has_toe_kick and p.toe_kick_recess > 0:
-        svg.rect(t.x(0), t.y(p.case_top_z), gable_d * scale,
-                 (p.case_top_z - p.toe_kick_h) * scale, stroke=INK, sw=0.012)
-        svg.rect(t.x(p.toe_kick_recess), t.y(p.toe_kick_h),
-                 (gable_d - p.toe_kick_recess) * scale, p.toe_kick_h * scale,
-                 stroke=INK, sw=0.012)
+        svg.poly([
+            (t.x(0), t.y(p.case_top_z)),
+            (t.x(gable_d), t.y(p.case_top_z)),
+            (t.x(gable_d), t.y(0)),
+            (t.x(p.toe_kick_recess), t.y(0)),
+            (t.x(p.toe_kick_recess), t.y(p.toe_kick_h)),
+            (t.x(0), t.y(p.toe_kick_h)),
+        ], fill="none", stroke=INK, sw=0.012)
     else:
         svg.rect(t.x(0), t.y(p.case_top_z), gable_d * scale,
                  p.case_top_z * scale, stroke=INK, sw=0.012)

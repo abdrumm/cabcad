@@ -67,6 +67,9 @@ def swatch(box) -> tuple[str, str, float, float]:
     if role == "hardware":
         return "Pull", PULL, 0.8, 0.35
     chosen = str(getattr(box, "color", "") or "").strip()
+    if role == "kick":
+        hex_c = chosen or _color(box)
+        return f"Kick {hex_c.upper()}", hex_c, 0.0, 0.55
     if not chosen:
         hex_c = _color(box)
         name = {PULL: "Pull", SOLID: "Solid_top", LAMTOP: "Laminate_top",

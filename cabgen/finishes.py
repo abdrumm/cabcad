@@ -176,6 +176,8 @@ def part_role(name: str, material: str = "") -> str:
     mat = (material or "").lower()
     if any(word in mat for word in ("pull", "hardware")) or "wire pull" in part or part.startswith("hinge"):
         return "hardware"
+    if part.startswith("kick plate"):
+        return "kick"
     if "drawer box" in part:
         return "interior"
     if "false front" in part or "drawer front" in part or part.startswith("door"):
@@ -216,7 +218,7 @@ def paint_boxes(boxes, params) -> list[str]:
         if role == "hardware":
             box.color = PULL_HEX
             continue
-        if role == "substrate":
+        if role in ("substrate", "kick"):
             continue
         spec = _spec_for(params, role)
         if not spec:

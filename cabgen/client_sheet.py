@@ -428,6 +428,7 @@ def end_view(svg: Svg, job: Job, box) -> None:
         dx, dy, dz = b.size
         svg.rect(Yx(y), Z(z + dz), dy * s, dz * s, fill=PULL if "pull" in b.material else _color(b),
                  stroke=_edge(b, "#56606b"), sw=0.005)
+    _stroke_notches(svg, _gable_groups(job.boxes), Yx, Z)
     _wall_band(svg, Yx(wall), Z(top + 6), 0.15, (top + 6) * s)
     svg.line(Yx(wall), floor, Yx(wall), Z(top + 6), stroke=INK, sw=0.012)
     svg.line(Yx(-6), floor, Yx(wall) + 0.15, floor, stroke=INK, sw=0.014)
@@ -445,6 +446,57 @@ def end_view(svg: Svg, job: Job, box) -> None:
         _hdim(svg, Yx(wall - ud), Yx(wall), Z(ut) - 0.15, fmt_in(ud), size=0.12)
         _vdim(svg, Yx(wall - ud) - 0.25, Z(ub), Z(ut), fmt_in(ut - ub), size=0.12)
         _vdim(svg, Yx(wall) + 0.4, Z(0), Z(ut), ft_in(ut), size=0.12)
+
+
+def counter_paint_rank(box, deck_z: float | None) -> int:
+    """Draw order for the 3D view, coarse layers.
+
+    The painter's own order has cycles (a long counter, a tall splash, and the
+    cabinets under them all overlap on screen). Breaking a cycle was drawing the
+    deck, then drawing a base interior on top of it, so the last cabinet looked
+    like it had a hole in the top and only the build-up frame showed. Layers keep
+    the deck in one piece, and keep the finished kick plate in front of the
+    structural toe-kick board: case, kick plate, fronts, build-up, deck,
+    splashes, then whatever stands above (the uppers).
+    """
+    if deck_z is None:
+        return 0
+    name = box.name
+    part = name.split("/")[-1].strip()
+    if "Backsplash" in name or "Side splash" in name:
+        return 5
+    if "Countertop / Top" in name:
+        return 4
+    if "Countertop /" in name:
+        return 3
+    # The finished kick plate sits in front of the structural toe-kick board and
+    # behind the doors. Paint it between those, or a later cabinet box covers it.
+    if part.startswith("Kick plate"):
+        return 1
+    if any(word in part for word in ("Door", "Drawer front", "False front", "Wire pull", "Hinge")):
+        return 2
+    if box.pos[2] + box.size[2] <= deck_z + 1e-4:
+        return 0
+    return 6
+
+
+def _deck_z(boxes) -> float | None:
+    tops = [b.pos[2] for b in boxes if "Countertop / Top" in b.name]
+    return min(tops) if tops else None
+
+
+def _iso_faces(box) -> tuple[str, str, str]:
+    """Fill for the top, right, and front faces.
+
+    A side splash is a thin box, so the 3D view shows its side face. That face
+    used to be shaded darker than the backsplash's front face, and the two
+    splashes read as different colours. Both are the countertop, so every face
+    of a splash is the countertop colour with no extra shade.
+    """
+    base = FILL if box.material == "filler" else _color(box)
+    if "Backsplash" in box.name or "Side splash" in box.name:
+        return base, base, base
+    return _shade(base, 1.03), _shade(base, 0.82), _shade(base, 0.94)
 
 
 def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
@@ -546,17 +598,19 @@ def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
         order.append(i)
         for j in after[i]:
             indeg[j] -= 1
+    deck_z = _deck_z(boxes)
+    order.sort(key=lambda i: counter_paint_rank(boxes[i], deck_z))
 
     for i in order:
         b = boxes[i]
         x, y, z = b.pos
         X1, Y1, Z1 = x + b.size[0], y + b.size[1], z + b.size[2]
-        base = FILL if b.material == "filler" else _color(b)
         edge = "none" if "pull" in b.material else _edge(b, "#5d6770")
         sw = 0.0 if "pull" in b.material else 0.004
-        poly([(x, y, Z1), (X1, y, Z1), (X1, Y1, Z1), (x, Y1, Z1)], _shade(base, 1.03), edge, sw)  # top
-        poly([(X1, y, z), (X1, Y1, z), (X1, Y1, Z1), (X1, y, Z1)], _shade(base, 0.82), edge, sw)  # right
-        poly([(x, y, z), (X1, y, z), (X1, y, Z1), (x, y, Z1)], _shade(base, 0.94), edge, sw)      # front
+        top_f, right_f, front_f = _iso_faces(b)
+        poly([(x, y, Z1), (X1, y, Z1), (X1, Y1, Z1), (x, Y1, Z1)], top_f, edge, sw)  # top
+        poly([(X1, y, z), (X1, Y1, z), (X1, Y1, Z1), (X1, y, Z1)], right_f, edge, sw)  # right
+        poly([(x, y, z), (X1, y, z), (X1, y, Z1), (x, y, Z1)], front_f, edge, sw)      # front
 
     span_b = job.run_span("base") or job.run_span("upper")
     if span_b:
@@ -591,6 +645,10 @@ def schedule(svg: Svg, job: Job, box) -> None:
         ct = job.counter
         rows.append((ct.code, "Countertop, " + ("laminate" if ct.kind == "laminate" else "solid surface"),
                      fmt_in(ct.length), fmt_in(EDGE_T), fmt_in(ct.depth)))
+    from .kickplate import build_kick
+    for plate in build_kick(job.cabs, job.settings):
+        rows.append((plate.label, f"Kick plate, {plate.color}", fmt_in(plate.length),
+                     fmt_in(plate.height), ""))
     room = bh - 0.75
     if len(rows) * 0.18 <= room:
         # one column, the full width
@@ -635,20 +693,25 @@ def title_block(svg: Svg, job: Job, box, date: str, drawing: str = "Kitchen layo
     svg.line(bx, by + 0.55, bx + bw, by + 0.55, stroke=INK, sw=0.008)
     svg.text(bx + 0.15, by + 0.38, job.name, size=0.26, weight="bold", fill=INK)
     nb, nu = len(job.bases), len(job.uppers)
+    from .kickplate import phrase as kick_phrase
     rows = [
         ("Drawing", drawing),
         ("Date", date + (f"      Page {page}" if page else "")),
         ("Cabinets", cabinets or f"{nb + nu} ({nb} base, {nu} upper)"),
         ("Countertop", job.counter.description if job.counter else "none"),
-        ("Prepared by", ""),
     ]
+    kick = kick_phrase(job.settings, job.cabs)
+    if kick:
+        rows.append(("Kick plate", kick))
+    rows.append(("Prepared by", ""))
     y = by + 0.76
+    line = 0.15 if kick else 0.18
     for k, v in rows:
         svg.text(bx + 0.15, y, k.upper(), size=0.09, fill=SOFT)
         svg.text(bx + 1.3, y, v, size=0.13, fill=INK)
         if k == "Prepared by":
             svg.line(bx + 1.3, y + 0.03, bx + bw - 0.2, y + 0.03, stroke=SOFT, sw=0.005)
-        y += 0.18
+        y += line
     svg.text(bx + 0.15, by + bh - 0.08,
              "Preliminary, for discussion. Not for construction.", size=0.1, fill=SOFT)
 
@@ -666,18 +729,66 @@ def _style_name(style: str) -> str:
     return STYLE_PRESETS[style]["label"].replace(" (no countertop)", "").replace(" — ", ", ")
 
 
-def _single(cab, name: str) -> Job:
-    """The one cabinet alone at the origin. Nothing from its neighbours."""
+def _single(cab, name: str, settings: dict | None = None) -> Job:
+    """The one cabinet alone at the origin. Nothing from its neighbours.
+
+    A kick plate on the job still shows on this cabinet, the width of this cabinet.
+    """
     from dataclasses import replace as _replace
     lone = _replace(cab, x=0.0, y=0.0, z=0.0, gap_after=0.0)
-    job = job_from([lone], {"upper_bottom": 0.0, "counter": "none"}, name)
+    keep = {"upper_bottom": 0.0, "counter": "none"}
+    for key in ("kickplate", "kickplate_color", "kickplate_h"):
+        if settings and key in settings:
+            keep[key] = settings[key]
+    job = job_from([lone], keep, name)
     job.codes = {lone.name: "W"}
     return job
 
 
 def _edge(b, stroke: str) -> str:
-    """No outline on the thin slices that draw a rounded corner (microwave shelf)."""
-    return "none" if getattr(b, "shape", "") == "slice" else stroke
+    """No outline on rounded-corner slices, or on the two boxes of one notched gable.
+
+    The gable outline is drawn once, as the notch, so the shared edge is not a seam.
+    """
+    if getattr(b, "shape", "") == "slice":
+        return "none"
+    part = b.name.split("/")[-1].strip()
+    if b.join and part.startswith("Gable"):
+        return "none"
+    return stroke
+
+
+def _notch_loop(parts) -> list[tuple[float, float]] | None:
+    """(y, z) of one notched gable. None when the side is a plain rectangle."""
+    if len(parts) < 2:
+        return None
+    y0 = min(b.pos[1] for b in parts)
+    y1 = max(b.pos[1] + b.size[1] for b in parts)
+    z0 = min(b.pos[2] for b in parts)
+    z1 = max(b.pos[2] + b.size[2] for b in parts)
+    heel = max(parts, key=lambda b: b.pos[1])
+    front = min(parts, key=lambda b: b.pos[1])
+    if heel.pos[1] <= y0 + 1e-4:
+        return None
+    return [(y0, z1), (y1, z1), (y1, z0), (heel.pos[1], z0), (heel.pos[1], front.pos[2]), (y0, front.pos[2])]
+
+
+def _gable_groups(boxes) -> dict:
+    groups: dict = {}
+    for b in boxes:
+        part = b.name.split("/")[-1].strip()
+        if b.join and part.startswith("Gable"):
+            groups.setdefault(b.join, []).append(b)
+    return groups
+
+
+def _stroke_notches(svg, groups, X, Y) -> None:
+    """One outline per gable, in the side or end view (depth horizontal, height vertical)."""
+    for parts in groups.values():
+        loop = _notch_loop(parts)
+        if not loop:
+            continue
+        svg.poly([(X(y), Y(z)) for y, z in loop], fill="none", stroke="#56606b", sw=0.006)
 
 
 def _ortho(svg: Svg, boxes, view: str, X, Y) -> None:
@@ -695,6 +806,8 @@ def _ortho(svg: Svg, boxes, view: str, X, Y) -> None:
         pull = "pull" in b.material
         svg.rect(x0, y0, x1 - x0, y1 - y0, fill=PULL if pull else _color(b),
                  stroke="none" if pull else _edge(b, "#56606b"), sw=0 if pull else 0.006)
+    if view == "side":
+        _stroke_notches(svg, _gable_groups(boxes), X, Y)
 
 
 def _swing_marks(svg: Svg, boxes, X, Z) -> None:
@@ -752,7 +865,7 @@ def _features(p, has_counter: bool = False) -> list[str]:
 def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     rep = cabs[0]
     p = rep.params
-    lone = _single(rep, job.name)
+    lone = _single(rep, job.name, job.settings)
     boxes = lone.boxes
     W, H, D = p.width, p.height, p.depth + 0.75        # depth includes the fronts
     svg = Svg(PAGE_W, PAGE_H)
@@ -810,6 +923,10 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     # what it is, and the widths of this style in the job
     bx, by = M + 9.9, M + 6.45
     feats = _features(p, job.counter is not None)
+    from .kickplate import phrase as kick_phrase
+    kick = kick_phrase(job.settings, [rep]) if not str(p.style).startswith("upper") else ""
+    if kick:
+        feats.append(f"kick plate {kick}, recessed in the toe kick")
     svg.text(bx, by, "WHAT IT IS", size=0.15, weight="bold", fill=INK)
     for i, line in enumerate(feats):
         svg.text(bx + 0.1, by + 0.25 + i * 0.2, "- " + line, size=0.12, fill=INK)
@@ -953,7 +1070,7 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
             (X2(ct.y_front + 2.0), ct.z0 + 1.25, '1/2" solid surface top'),
             (X2(ct.y_front + 0.25), ct.z0 + 1.4, '1/4" lip left over the rabbet'),
             (X2(ct.y_front + 0.25), ct.z0 + 0.6, '1 1/4" solid surface edge strip, epoxied'),
-            (X2(ct.y_front + 2.0), ct.z0 + 0.5, '1" plywood stiffener'),
+            (X2(ct.y_front + 2.2), ct.z0 + 0.6, '3/4" plywood build-up, tight to the sheet'),
         ]
     rows = sorted(callouts, key=lambda c: -c[1])
     for k, (px_, z, text) in enumerate(rows):
@@ -979,8 +1096,11 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
         lines = [
             '1/2" solid surface top, with a 1/2" wide x 1/4" deep rabbet under the front and finished edges.',
             "1-1/4\" solid surface edge strip epoxied into the rabbet: 1/4\" + 1-1/4\" = 1-1/2\" reveal.",
-            '1" plywood stiffener strips under the top (front, back, ends, and centred where cabinets meet)',
-            '  bring it to 1-1/2" overall, and give the installers plywood to screw into.',
+            '3/4" plywood build-up, 4" wide, glued to the underside of the sheet. No staples',
+            "  or screws into the solid surface. Tight to the sheet, so the strips start 1/4\"",
+            "  above the case (the front edge is still a 1-1/2\" reveal).",
+            "Front, back, and both ends. Front and back stop short of a side edge strip.",
+            "  A strip is centred on every case break.",
             '4" solid surface backsplash; 4" side splash at a wall end.',
             'Open ends: 1" overhang with a finished edge. Wall ends: flush.',
         ]

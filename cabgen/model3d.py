@@ -79,11 +79,14 @@ def build_model(p: Params, layout: Layout) -> Model:
         ))
 
     def gable(name: str, x: float) -> None:
+        # One panel, floor to the top of the case. A base gable has the toe-kick notch
+        # cut into that one piece: full depth above the kick, and only the back of the
+        # panel through the kick. Two boxes share a join key so Omacad and the cut list
+        # treat them as one part; the drawings outline the notch as one shape.
         mat = '3/4" melamine'
         if p.has_toe_kick and p.toe_kick_h > 0 and p.toe_kick_recess > 0:
             add(name, (x, 0, p.toe_kick_h),
                 (t, gable_d, top - p.toe_kick_h), mat, join=name)
-            # overlap the upper piece by 0.01 so the union is one solid
             add(name + " heel", (x, p.toe_kick_recess, 0),
                 (t, gable_d - p.toe_kick_recess, p.toe_kick_h + 0.01), mat, join=name)
         else:
@@ -388,10 +391,15 @@ def qdisc_center(box: Box) -> tuple[float, float]:
     return (x + sx if "+x" in box.shape else x), (y + sy if "+y" in box.shape else y)
 
 
-def expand_round(boxes: list[Box], steps: int = 8) -> list[Box]:
-    """Plain boxes only: each rounded corner becomes `steps` thin slices that follow the
-    quarter circle (for the client views and the AR model, which draw boxes). The slices
-    carry shape "slice" so the client views paint them without outlines."""
+def expand_round(boxes: list[Box], steps: int = 16) -> list[Box]:
+    """Plain boxes only: each rounded corner becomes `steps` thin slices inside the
+    quarter circle (for the client views and the AR model, which draw boxes).
+
+    A slice as wide as the circle at its middle sticks out past the curve at both
+    ends of the band, so the corner reads as a bulge. Size the slice to the end
+    farther from the centre; the whole rectangle then stays inside the radius and
+    inside the corner square. The slices carry shape "slice" so the client views
+    paint them without outlines."""
     import math
     out = []
     for b in boxes:
@@ -403,8 +411,8 @@ def expand_round(boxes: list[Box], steps: int = 8) -> list[Box]:
         r = sx
         for i in range(steps):
             y0, y1 = y + sy * i / steps, y + sy * (i + 1) / steps
-            dy = abs((y0 + y1) / 2 - cy)
-            half = math.sqrt(max(r * r - dy * dy, 0.0))
+            far = y0 if abs(y0 - cy) >= abs(y1 - cy) else y1
+            half = math.sqrt(max(r * r - (far - cy) ** 2, 0.0))
             xa, xb = (cx - half, cx) if "+x" in b.shape else (cx, cx + half)
             if xb - xa < 1e-4:
                 continue

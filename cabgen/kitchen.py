@@ -96,9 +96,10 @@ def load_kitchen(path: Path) -> tuple[dict, list[dict]]:
                 key = key.strip()
                 value = value.strip()
                 if key in ("upper_bottom", "upper_offset", "base_offset", "filler",
-                           "sheet_w", "sheet_l", "kerf"):
+                           "sheet_w", "sheet_l", "kerf", "kickplate_h"):
                     settings[key] = _float(value, f"{path.name} {key}")
-                elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right"):
+                elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right",
+                             "kickplate", "kickplate_color"):
                     settings[key] = value
                 elif key in JOB_KEYS:
                     settings[JOB_KEYS[key]] = value
@@ -223,6 +224,15 @@ def scene_of(cabs: list[Cab], settings: dict | None = None) -> tuple[list[Box], 
             boxes += counter.boxes
             for part, _labels in counter.parts():
                 parts.append(replace(part, name=f"Countertop / {part.name}"))
+        from .kickplate import build_kick
+        try:
+            plates = build_kick(cabs, settings)
+        except ValueError as exc:
+            raise KitchenError(str(exc)) from exc
+        for plate in plates:
+            boxes.append(plate.box())
+            part, _labels = plate.part()
+            parts.append(replace(part, name=f"{plate.label} {part.name}"))
     if settings is not None:
         seen: list[str] = []
         for warning in warnings:
@@ -451,6 +461,12 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
                            ("finish_top", "top"), ("finish_interior", "interior")):
             if settings.get(key):
                 lines.append(f"# {label}={settings[key]}")
+        if "kickplate" in settings:
+            lines.append(f"# kickplate={settings['kickplate']}")
+            if str(settings.get("kickplate")).strip().lower() in ("yes", "y", "true", "on", "1"):
+                lines.append(f"# kickplate_color={settings.get('kickplate_color') or 'black'}")
+                if settings.get("kickplate_h") not in (None, ""):
+                    lines.append(f"# kickplate_h={float(settings['kickplate_h']):g}")
     lines.append("# Blank height and depth keep the style. x is the left edge of that cabinet.")
     lines.append("name,style,width,run,height,depth,x,drawer_front_h,handle")
     for cab in cabinets:
@@ -494,9 +510,28 @@ def group_settings(form: dict) -> dict:
         raw = form.get(form_key)
         if field not in finishes and raw is not None and str(raw).strip():
             finishes[field] = str(raw).strip()
+    from .kickplate import color_name
+    kick = str(form.get("kickplate") or "no").strip().lower()
+    if kick not in ("yes", "no"):
+        raise KitchenError("the kick plate is yes or no")
+    kick_color = "black"
+    kick_h = None
+    if kick == "yes":
+        try:
+            kick_color = color_name(form.get("kickplate_color") or "black")
+        except ValueError as exc:
+            raise KitchenError(str(exc)) from exc
+        raw_h = form.get("kickplate_h")
+        if raw_h is not None and str(raw_h).strip() != "":
+            kick_h = _float(raw_h, "kick plate height")
+            if kick_h <= 0:
+                raise KitchenError("kick plate height must be greater than 0")
     return {
         "counter": counter,
         **splash,
+        "kickplate": kick,
+        "kickplate_color": kick_color,
+        **({} if kick_h is None else {"kickplate_h": kick_h}),
         "upper_offset": _offset(form.get("uoff"), "upper offset from the wall"),
         "base_offset": _offset(form.get("boff"), "base offset from the wall"),
         "base_walls": walls,
@@ -630,9 +665,15 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
     from .nest_project import KERF, SHEET_L, SHEET_W, NestError, nest_project, write_project_nest
     kerf = float(settings.get("kerf", KERF))
     try:
+        from .kickplate import build_kick
+        try:
+            kick_extra = [plate.part() for plate in build_kick(cabs, settings)]
+        except ValueError as exc:
+            return False, str(exc)
+        extra = (counter.parts() if counter else []) + kick_extra
         groups = nest_project(cabs, float(settings.get("sheet_w", SHEET_W)),
                               float(settings.get("sheet_l", SHEET_L)), kerf,
-                              extra=counter.parts() if counter else None)
+                              extra=extra or None)
     except NestError as exc:
         extra = "".join(f"\n! {w}" for w in door_warns)
         return False, f"nesting: {exc}{extra}"

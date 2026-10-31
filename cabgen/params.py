@@ -37,6 +37,12 @@ MW_DEPTH = UPPER_DEPTH          # the box matches the other uppers (Brook, 2026-
 # front corners rounded to a 2" radius.
 MICROWAVE_SHELF_CALLED_DEPTH = 16.0
 MICROWAVE_SHELF_CORNER_R = 2.0
+# Finished toe-kick face, off unless the job says kickplate=yes. 3.75" is the height
+# the owner expects inside the 4" toe kick. Change the height here; a job can override
+# it with # kickplate_h=. The skin is 1/4" applied on the room side of the structural plate.
+KICK_PLATE_H = 3.75
+KICK_PLATE_THK = 0.25
+KICK_PLATE_COLORS = {"black": "#1c1c1c", "grey": "#8e9399"}
 MW_OPENING_H = 17.25            # clear opening, microwave shelf (bottom) to the divider above.
                                 # 30 - 3/4 bottom - 17-1/4 = 12" for the divider + the 2-door box above
 # 1-door hardware (placeholders): 35 mm cup hinges, cup centre 22.5 mm in from the
