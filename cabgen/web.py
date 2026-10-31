@@ -26,24 +26,33 @@ PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CabCad - cabinet shop drawings</title>
 <style>
   :root {{ color-scheme: light dark; }}
-  body {{ font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.5rem;
-         max-width: 68rem; margin-inline: auto; }}
-  h1 {{ font-size: 1.4rem; margin: 0 0 .2rem; }}
-  p.sub {{ margin: 0 0 1.4rem; opacity: .7; }}
+  *, *::before, *::after {{ box-sizing: border-box; }}
+  html {{ height: 100%; }}
+  body {{ font-family: system-ui, sans-serif;
+         font-size: clamp(14.5px, 0.15vw + 14px, 17px); line-height: 1.45;
+         margin: 0 auto; padding: clamp(0.75rem, 2.2vw, 1.75rem);
+         max-width: min(68rem, 100%); min-height: 100%; }}
+  h1 {{ font-size: clamp(1.2rem, 1.1vw + 1rem, 1.7rem); margin: 0 0 .2rem;
+       overflow-wrap: break-word; }}
+  h2 {{ font-size: clamp(1.05rem, 0.5vw + 0.95rem, 1.35rem); overflow-wrap: break-word; }}
+  p.sub {{ margin: 0 0 1.4rem; opacity: .7; max-width: 68rem; }}
   fieldset {{ border: 1px solid #8884; border-radius: 8px; margin: 0 0 1.2rem;
-              padding: .9rem 1rem 1.1rem; }}
+              padding: clamp(.6rem, 1.5vw, .9rem) clamp(.7rem, 2vw, 1rem) clamp(.7rem, 1.6vw, 1.1rem);
+              min-width: 0; max-width: 100%; }}
   legend {{ font-weight: 600; padding: 0 .4rem; }}
-  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-           gap: .6rem 1.2rem; }}
+  form {{ min-width: 0; max-width: 100%; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+           gap: clamp(.4rem, 1vw, .6rem) clamp(.6rem, 2vw, 1.2rem); }}
   .rowhead {{ display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; align-items: end;
               justify-content: space-between; margin-bottom: .7rem; }}
-  .rowname {{ font-weight: 650; font-size: 1.05rem; }}
-  .offset {{ width: 9rem; }}
-  .cards {{ display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }}
-  .card {{ width: 11rem; }}
+  .rowname {{ font-weight: 650; font-size: clamp(.95rem, 0.4vw + .9rem, 1.15rem); }}
+  .offset {{ width: min(9rem, 100%); }}
+  .cards {{ display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; min-width: 0; max-width: 100%; }}
+  .card {{ width: min(11rem, 100%); max-width: 100%; }}
   button.plus {{ width: 2.7rem; height: 2.7rem; padding: 0; font-size: 1.5rem;
                  line-height: 1; }}
   button.quiet {{ background: transparent; color: inherit; }}
@@ -51,24 +60,44 @@ PAGE = """<!doctype html>
   button:disabled {{ opacity: .45; cursor: default; }}
   .total {{ font-weight: 600; }}
   .ends {{ display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }}
-  #end-rule {{ margin: .8rem 0 0; }}
+  #end-rule {{ margin: .8rem 0 0; max-width: 68rem; }}
   label {{ display: block; font-size: .82rem; opacity: .85; margin-bottom: .15rem; }}
-  input, select {{ width: 100%; padding: .35rem .5rem; border-radius: 5px;
+  input, select, textarea {{ width: 100%; max-width: 100%; padding: .35rem .5rem; border-radius: 5px;
                    border: 1px solid #8886; font: inherit; background: transparent;
                    color: inherit; }}
   input[type=checkbox], input[type=radio] {{ width: auto; }}
-  .check {{ display: flex; align-items: center; gap: .45rem; margin-top: 1.1rem; }}
+  .check {{ display: flex; align-items: center; gap: .45rem; margin-top: 1.1rem; flex-wrap: wrap; }}
   .check label {{ margin: 0; }}
   button {{ font: inherit; font-weight: 600; padding: .55rem 1.4rem; border-radius: 6px;
-            border: 1px solid #8886; background: #3b82f6; color: #fff; cursor: pointer; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: .86rem; margin-bottom: 1.2rem; }}
+            border: 1px solid #8886; background: #3b82f6; color: #fff; cursor: pointer;
+            max-width: 100%; }}
+  .table-scroll {{ overflow-x: auto; max-width: 100%; margin-bottom: 1.2rem; }}
+  .table-scroll table {{ margin-bottom: 0; width: max-content; min-width: 100%; max-width: none; }}
+  .table-scroll th, .table-scroll td {{ white-space: nowrap; }}
+  table {{ border-collapse: collapse; width: 100%; max-width: 100%; font-size: .86rem; margin-bottom: 1.2rem; }}
   th, td {{ text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #8883; }}
   th {{ font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }}
   td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-  .files a {{ display: inline-block; margin: .2rem .5rem .2rem 0; }}
+  .files a {{ display: inline-block; margin: .2rem .5rem .2rem 0; max-width: 100%; overflow-wrap: anywhere; }}
+  img {{ max-width: 100%; height: auto; }}
   img.preview {{ width: 100%; border: 1px solid #8884; border-radius: 6px; }}
   .warn {{ background: #f59e0b22; border: 1px solid #f59e0b66; padding: .5rem .7rem;
-           border-radius: 6px; font-size: .85rem; }}
+           border-radius: 6px; font-size: .85rem; max-width: 100%; overflow-wrap: break-word; }}
+  ul {{ max-width: 100%; padding-left: 1.2rem; }}
+  li {{ overflow-wrap: anywhere; }}
+  @media (max-width: 40rem) {{
+    h1 {{ font-size: clamp(1.15rem, 4.5vw, 1.45rem); }}
+    button {{ padding: .5rem 1rem; }}
+    .grid {{ gap: .45rem .65rem; }}
+  }}
+  @media (max-height: 800px) {{
+    body {{ padding-block: clamp(0.45rem, 1.6dvh, 1rem); }}
+    p.sub {{ margin-bottom: clamp(0.4rem, 1.6dvh, 1rem); }}
+    fieldset {{ margin-bottom: clamp(0.45rem, 1.4dvh, 1rem); }}
+  }}
+  @media (min-width: 90rem) {{
+    body {{ font-size: clamp(16px, 0.2vw + 15px, 18px); }}
+  }}
 </style>
 </head>
 <body>
@@ -174,7 +203,8 @@ def _result_html(p: Params, files: list[str], warnings: list[str], out_dir: Path
         warn,
         preview,
         "<h2>Files</h2>",
-        "<table><tr><th>File</th><th>Size</th></tr>" + parts_rows + "</table>",
+        '<div class="table-scroll"><table><tr><th>File</th><th>Size</th></tr>'
+        + parts_rows + "</table></div>",
         '<p><a href="/">&larr; back to the form</a></p>',
     ])
 
@@ -395,38 +425,48 @@ def _wall_radios(selected: str) -> str:
 
 RUN_CSS = """
 <style>
-  body { max-width: none; padding: 1rem 1.6rem 2rem; }
-  .cc { --line: #8885; --tile: #8881; --accent: #3b82f6; }
+  /* Group builder uses the monitor width, capped so a large iMac does not
+     stretch the sentences across the whole panel. clamp(), min(), and dvh
+     follow the window; nothing here is tuned to one machine. */
+  body { max-width: min(140rem, 100%); margin-inline: auto;
+         padding: clamp(.55rem, 1.4dvh, 1rem) clamp(.7rem, 1.8vw, 1.6rem) clamp(1rem, 2.4dvh, 2rem); }
+  .cc { --line: #8885; --tile: #8881; --accent: #3b82f6; min-width: 0; }
   [hidden] { display: none !important; }
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: clamp(.5rem, 2vw, 1rem);
          flex-wrap: wrap; margin-bottom: .2rem; }
-  .brand { font-size: 1.45rem; font-weight: 750; letter-spacing: .01em; }
-  .brand .muted { font-size: .95rem; font-weight: 500; opacity: .6; margin-left: .4rem; }
-  .actions { display: flex; gap: .5rem; }
+  .brand { font-size: clamp(1.2rem, 0.6vw + 1rem, 1.55rem); font-weight: 750; letter-spacing: .01em; }
+  .brand .muted { font-size: clamp(.85rem, 0.3vw + .75rem, 1rem); font-weight: 500; opacity: .6; margin-left: .4rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
   .actions button { padding: .45rem 1.1rem; }
   .actions button.ghost { background: transparent; color: inherit; }
-  .arpanel { border: 1px solid var(--line, #8885); border-radius: 12px; padding: .6rem 1rem; margin: .9rem 0; }
+  .arpanel { border: 1px solid var(--line, #8885); border-radius: 12px;
+             padding: clamp(.5rem, 1.5vw, 1rem); margin: .9rem 0; min-width: 0; max-width: 100%; }
   .arpanel h2 { margin: .2rem 0 .4rem; }
-  .arqr { display: flex; gap: 1.2rem; align-items: center; }
-  .arqr .qr svg { width: 180px; height: 180px; background: #fff; border-radius: 8px; }
-  .mono, .arpanel code { font-family: ui-monospace, monospace; font-size: .85rem; }
+  .arqr { display: flex; flex-wrap: wrap; gap: clamp(.6rem, 2vw, 1.2rem); align-items: center; }
+  .arqr .qr { max-width: 100%; }
+  .arqr .qr svg { width: min(180px, 42vw); height: auto; aspect-ratio: 1; background: #fff; border-radius: 8px; }
+  .mono, .arpanel code { font-family: ui-monospace, monospace; font-size: .85rem; overflow-wrap: anywhere; }
+  .lead, .foot, #end-rule { max-width: 68rem; }
   .lead { margin: .1rem 0 1rem; opacity: .65; font-size: .88rem; }
-  .row { display: grid; grid-template-columns: 11.5rem 1fr; gap: 1rem; align-items: stretch;
-         border: 1px solid var(--line); border-radius: 12px; padding: .8rem 1rem; margin-bottom: .9rem; }
+  .row { display: grid; grid-template-columns: minmax(9rem, 11.5rem) minmax(0, 1fr);
+         gap: clamp(.6rem, 1.5vw, 1rem); align-items: stretch; min-width: 0;
+         border: 1px solid var(--line); border-radius: 12px;
+         padding: clamp(.5rem, 1.2vw, .8rem) clamp(.6rem, 1.5vw, 1rem); margin-bottom: .9rem; }
   .rowside { display: flex; flex-direction: column; gap: .35rem; border-right: 1px solid var(--line);
-             padding-right: 1rem; }
-  .rowname { font-weight: 700; font-size: 1.05rem; }
+             padding-right: 1rem; min-width: 0; }
+  .rowname { font-weight: 700; font-size: clamp(.95rem, 0.4vw + .9rem, 1.15rem); }
   .total { font-size: .86rem; font-weight: 600; opacity: .85; }
   .rowside label { font-size: .75rem; opacity: .7; margin: .3rem 0 0; }
   .rowside .link { margin-top: auto; }
   button.link { background: transparent; color: inherit; border: 0; padding: .1rem 0; font-size: .78rem;
                 font-weight: 500; opacity: .6; text-align: left; text-decoration: underline; }
   button.link:hover { opacity: 1; }
-  .cards { display: flex; gap: .6rem; align-items: stretch; overflow-x: auto; padding-bottom: .2rem; }
-  .card { flex: 1 1 0; min-width: 8.6rem; max-width: 15rem; display: flex; flex-direction: column;
+  .cards { display: flex; flex-wrap: nowrap; gap: .6rem; align-items: stretch; overflow-x: auto;
+           min-width: 0; max-width: 100%; padding-bottom: .35rem; }
+  .card { flex: 1 1 0; min-width: min(8.6rem, 100%); max-width: 15rem; display: flex; flex-direction: column;
           gap: .45rem; border: 1px solid var(--line); border-radius: 10px; padding: .45rem .55rem .6rem;
           background: var(--tile); }
-  .cardhead { display: flex; justify-content: space-between; align-items: center; }
+  .cardhead { display: flex; justify-content: space-between; align-items: center; gap: .3rem; }
   .tag { font-weight: 700; font-size: .8rem; opacity: .7; }
   .card button.del { background: transparent; color: inherit; border: 0; padding: 0 .3rem; margin: 0;
                      font-size: 1.1rem; line-height: 1; font-weight: 400; opacity: .45; }
@@ -435,37 +475,40 @@ RUN_CSS = """
                 font-weight: 300; background: transparent; color: inherit; border: 2px dashed var(--line);
                 border-radius: 10px; }
   button.plus:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .seg { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; width: max-content; max-width: 100%; }
+  .seg { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 7px; overflow: hidden;
+         width: max-content; max-width: 100%; }
   .card .seg { width: 100%; }
   .segbtn { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: .15rem;
             background: transparent; color: inherit; border: 0; border-right: 1px solid var(--line);
-            border-radius: 0; padding: .28rem .6rem; font-size: .78rem; font-weight: 500; white-space: nowrap; }
+            border-radius: 0; padding: .28rem .6rem; font-size: .78rem; font-weight: 500; white-space: nowrap;
+            min-width: 0; }
   .segbtn:last-child { border-right: 0; }
   .segbtn:hover:not(:disabled):not(.on) { background: #8882; }
   .segbtn.on { background: var(--accent); color: #fff; }
-  .card .segbtn { padding: .3rem .2rem; font-size: .72rem; }
-  .ico { width: 17px; height: 21px; }
+  .card .segbtn { padding: .3rem .2rem; font-size: .72rem; white-space: normal; text-align: center; line-height: 1.15; }
+  .ico { width: 17px; height: 21px; flex: 0 0 auto; }
   .card .seg.many { display: grid; grid-template-columns: 1fr 1fr; }
   .card .seg.many .segbtn { border-bottom: 1px solid var(--line); }
   .card .seg.many .segbtn:nth-child(2n) { border-right: 0; }
   .card .seg.many .segbtn:nth-last-child(-n+2) { border-bottom: 0; }
-  .handle-pick { display: flex; align-items: center; gap: .4rem; }
+  .handle-pick { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; max-width: 100%; }
   .ico { transition: transform .15s; }
   .card[data-handle="left"] .segbtn[data-v="upper1"] .ico { transform: scaleX(-1); }
   .handle-pick .optlabel { font-size: .75rem; }
   .card .handle-pick .seg { width: auto; }
   .card .handle-pick .segbtn { padding: .15rem .55rem; }
-  .w { display: flex; align-items: center; gap: .35rem; }
-  .w input { width: 5rem; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; padding: .25rem .4rem; }
-  .w span { font-size: .78rem; opacity: .6; }
-  .drawer-pick { display: flex; align-items: center; gap: .35rem; }
+  .w { display: flex; align-items: center; gap: .35rem; max-width: 100%; }
+  .w input { width: min(5rem, 100%); text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; padding: .25rem .4rem; }
+  .w span { font-size: .78rem; opacity: .6; white-space: nowrap; }
+  .drawer-pick { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
   .drawer-pick label { margin: 0; font-size: .75rem; }
-  .drawer-pick select { width: auto; padding: .15rem .3rem; font-size: .8rem; }
-  .opts { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1.6rem;
-          border: 1px solid var(--line); border-radius: 12px; padding: .75rem 1rem; }
-  .opt { display: flex; align-items: center; gap: .5rem; }
+  .drawer-pick select { width: auto; max-width: 100%; padding: .15rem .3rem; font-size: .8rem; }
+  .opts { display: flex; flex-wrap: wrap; align-items: center; gap: clamp(.5rem, 1.5vw, .7rem) clamp(.8rem, 2vw, 1.6rem);
+          border: 1px solid var(--line); border-radius: 12px;
+          padding: clamp(.55rem, 1.4vw, .75rem) clamp(.7rem, 1.6vw, 1rem); min-width: 0; }
+  .opt { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; max-width: 100%; min-width: 0; }
   .optlabel { font-size: .8rem; opacity: .75; }
-  .pills { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  .pills { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
   .pills input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
   .pills label { margin: 0; padding: .28rem .7rem; font-size: .8rem; opacity: 1; cursor: pointer;
                  border-right: 1px solid var(--line); }
@@ -479,12 +522,19 @@ RUN_CSS = """
   .card.dragging .cardhead { cursor: grabbing; }
   .card.drop-before { box-shadow: -4px 0 0 0 var(--accent); }
   .card.drop-after { box-shadow: 4px 0 0 0 var(--accent); }
-  .wire { border: 1px solid var(--line); border-radius: 12px; padding: .6rem 1rem .4rem; margin: .9rem 0; }
-  .wirehead { display: flex; gap: .8rem; align-items: baseline; }
-  /* Front view is the sales star: twice the old 320px on a big screen, shrinks with
-     short windows (never under 320px), always the card's full width. Vector, so
-     lines and labels stay sharp at any size. */
-  #wire { display: block; width: 100%; max-width: 100%; height: clamp(320px, 60vh, 640px); }
+  .wire { border: 1px solid var(--line); border-radius: 12px;
+          padding: clamp(.4rem, 1.2vw, .6rem) clamp(.6rem, 1.6vw, 1rem) .4rem;
+          margin: .9rem 0; min-width: 0; max-width: 100%; }
+  .wirehead { display: flex; flex-wrap: wrap; gap: .35rem .8rem; align-items: baseline; }
+  /* Front view fills the width it is given and a slice of the window height.
+     60vh up to 640px on a normal desktop. Short windows (the ~800-900px laptop)
+     use the smaller slice in the max-height query so the form and the drawing
+     share the screen. A wide short window puts the drawing beside the form.
+     Vector art stays sharp; preserveAspectRatio meet keeps the aspect. */
+  #wire { display: block; width: 100%; max-width: 100%;
+          height: clamp(320px, 60vh, 640px);
+          height: clamp(320px, min(60vh, 60dvh), 640px);
+          max-height: min(80dvh, 900px); }
   #wire .wf-floor { stroke: currentColor; stroke-width: .6; }
   #wire .wf-wall { fill: #8884; stroke: currentColor; stroke-width: .35; }
   #wire .wf-case { fill: #8881; stroke: currentColor; stroke-width: .35; }
@@ -506,6 +556,41 @@ RUN_CSS = """
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
   #end-rule { margin: .7rem 0 0; font-size: .85rem; }
+  @media (max-width: 52rem) {
+    .row { grid-template-columns: minmax(0, 1fr); }
+    .rowside { border-right: 0; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: .55rem; }
+    .actions button { padding: .4rem .8rem; }
+  }
+  /* Owner's short-laptop slice, for a stacked page: smaller than 60vh so the
+     drawing does not push the form into a long scroll. Wide short windows
+     override this and park the drawing in the side column instead. */
+  @media (max-height: 900px) {
+    .lead { margin-bottom: .45rem; }
+    .row { margin-bottom: .55rem; }
+    .wire { margin: .55rem 0; }
+    button.plus { min-height: 4.5rem; }
+    #wire { height: clamp(240px, 45vh, 480px);
+            height: clamp(240px, min(45vh, 45dvh), 480px); }
+  }
+  /* Wide and short (13-15" laptop, short desktop): the drawing sits beside the
+     rows and uses the leftover height, instead of stacking under them. */
+  .stage { min-width: 0; max-width: 100%; }
+  .stage-main, .stage-notes { min-width: 0; max-width: 100%; }
+  /* Up through a 1080p desktop: the drawing stays beside the rows so a 640px
+     front view does not sit below the form and force a long scroll. Taller
+     monitors (a 1440p iMac) keep the drawing full width under the form. */
+  @media (min-width: 68rem) and (max-height: 1100px) {
+    .stage { display: grid;
+             grid-template-columns: minmax(0, 1.15fr) minmax(min(100%, 18rem), 0.95fr);
+             grid-template-areas: "main wire" "notes notes";
+             column-gap: clamp(.6rem, 1.4vw, 1.1rem); align-items: start; }
+    .stage-main { grid-area: main; }
+    .stage > .wire { grid-area: wire; position: sticky; top: .4rem; margin: 0;
+                     align-self: start; max-height: calc(100dvh - .8rem); }
+    .stage-notes { grid-area: notes; }
+    .stage > .wire #wire { height: clamp(240px, min(68vh, 68dvh), 640px);
+                           max-height: calc(100dvh - 8rem); }
+  }
 </style>
 """
 
@@ -956,6 +1041,8 @@ def _run_fields(view: dict) -> str:
 </header>
 <p class="lead">Each row builds left to right. The + adds a cabinet on the right end of that row.
 Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and depth stay with the style.</p>
+<div class="stage">
+<div class="stage-main">
 <section class="row" aria-label="Uppers">
 <div class="rowside">
 <div class="rowname">Uppers</div>
@@ -984,14 +1071,18 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="opt" id="filler-box"{filler_hidden}><span class="optlabel">Filler width</span>{filler_seg}<span class="optlabel">on the</span>{side_seg}</div>
 {_counter_fields(view)}
 </section>
+</div>
 <section class="wire" aria-label="Front view">
 <div class="wirehead"><span class="rowname">Front view</span><span class="optlabel">simple wireframe, to scale, updates as you change the form</span></div>
 <svg id="wire" role="img" aria-label="Front view of the cabinets" preserveAspectRatio="xMidYMid meet"></svg>
 </section>
+<div class="stage-notes">
 {door_rule}
 <p class="sub" id="end-rule">The left end is a wall, so the counter is flush there. The open right end overhangs 1 inch.</p>
 <p class="foot">4" backsplash on the wall; open ends get a finished edge with a 1" overhang. The countertop and splashes are drawn, and their parts go in the cut list and nest.
 Building takes about a minute; the model opens full screen on workspace 3.</p>
+</div>
+</div>
 </form>
 {wire_data}{js}{WIRE_JS}"""
 
@@ -1011,7 +1102,7 @@ def _layout_table(text: str) -> str:
     body = ""
     for cells in rows[1:]:
         body += "<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in cells) + "</tr>"
-    return f"<table><tr>{head}</tr>{body}</table>"
+    return f'<div class="table-scroll"><table><tr>{head}</tr>{body}</table></div>'
 
 
 NEST_LINKS = (
