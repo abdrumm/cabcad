@@ -34,6 +34,7 @@ def test_config_has_brook_only_and_rick_disabled():
 def test_buttons_are_on_the_form():
     page = _run_page(group_view(None))
     assert 'formaction="/email-ar"' in page and ">Email AR to me<" in page
+    assert 'formaction="/client-email"' in page and ">Draft client email<" in page
 
 
 def test_email_ar_writes_a_draft_with_usdz_and_glb(tmp_path):
@@ -46,3 +47,19 @@ def test_email_ar_writes_a_draft_with_usdz_and_glb(tmp_path):
     names = sorted(p.get_filename() for p in msg.iter_attachments())
     assert names == ["cabcad.glb", "cabcad.usdz"]
     assert (folder / "mailto.txt").read_text().startswith("mailto:brook@printrbot.com?subject=AR%3A")
+
+
+def test_client_email_collects_pdf_render_and_ar(tmp_path):
+    page = _handle_draft(dict(FORM), tmp_path, "client")
+    folder = tmp_path / "client-email" / "smith-kitchen"
+    got = sorted(p.name for p in folder.iterdir())
+    assert got == ["email.eml", "email.txt", "smith-kitchen-client-sheet.pdf",
+                   "smith-kitchen-render.png", "smith-kitchen.glb", "smith-kitchen.usdz"]
+    assert (folder / "smith-kitchen-client-sheet.pdf").read_bytes()[:4] == b"%PDF"
+    assert (folder / "smith-kitchen-render.png").read_bytes()[:4] == b"\x89PNG"
+    text = (folder / "email.txt").read_text()
+    assert text.startswith("Subject: Smith Kitchen: preliminary cabinet drawings (rev B)")
+    assert "Hi Ann," in text and "Coppinger Exhibits" in text
+    msg = _eml(folder / "email.eml")
+    assert not msg["To"] and len(list(msg.iter_attachments())) == 4
+    assert "Copy email text" in page

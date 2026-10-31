@@ -1037,6 +1037,7 @@ def _run_fields(view: dict) -> str:
 <button type="submit" class="ghost" formaction="/client-sheet" formtarget="_blank">Client sheet (PDF)</button>
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 <button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
+<button type="submit" class="ghost" formaction="/client-email" title="Collect the client PDF, a render and the AR file with a ready email text. Test mode: nothing is sent.">Draft client email</button>
 </div>
 </header>
 <section class="jobline" aria-label="Job">
@@ -1255,6 +1256,10 @@ def _handle_draft(form: dict, out_dir: Path, kind: str) -> str:
         if kind == "ar":
             d = drafts.draft_ar_email(job, out_dir)
             panel = _draft_panel("Email AR to me", d, "USDZ for iPhone and GLB for Android are attached.")
+        else:
+            d = drafts.draft_client_email(job, out_dir)
+            panel = _draft_panel("Draft client email (test mode)", d,
+                                 "Client PDF, render and AR files are in the folder.")
     except (KitchenError, RuntimeError, OSError, ValueError) as exc:
         return _run_page(view, error=f"email draft: {exc}")
     return _run_page(view, ar=panel)
@@ -1428,8 +1433,8 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
                 return
-            if path == "/email-ar":
-                self._page(_handle_draft(form, out_dir, "ar"))
+            if path in ("/email-ar", "/client-email"):
+                self._page(_handle_draft(form, out_dir, "ar" if path == "/email-ar" else "client"))
                 return
             if path == "/finishes":
                 from .finishes import add_custom, label

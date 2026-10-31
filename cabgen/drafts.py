@@ -103,3 +103,48 @@ def draft_ar_email(job, out_dir: Path, open_it: bool = True) -> dict:
     opened = open_folder(folder) if open_it else False
     return {"folder": folder, "to": to, "subject": subject, "body": body, "files": files,
             "eml": folder / "email.eml", "mailto": link, "opened": opened}
+
+
+def client_body(job, names: dict) -> tuple[str, str]:
+    cfg = config()
+    s = job.settings or {}
+    client = s.get("client") or ""
+    first = client.split()[0] if client else "there"
+    rev = s.get("rev") or "A"
+    subject = f"{job.name}: preliminary cabinet drawings (rev {rev})"
+    body = (
+        f"Hi {first},\n\n"
+        f"Attached are the preliminary cabinet drawings for {job.name}, revision {rev}:\n\n"
+        f"  - {names['pdf']}: plan, elevations and the cabinet list\n"
+        f"  - {names['png']}: a quick render of the layout\n"
+        f"  - {names['usdz']}: open it on an iPhone or iPad and tap AR to see the cabinets in your room\n"
+        f"    ({names['glb']} is the same model for Android)\n\n"
+        "These are for discussion, not for construction. Overall height is 33-1/2\" to the top of the\n"
+        "counter; please confirm the wall widths and any plumbing or outlet locations before we build.\n\n"
+        "Let me know what you think, or call with any changes.\n\n"
+        f"{cfg.get('signature') or br.COMPANY}\n")
+    return subject, body
+
+
+def draft_client_email(job, out_dir: Path, open_it: bool = True) -> dict:
+    """'Draft client email' (test mode): PDF + render PNG + AR files and a copy-paste body."""
+    from .ar_export import export_job
+    from .client_sheet import write_client_sheet
+    from .render import write_render
+    stem = slug(job.name)
+    folder = _fresh(Path(out_dir) / "client-email" / stem)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sheet = write_client_sheet(job, tmp, "client-sheet", png=False)
+        pdf = shutil.copy(sheet["pdf"], folder / f"{stem}-client-sheet.pdf")
+        png = shutil.copy(write_render(job, tmp, "render"), folder / f"{stem}-render.png")
+    ar = export_job(job, folder, stem)
+    files = [Path(pdf), Path(png), Path(ar["usdz"]), Path(ar["glb"])]
+    names = {k: f.name for k, f in zip(("pdf", "png", "usdz", "glb"), files)}
+    subject, body = client_body(job, names)
+    to = [a for a in [config().get("client_email", {}).get("to", "")] if a]
+    (folder / "email.txt").write_text(f"Subject: {subject}\n\n{body}", encoding="utf-8")
+    (folder / "email.eml").write_bytes(build_eml(to, subject, body, files))
+    opened = open_folder(folder) if open_it else False
+    return {"folder": folder, "to": to, "subject": subject, "body": body, "files": files,
+            "eml": folder / "email.eml", "opened": opened}
