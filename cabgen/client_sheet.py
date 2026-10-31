@@ -1087,6 +1087,23 @@ def _render_pages(job: Job, date: str | None = None) -> list[Svg]:
     return pages
 
 
+def client_notes(job: Job, limit: int = 5) -> list[tuple[str, str]]:
+    """The few notes that apply to this job, for the client (cabgen.notes)."""
+    from .notes import facts_from_job, select
+    return select(facts_from_job(job), "client")[:limit]
+
+
+def notes_block(svg: Svg, notes, x: float, y: float) -> None:
+    if not notes:
+        return
+    from .branding import NAVY
+    svg.text(x, y, "NOTES", size=0.1, weight="bold", fill=NAVY)
+    for i, (title, text) in enumerate(notes):
+        yy = y + 0.2 + i * 0.16
+        svg.text(x, yy, title, size=0.095, weight="bold", fill=INK)
+        svg.text(x + 1.0, yy, text, size=0.095, fill=DIM)
+
+
 def render(job: Job, date: str | None = None, page: str = "") -> Svg:
     """Page 1: the whole kitchen."""
     with palette_for(job):
@@ -1100,7 +1117,10 @@ def _render(job: Job, date: str | None = None, page: str = "") -> Svg:
     svg.text(M + 0.1, M + 0.32, job.name.upper(), size=0.28, weight="bold", fill=INK)
     svg.text(M + 0.1, M + 0.58, "Cabinet layout", size=0.14, fill=SOFT)
     front_elevation(svg, job, (M + 0.1, M + 0.8, 9.6, 5.6))
-    iso_view(svg, job, (M + 9.9, M + 0.8, 6.3, 5.6))
+    notes = client_notes(job)
+    iso_h = 5.6 - (0.25 + 0.16 * len(notes) if notes else 0)
+    iso_view(svg, job, (M + 9.9, M + 0.8, 6.3, iso_h))
+    notes_block(svg, notes, M + 9.9, M + 0.8 + iso_h + 0.18)
     svg.line(M + 0.1, M + 6.55, PAGE_W - M - 0.1, M + 6.55, stroke="#d5dae0", sw=0.006)
     plan_view(svg, job, (M + 0.1, M + 6.7, 6.2, 3.5))
     end_view(svg, job, (M + 6.5, M + 6.7, 3.2, 3.5))

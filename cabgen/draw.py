@@ -412,33 +412,15 @@ def _notes_block(svg: Svg, p: Params, layout: Layout, parts: list[Part],
     y = by + 0.1
     lines: list[tuple[str, str]] = []
 
-    banded = [pt for pt in parts if pt.banding and pt.banding.upper() != "NONE" and "N/A" not in pt.banding]
-    lines.append(("EDGE BANDING",
-                  f"{p.edge_banding} banding on: " + ", ".join(pt.name for pt in banded[:6])
-                  + ("..." if len(banded) > 6 else "") + ". Banding does not change part sizes."))
-    lam = [pt for pt in parts if pt.laminate]
+    # condensed, only what applies to this cabinet (cabgen.notes, Brook Oct 30)
+    from .notes import extra_checks, facts_from_params, select
+    lines.extend(select(facts_from_params(p), "shop"))
+    lam = [pt.name for pt in parts if pt.laminate]
     if lam:
-        lines.append(("LAMINATE",
-                      "Light oak formica, reveal faces only: "
-                      + "; ".join(f"{pt.name} - {pt.laminate.split('.')[0]}" for pt in lam) + "."))
-    if p.laminate:
-        lines.append(("WATERFALL ORDER",
-                      "Laminate applied: bottom face first, then sides, then top. "
-                      "Spray laminate and melamine with contact adhesive, +1\" oversize, "
-                      "trim with the palm router, sand, hand-file exposed edges."))
-    if p.has_counter:
-        lines.append(("COUNTERTOP",
-                      f'1/2" Corian top + 1" MDF backer; rabbit joint 1/2" channel by 1/2" '
-                      f'leaving 1/4" material. Epoxy front edge and revealed side edges, sand flat, '
-                      f'ease with a 1/8" quarter-round bit. Back backsplash full length including '
-                      f'the overhangs; left backsplash butts into it.'))
-    lines.append(("SITE",
-                  "Measure the real space before cutting and re-check the opening: rough framing "
-                  "is frequently out of square. Base runs only: leave a 1, 2, or 3\" filler gap on one side "
-                  "and close it with the filler board at the front. Uppers get no filler."))
+        lines.append(("LAMINATE ON", ", ".join(lam) + "."))
     for note in layout.notes:
         lines.append(("DRAWER", note))
-    for a in layout.assumptions:
+    for a in extra_checks(layout.assumptions):
         lines.append(("CHECK", a))
 
     for title, text in lines:
@@ -475,7 +457,8 @@ def _title_block(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, f
         ("COUNTER", f'{fmt_in(p.counter_width)} x {fmt_in(p.counter_depth)} Corian'
          if p.has_counter else "none"),
         ("FRONTS", f'{p.doors} door(s), {p.drawers} drawer(s), overlay {fmt_in(p.door_overhang)}'),
-        ("MATERIAL", '3/4" melamine carcass, 1/2" melamine back, 1/2" Corian top'),
+        ("MATERIAL", '3/4" melamine carcass, 1/2" melamine back'
+         + (', 1/2" Corian top' if p.has_counter else "")),
         ("KERF", f'{fmt_in(p.kerf)} saw blade - nesting on the cut list sheet'),
         ("DATE", datetime.date.today().isoformat()),
     ]
