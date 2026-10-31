@@ -1,6 +1,6 @@
 # CABCAD-SPEC.md: complete rebuild specification for CabCad
 
-Version: 2026-10-30, 9:45 PM EDT. Owner: Brook (abdrumm), casework PM at Coppinger Exhibits.
+Version: 2026-10-30, 9:50 PM EDT (sync check and branding added). Owner: Brook (abdrumm), casework PM at Coppinger Exhibits.
 Sources: the code on the iMac (`~/Work/cabinet-gen`, `~/Work/omacad`), `~/Work/cabinet-shop-standards.md`, `CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `cabinet-generator-context.md` and `cabinet-generator-state.md`, plus Brook's decisions saved in assistant memory (Oct 19 to Oct 30, 2026).
 Status tags: **BUILT** (in code and working), **DECIDED-NOT-BUILT** (Brook decided it, but the code doesn't do it yet), **PLANNED** (on the roadmap, details not final), **OPEN** (a question still waiting for Brook's answer). **UNKNOWN** means the sources don't say.
 
@@ -108,7 +108,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - `cabgen/ar_export.py`: GLB and USDZ writer. `cabgen/ar_web.py`: AR panel, phone page and QR code.
 - `cabgen/omacad_export.py`: the `.omacad` writer and the window control.
 - `cabgen/web.py`: the web form, the front-view wireframe and the routes. `cabgen/cli.py`: argparse.
-- `jobs/one-cabinet.csv`, `jobs/sample-kitchen.csv`, `jobs/upper-styles.csv`: example jobs. `briefs/ar-export.md` is the AR spec. `tools/check_svg.py`.
+- `jobs/one-cabinet.csv`, `jobs/sample-kitchen.csv`, `jobs/upper-styles.csv`: example jobs. `briefs/ar-export.md` is the AR spec. `tools/check_svg.py`. `tools/cabcad-sync-check` and `tools/systemd/` (section 13). `assets/branding/coppinger/` (placeholder logo, roadmap step 5). `docs/CABCAD-SPEC.md` (this file).
 - `.gitignore`: `out/ __pycache__/ *.pyc .venv/ .pytest_cache/ *.bak*`.
 - Docs that live **outside** the repo, in `~/Work/`: `cabinet-shop-standards.md` (the live rules), `CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `CABCAD-SPEC.md` (this file), `cabinet-generator-context.md`, `cabinet-generator-state.md`.
 
@@ -522,7 +522,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 
 ## 11. Roadmap (Oct 30 plan; build order)
 
-1. **Local git and sync.** NOW. Done when both machines are on the same commit (see section 13).
+1. **Local git and sync.** BUILT on the iMac: bare repos, plus `cabcad-sync-check` running at login, after resume and every 30 min. PENDING on the laptop: clone, sync-check install and SSH/Tailscale. Done when both machines sit on the same commit and the check is green on both (see section 13).
 2. **Finish catalog (laminate and solid surface).** PLANNED (next).
    - The list comes from finishes on the **real QuickBase job records and historical purchases / Archie's estimates**. It's not in QuickBooks; Sue has that.
    - Every finish is labelled **"close to <brand> <code> <name>"**. Never ship brand images or files (they're copyrighted).
@@ -543,7 +543,14 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
    - **Colours:** accent navy **`#263460`**; greens **`#037c39`** (wordmark), **`#93bc3c`** and **`#5fa549`** (sphere), used sparingly. Clean sans-serif, white space, thin rules.
    - **Client approval box:** signature and date.
    - **Address:** **9955 Westpoint Dr, Suite 150, Indianapolis, IN 46256 · (317) 913-1400**. Verified on Google Maps and the Coppinger site; it's near 96th St on the Indianapolis side of the Fishers line.
-   - **Logo:** a PLACEHOLDER vector traced from the website's 286×96 PNG, at `/workspace/branding/coppinger/coppinger-logo-traced.svg` on the assistant's box. Not yet copied to the iMac. Ask Mike or marketing for the official AI/EPS/SVG master.
+   - **Logo:** a PLACEHOLDER vector traced from the website's 286×96 PNG. It's committed in the repo at `assets/branding/coppinger/coppinger-logo-traced.svg`, along with:
+  - the original PNGs (`coppinger-logo.png` 286×96, `coppinger-logo-1.png` 200×67);
+  - a 2860w render;
+  - the legacy 2012 CE vector (`old-ce-logo-2012.svg`, from the site's `requirements.pdf`);
+  - a `README.md` with sources and colours;
+  - `src/` and `web/` captures of the site.
+
+  Brook approved it as a placeholder. Ask Mike or marketing for the official AI/EPS/SVG master.
    - Later: revision tracking (Rev A/B/C with change notes).
 6. **Sales package plus a "Draft client email" button.** PLANNED.
    - One button loads the client PDF, the render(s) and the AR USDZ into an email draft that Rick edits and sends.
@@ -655,10 +662,47 @@ Ideas backlog: `~/Work/CABCAD-IDEAS.md` (NOW/NEXT/LATER/DONE). Feed new ideas to
 
 ## 13. Backups (after losing a laptop)
 - **Local-only git, no GitHub** (Brook: "If git is local, yes. But both machines.").
-- **Master bare repos on the iMac:** `~/Work/git/cabinet-gen.git` and `~/Work/git/omacad.git`. The working copies `~/Work/cabinet-gen` and `~/Work/omacad` have `origin` pointing at those bare repos. First commit in cabinet-gen: `0edde35 Initial commit: cabinet-gen snapshot 2026-10-30`. This spec is committed as `docs/CABCAD-SPEC.md`.
-- **The laptop clones and mirrors** over the LAN or Tailscale (needs SSH from the laptop to the iMac; the iMac is `imaco` on the LAN and `imaco-ts` / 100.66.33.81 on Tailscale). Status: PENDING, since the laptop has been offline.
-- **After every session:** commit, push, pull on the other machine, and check that both have the same commit hash and a clean status.
-- The docs (`CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `CABCAD-SPEC.md`, `cabinet-shop-standards.md`) are kept identical in `~/Work/` on both machines.
-- Older safety copies: `*.bak-YYYYMMDD-*` files next to the sources (git-ignored) and `~/Work/cabinet-gen.bak-20261028` on the laptop.
-- LATER: an automatic sync check script, and an off-site backup that isn't public GitHub (an encrypted drive or a private remote), which is Brook's call.
+- **Master bare repos on the iMac:** `~/Work/git/cabinet-gen.git` and `~/Work/git/omacad.git`.
+  - `~/Work/cabinet-gen` pushes and pulls through remote **`origin`** (the bare repo).
+  - `~/Work/omacad` uses remote **`imac`** (its own `origin` is still the upstream Omacad project).
+  - Branch: `main`.
+- **cabinet-gen history:**
+  - `0edde35` initial snapshot
+  - `b0ca402` sync-check script and systemd units
+  - `b7b009d` this spec as `docs/CABCAD-SPEC.md`
+  - then the branding assets and this update
+- **Laptop.** It clones and mirrors over the LAN or Tailscale. The iMac is `imaco` on the LAN and `imaco-ts` / 100.66.33.81 on Tailscale. The laptop's remotes use the same names with SSH URLs, like `ssh://abdrumm@100.66.33.81/home/abdrumm/Work/git/cabinet-gen.git`. It needs key-based SSH from the laptop to the iMac. Status: **PENDING**, since the laptop has been offline.
+- **Sync check (`cabcad-sync-check`).** BUILT on the iMac; PENDING on the laptop.
+  - **Script:** `~/.local/bin/cabcad-sync-check` (bash). The repo copy is `tools/cabcad-sync-check`.
+  - **Config:** the `REPOS` array holds `"<working tree>|<remote>|<branch>"`:
+    - `~/Work/cabinet-gen|origin|main`
+    - `~/Work/omacad|imac|main`
+  - **What it does for each repo:** fetch, with a 30 s timeout and SSH in BatchMode with a 10 s connect timeout, and no prompts. Then:
+    - **behind:** fast-forward pull;
+    - **ahead:** plain push;
+    - **diverged:** report only;
+    - **dirty working tree:** report;
+    - **remote unreachable:** report ("can't reach iMac").
+  - It **never auto-commits** and never force-pushes or merges.
+  - **Notices:** `notify-send`, green when in sync and red on any problem. With `--quiet`, nothing shows when everything's in sync.
+  - **Log:** `~/.local/state/cabcad-sync.log`.
+  - **Modes:**
+    - plain run: one check;
+    - `--quiet`: the timer mode;
+    - `--watch-resume`: blocks on `gdbus monitor` of logind `PrepareForSleep(false)` (no root needed), then runs a check 20 s after each resume from sleep.
+  - **systemd user units** (repo `tools/systemd/`, installed and enabled on the iMac; install steps in `tools/systemd/INSTALL-sync-check.md`):
+    - `cabcad-sync-check.service`: at login (after `graphical-session.target` and `network-online.target`), with `ExecStartPre=/bin/sleep 20`, so it runs **20 s after login**.
+    - `cabcad-sync-resume.service`: the long-running `--watch-resume` watcher, after `graphical-session.target`.
+    - `cabcad-sync-check.timer`: `OnBootSec=5min`, `OnUnitActiveSec=30min`. It triggers `cabcad-sync-check-timer.service`, which runs `--quiet` **every 30 minutes**.
+  - **Laptop install (PENDING):**
+    1. Clone both repos from the iMac with SSH remotes (`origin` for cabinet-gen, `imac` for omacad).
+    2. Copy the script to `~/.local/bin/` and the units to `~/.config/systemd/user/`.
+    3. Run `systemctl --user daemon-reload`.
+    4. Enable `cabcad-sync-check.service`, `cabcad-sync-resume.service` and `cabcad-sync-check.timer`.
+    5. Confirm a green notice.
+- **After every work session:** commit, then let the sync check push and pull (or run `cabcad-sync-check` by hand), and confirm a green notice on both machines (same commit, clean status).
+- **Docs:** `CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `CABCAD-SPEC.md` and `cabinet-shop-standards.md` are kept identical in `~/Work/` on both machines. The spec is also in the repo as `docs/CABCAD-SPEC.md`, so it travels with git. The others are outside git (LATER: move them into `docs/`).
+- **Branding assets** are in the repo at `assets/branding/coppinger/` (see the roadmap, step 5).
+- **Older safety copies:** `*.bak-YYYYMMDD-*` files next to the sources (git-ignored) and `~/Work/cabinet-gen.bak-20261028` on the laptop.
+- **LATER:** an off-site backup that isn't public GitHub (an encrypted drive or a private remote). That's Brook's call.
 - Note: the GitHub repo `abdrumm/cabcad` exists and was **public**. Brook chose local-only git, and nothing has been pushed to GitHub.

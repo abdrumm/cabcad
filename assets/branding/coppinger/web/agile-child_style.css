@@ -1,0 +1,69 @@
+/*
+Theme Name:     Agile Child
+Theme URI:      https://www.livemeshthemes.com/agile
+Description:    Child theme for the Agile Theme by LiveMesh
+Author:         LiveMesh
+Author URI:     http://themeforest.net/user/livemesh
+Template:       agile
+Version:        0.1.0
+*/
+
+.testimonials2-slider-container p {font-size:19px !important;}
+
+#header.sticky {40px !important;}
+
+.admin-bar #header.sticky {padding-bottom:30px !important;}
+
+#site-logo {top:22px !important;}
+
+#header {padding-bottom:10px !important;}
+
+#title-area {padding: 25px 0 1px !important;}
+
+#showcase-filter a, #showcase-links a {font-style: normal !important;}
+
+#breadcrumbs {font-size: 15px !important;}
+
+.image-area p {font-size: 16px !important;}
+p {font-size: 16px !important;}
+
+#primary-menu > ul.menu > li > a {font-style: normal !important;}
+
+.portfolio-sidebar p {font-size:20px !important;}
+
+
+.service-item ul {margin: 0 0 20px 10px !important;}
+
+.portfolio-description {font-size:15px !important; line-height: 17px !important; font-weight:600;}
+
+
+.portfolio-label {font-size:12px !important;}
+
+.team2, #team2 {display:none !important;color:#263460 !important;}
+
+.slogan1 .highlight {color:#263460 !important;}
+.slogan1.big {font-size: 40px !important; line-height: 40px !important;}
+
+#header.sticky #site-logo {
+    top: 5px;
+    }
+
+#page-loading {
+	z-index: 10010;
+	background: #FFF url(https://www.livemeshthemes.com/wp-content/uploads/2014/05/Preloader_11.gif) no-repeat 50% 50%;
+}
+
+.piechart .label {    line-height: 18px;
+    font-size: 15px !important; }
+
+.features-list-alternate h3 {color:#4ea520 !important;}
+
+.heading2 .pitch {max-width:100% !important; font-size:24px !important;}
+
+.heading2 {0 auto !important;}
+
+.woocommerce-site .cart-contents .cart-count {background:#24345D !important;}
+
+#pg-12773-1 .lsow-row {padding-top:40px !important; padding-bottom:40px !important;}
+
+#site-logo a img {margin-bottom:10px !important;}
