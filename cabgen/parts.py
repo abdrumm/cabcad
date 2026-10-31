@@ -72,9 +72,15 @@ class Part:
     thk: float
     width: float          # across the grain (short way, when cut)
     length: float         # along the grain (long way)
-    banding: str = ""     # edge banding callout
+    banding: str = ""     # edge banding callout, in carpenter words
     laminate: str = ""    # laminate face callout
     notes: str = ""       # anything the carpenter needs beyond the numbers
+    # Edge-band code from cabgen/edgeband.py. "W1 N1" or "L1 L2 W1 W2".
+    eb: str = ""
+    eb_mask: str = "0000"             # L1 L2 W1 W2, each 0 or 1
+    eb_spec: str = ""                 # laminate the PVC matches
+    # (recess along the length, kick along the width) when this blank gets a toe-kick notch.
+    notch: tuple | None = None
 
     @property
     def area(self) -> float:
@@ -752,14 +758,21 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
             f"{fmt(p.spacer_gap)} spacer between the case and the wall. "
             "Re-measure the opening before cutting."
         )
-    if p.laminate and p.laminate_right_side:
+    from .finishes import resolved_finished_ends
+    ends = resolved_finished_ends(p)
+    if p.laminate and ends != "none":
         assumptions.append(
-            "Right gable treated as a reveal: laminate the outside face and the front "
-            "edge (light oak formica)."
+            f"Finished end ({ends}): case laminate on the outside face, PVC on the visible edges. "
+            "A base side is one piece; the toe-kick notch is cut out of it."
+            if p.has_toe_kick else
+            f"Finished end ({ends}): case laminate on the outside face, PVC on the visible edges."
         )
     assumptions.append(
-        "Edge banding is 0.5-2 mm and does not change any part dimension."
+        "Edge banding is 0.5-2 mm and does not change the part size. "
+        "EB column: L1 L2 along the length, W1 W2 the ends, N1 the top of the toe-kick notch."
     )
+    from .edgeband import stamp_parts
+    stamp_parts(parts, p)
     if p.has_toe_kick:
         assumptions.append(
             f"Toe kick: notch the gables {fmt(p.toe_kick_recess)} deep by "

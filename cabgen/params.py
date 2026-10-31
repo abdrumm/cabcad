@@ -304,6 +304,9 @@ class Params:
     finish_doors: str = ""
     finish_top: str = ""
     finish_interior: str = ""
+    # left / right / both / none. Blank follows the sides: an end that is not
+    # against a wall (or the next cabinet) is a finished end.
+    finished_ends: str = ""
 
     # --- sheet goods ---------------------------------------------------------
     sheet_w: float = 48.0
@@ -317,6 +320,15 @@ class Params:
                 setattr(self, key, "")
             else:
                 setattr(self, key, str(val).strip())
+        ends = self.finished_ends
+        if ends is None or ends is False:
+            self.finished_ends = ""
+        else:
+            self.finished_ends = str(ends).strip().lower()
+        if self.finished_ends in ("auto", "false"):
+            self.finished_ends = ""
+        if self.finished_ends not in ("", "left", "right", "both", "none"):
+            self.finished_ends = ""
         self.door_count_overridden = False
         preset = STYLE_PRESETS[self.style]
         for key in ("width", "height", "depth", "drawer_front_h"):
@@ -459,8 +471,15 @@ class Params:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Params":
         known = {f.name for f in fields(cls)}
-        clean = {k: v for k, v in data.items() if k in known}
-        clean = {k: _coerce(v) for k, v in clean.items()}
+        clean = {}
+        for k, v in data.items():
+            if k not in known:
+                continue
+            # "none" is a real finished-end value. The generic coerce turns it into False.
+            if k == "finished_ends":
+                clean[k] = "" if v is None else str(v).strip()
+            else:
+                clean[k] = _coerce(v)
         p = cls(**clean)
         return p
 

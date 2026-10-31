@@ -463,3 +463,73 @@ in `cabgen/params.py`. Common stock sizes, 3" steps:
 | Base, sink | `sink` | 30" | same as `base` for now (sink bases are commonly 30"-36") |
 
 (The CLI/CSV still requires a width on every cabinet; these are form defaults only.)
+
+---
+
+## 9. Edge banding, finished ends, laminate sheets (Brook, 2026-10-31)
+
+These are the defaults in the program. The numbers Brook can change live in one
+table, `EDGE_TABLE` in `cabgen/edgeband.py`. Say if a row is wrong.
+
+### Edge banding
+
+Color-matched PVC on every edge that shows. It does not change the size of the
+part (still 0.5–2 mm). The back edge, and any edge that gets a laminate strip
+over it (counter front, splash edges), does not get PVC.
+
+On the cut list the code is `L1 L2 W1 W2`:
+
+- Lay the part down the way the nest draws it, length left to right.
+- L1 is the top edge of that rectangle. L2 is the bottom edge.
+- W1 is the left end. W2 is the right end.
+- A thick coloured line on the nest, the part label, and the side view is a
+  banded edge. The colour is the laminate that edge matches. A light colour
+  is drawn with a dark hairline so it still shows on the paper.
+
+What the table does now:
+
+- Base side (gable): one piece, with the toe-kick notch cut out of it. Band
+  the front edge above the notch (W1) and the top of the notch (N1), the edge
+  you see inside the kick. Do not band the back, the edge on the floor, or the
+  back of the notch (it sits behind the kick plate). The side is not a solid
+  rectangle.
+- Upper side: front, top, and bottom. Not the back.
+- Shelf, bottom, top, and the front stiles: front edge only.
+- Door and drawer front (and a false front): all four edges.
+- Drawer box: top edge, and the front edge of the sides. The bottom is in the
+  groove.
+- Toe-kick plate: top edge and both ends.
+
+### Finished ends
+
+`finished_ends` on a cabinet is `left`, `right`, `both`, or `none`. Leave it
+blank and the program decides: a run end that is not against a wall is a
+finished end. The next cabinet counts as a wall. A filler end is against the
+wall, so that gable is not a finished end (the filler closes it).
+
+Uppers follow `# upper_walls=` when the job has it, otherwise the same walls
+as the bases. Uppers still never get a filler.
+
+A finished end gets the case laminate on the outside face, and the visible
+edges banded as above. An unfinished end stays the raw case colour (the tan
+on the screen), not the laminate. The 3D, the AR view, and Omacad use that
+same outside-face colour. The client sheet hatches the end and writes `FE`.
+
+### Laminate cut list
+
+`<job>-laminate-cutlist.csv`, and a page on the nest PDF. One line per skin:
+which laminate, which face, finished size, and the cut size. The cut size is
+the finished size plus 1/2" each way so it can be trimmed.
+
+Doors and drawer fronts are listed twice (both faces, same laminate). A
+finished end is one skin; on a base you cut the toe-kick notch out of that
+piece after. Counter laminate (deck, front edge, splashes) is on the list
+when the top is laminate. Edge banding is not on the sheets. The bottom of
+the list is the sheet count for a 4x8 and for a 5x12 (a simple nest, no saw
+kerf, woodgrain not turned) and the edge-band length in linear feet plus 10%.
+
+White (TBD), Black (TBD), Woodgrain (TBD) and Grey (TBD) are for when the
+client has not picked. The drawings say `color TBD`. A number that is not in
+`cabgen/laminates.csv` still builds, in gray, with a warning. The colours in
+that file are flat stand-ins, not manufacturer swatches. The shop staples are
+Formica 949-58 White matte, 909-58 Black matte, and 8844-WR Aged Ash.

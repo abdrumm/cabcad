@@ -145,6 +145,21 @@ def _form_html(values: dict) -> str:
         for f in fields:
             out.append(_field_html(f, values))
         out.append("</div></fieldset>")
+    out.append(_laminate_section({
+        "doors": str(values.get("finish_doors") or values.get("doors") or ""),
+        "case": str(values.get("finish_case") or values.get("case") or ""),
+        "interior": str(values.get("finish_interior") or values.get("interior") or ""),
+        "top": str(values.get("finish_top") or values.get("top") or ""),
+    }))
+    ends = str(values.get("finished_ends") or "")
+    end_opts = []
+    for value, label in (("", "Auto, from the sides"), ("left", "Left"), ("right", "Right"),
+                         ("both", "Both"), ("none", "None")):
+        sel = " selected" if value == ends else ""
+        end_opts.append(f'<option value="{html.escape(value)}"{sel}>{html.escape(label)}</option>')
+    out.append('<div class="lam" style="max-width:20rem;margin:-.4rem 0 1rem">'
+               '<label for="finished_ends">Finished end</label>'
+               f'<select id="finished_ends" name="finished_ends">{"".join(end_opts)}</select></div>')
     out.append('<button type="submit">Generate drawings</button>')
     out.append("</form>")
     return "".join(out)
@@ -209,16 +224,18 @@ def _at(values, i: int, default: str) -> str:
     return values[i - 1] if values and 0 < i <= len(values) else default
 
 
-def _row_state(form, width_name, style_name, default_style, default_width, start, drawer_name="") -> dict:
+def _row_state(form, width_name, style_name, default_style, default_width, start,
+               drawer_name="", end_name="") -> dict:
     posted = posted_indexes(form, width_name) if form is not None else []
     n = max([SHOWN_COLUMNS] + posted)
     widths = [""] * n
     styles = [default_style] * n
     drawers = ["6"] * n
+    ends = [""] * n
     count = start
     if form is None:
         widths[0] = default_width
-        return {"count": count, "widths": widths, "styles": styles, "drawers": drawers}
+        return {"count": count, "widths": widths, "styles": styles, "drawers": drawers, "ends": ends}
     count = max(posted) if posted else 0
     for i in range(1, n + 1):
         if form.get(f"{width_name}{i}") is not None:
@@ -227,14 +244,16 @@ def _row_state(form, width_name, style_name, default_style, default_width, start
             styles[i - 1] = str(form.get(f"{style_name}{i}")).strip()
         if drawer_name and form.get(f"{drawer_name}{i}"):
             drawers[i - 1] = str(form.get(f"{drawer_name}{i}")).strip()
-    return {"count": count, "widths": widths, "styles": styles, "drawers": drawers}
+        if end_name and form.get(f"{end_name}{i}") is not None:
+            ends[i - 1] = str(form.get(f"{end_name}{i}")).strip()
+    return {"count": count, "widths": widths, "styles": styles, "drawers": drawers, "ends": ends}
 
 
 def group_view(form: dict | None) -> dict:
     """What the run form should show. A fresh page is one base and one upper."""
     view = {
-        "bases": _row_state(form, "bw", "bs", "3drawer", "27", 1, "bd"),
-        "uppers": _row_state(form, "uw", "us", "upper", "27", 1, "ud"),
+        "bases": _row_state(form, "bw", "bs", "3drawer", "27", 1, "bd", "bfe"),
+        "uppers": _row_state(form, "uw", "us", "upper", "27", 1, "ud", "ufe"),
         "walls": "left",
         "uoff": "0",
         "boff": "0",
@@ -246,6 +265,10 @@ def group_view(form: dict | None) -> dict:
         "kickplate": "no",
         "kickplate_color": "black",
         "kickplate_h": f"{KICK_PLATE_H:g}",
+        "doors": "",
+        "case": "",
+        "interior": "",
+        "top": "",
     }
     n = len(view["uppers"]["widths"])
     handles = ["right"] * n
@@ -268,6 +291,9 @@ def group_view(form: dict | None) -> dict:
         for key in ("counter", "splash_left", "splash_right", "kickplate", "kickplate_color", "kickplate_h"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
+        from .finishes import posted_finish
+        for key in ("doors", "case", "interior", "top"):
+            view[key] = posted_finish(form, key)
     return view
 
 
@@ -378,6 +404,7 @@ def _card(style_name, width_name, row, choices, noun, data_name, i, on, num=None
         f'value="{html.escape(row["widths"][i - 1])}"{off}><span>in wide</span></div>'
         f'{_drawer_pick(style_name, i, row, not on, n)}'
         f'{_handle_pick(style_name, i, row, not on, n) if data_name == "u" else ""}'
+        f'{_end_pick(data_name, i, row, not on, n)}'
         f'</div>'
     )
 
@@ -387,7 +414,8 @@ def _cards(style_name, width_name, row, choices, noun, data_name) -> str:
     the row grows past the tiles already on the page (no limit on cabinets)."""
     bits = [_card(style_name, width_name, row, choices, noun, data_name, i, i <= row["count"])
             for i in range(1, len(row["widths"]) + 1)]
-    blank = {"styles": [row["styles"][-1]], "widths": [""], "drawers": ["6"], "handles": ["right"]}
+    blank = {"styles": [row["styles"][-1]], "widths": [""], "drawers": ["6"], "handles": ["right"],
+             "ends": [""]}
     bits.append(f'<template id="{data_name}tpl">'
                 + _card(style_name, width_name, blank, choices, noun, data_name, 1, False, "__N__")
                 + "</template>")
@@ -521,6 +549,17 @@ RUN_CSS = """
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
   #end-rule { margin: .7rem 0 0; font-size: .85rem; }
+  .lams { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+          gap: .55rem 1rem; border: 1px solid var(--line); border-radius: 12px;
+          padding: .7rem 1rem .85rem; margin: .9rem 0; }
+  .lams h2 { grid-column: 1 / -1; font-size: .95rem; margin: 0; }
+  .lams p { grid-column: 1 / -1; margin: 0; font-size: .78rem; opacity: .7; }
+  .lam label { font-size: .75rem; }
+  .lam select, .lam input { width: 100%; }
+  .lam input { margin-top: .3rem; }
+  .fe { display: flex; align-items: center; gap: .35rem; }
+  .fe label { margin: 0; font-size: .75rem; }
+  .fe select { width: auto; padding: .15rem .3rem; font-size: .8rem; }
 </style>
 """
 
@@ -935,6 +974,82 @@ syncTotals();
 """
 
 
+def _laminate_picker(name: str, label: str, selected: str) -> str:
+    """Dropdown of cabgen/laminates.csv, plus a box for a number that is not on the list."""
+    from .finishes import dropdown_groups, option_value
+    selected = str(selected or "").strip()
+    known = set()
+    groups = []
+    for title, items in dropdown_groups():
+        opts = []
+        for fin in items:
+            value = option_value(fin)
+            known.add(value)
+            sel = " selected" if value == selected else ""
+            opts.append(
+                f'<option value="{html.escape(value)}"{sel}>{html.escape(fin.display)}</option>'
+            )
+        groups.append(f'<optgroup label="{html.escape(title)}">{"".join(opts)}</optgroup>')
+    custom = bool(selected) and selected not in known
+    return (
+        f'<div class="lam"><label for="{name}">{html.escape(label)}</label>'
+        f'<select class="lam" id="{name}" name="{name}">'
+        f'<option value="">Shop default</option>'
+        f'{"".join(groups)}'
+        f'<option value="__custom__"{" selected" if custom else ""}>Type a number…</option>'
+        f'</select>'
+        f'<input id="{name}-custom" name="{name}_custom" '
+        f'value="{html.escape(selected) if custom else ""}" '
+        f'placeholder="catalogue number"{" hidden" if not custom else ""}>'
+        f'</div>'
+    )
+
+
+def _laminate_section(selected: dict) -> str:
+    """Doors, case, interior and top. Writes the same # doors= job keys."""
+    picks = "".join((
+        _laminate_picker("doors", "Doors", selected.get("doors", "")),
+        _laminate_picker("case", "Case exterior", selected.get("case", "")),
+        _laminate_picker("interior", "Interior", selected.get("interior", "")),
+        _laminate_picker("top", "Top", selected.get("top", "")),
+    ))
+    return (
+        '<section class="lams" aria-label="Laminates">'
+        '<h2>Laminate</h2>'
+        '<p>Staples: Formica 949-58 White, 909-58 Black, 8844-WR Aged Ash. '
+        'White (TBD) and the other TBD picks are labeled color TBD on the drawings. '
+        'Type a number if it is not on the list.</p>'
+        f'{picks}'
+        '<script>(function () {'
+        'document.querySelectorAll("select.lam").forEach((sel) => {'
+        '  const box = document.getElementById(sel.id + "-custom");'
+        '  if (!box) return;'
+        '  function sync() { box.hidden = sel.value !== "__custom__"; }'
+        '  sel.addEventListener("change", sync);'
+        '  sync();'
+        '});'
+        '})();</script>'
+        '</section>'
+    )
+
+
+def _end_pick(data_name: str, i: int, row: dict, card_off: bool, num=None) -> str:
+    """Finished end for this cabinet. Blank (Auto) follows the walls."""
+    n = i if num is None else num
+    field = f'{"bfe" if data_name == "b" else "ufe"}{n}'
+    current = _at(row.get("ends"), i, "")
+    off = " disabled" if card_off else ""
+    opts = []
+    for value, label in (("", "Auto"), ("left", "Left"), ("right", "Right"),
+                         ("both", "Both"), ("none", "None")):
+        sel = " selected" if value == current else ""
+        opts.append(f'<option value="{html.escape(value)}"{sel}>{html.escape(label)}</option>')
+    return (
+        f'<div class="fe"><label for="{field}">Finished end</label>'
+        f'<select id="{field}" name="{field}"{off}>{"".join(opts)}</select></div>'
+    )
+
+
 def _filler_value(current) -> str:
     try:
         w = float(current)
@@ -1004,6 +1119,7 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="opt" id="filler-box"{filler_hidden}><span class="optlabel">Filler width</span>{filler_seg}<span class="optlabel">on the</span>{side_seg}</div>
 {_counter_fields(view)}
 </section>
+{_laminate_section(view)}
 <section class="wire" aria-label="Front view">
 <div class="wirehead"><span class="rowname">Front view</span><span class="optlabel">simple wireframe, to scale, updates as you change the form</span></div>
 <svg id="wire" role="img" aria-label="Front view of the cabinets" preserveAspectRatio="xMidYMid meet"></svg>
@@ -1039,6 +1155,7 @@ NEST_LINKS = (
     ("-nest-cutlist.md", "Nested cut list, cut order (text)"),
     ("-nest-cutlist.csv", "Nested cut list (CSV)"),
     ("-cutlist.csv", "Parts cut list (CSV)"),
+    ("-laminate-cutlist.csv", "Laminate cut list (CSV)"),
 )
 
 
@@ -1312,6 +1429,15 @@ def params_from_form(form: dict) -> Params:
             data[name] = _coerce(form[name])
     p = Params.from_dict({**base.to_dict(), **data})
     p.apply_style(style, only_missing=True)
+    from .finishes import posted_finish
+    for key, field in (("doors", "finish_doors"), ("case", "finish_case"),
+                       ("interior", "finish_interior"), ("top", "finish_top")):
+        val = posted_finish(form, key)
+        if val:
+            setattr(p, field, val)
+    ends = str(form.get("finished_ends") or "").strip().lower()
+    if ends in ("left", "right", "both", "none"):
+        p.finished_ends = ends
     return p
 
 

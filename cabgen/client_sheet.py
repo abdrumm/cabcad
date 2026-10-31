@@ -201,6 +201,63 @@ def _color(box) -> str:
     return CASE
 
 
+def _color_tbd_note(job) -> str:
+    """Placeholders are labeled color TBD, not by the family name."""
+    from .finishes import lookup
+    specs = []
+    for key in ("finish_doors", "finish_case", "finish_interior", "finish_top"):
+        spec = str((job.settings or {}).get(key) or "").strip()
+        if spec:
+            specs.append(spec)
+    for c in job.cabs:
+        for key in ("finish_doors", "finish_case", "finish_interior", "finish_top"):
+            spec = str(getattr(c.params, key, "") or "").strip()
+            if spec:
+                specs.append(spec)
+    if any(lookup(spec).tbd for spec in specs):
+        return "color TBD"
+    return ""
+
+
+def _mark_finished_ends(svg, job, X, Z, s) -> None:
+    """Hatch and 'FE' on each finished end in the front elevation."""
+    from .finishes import resolved_finished_ends
+    for c in job.cabs:
+        ends = resolved_finished_ends(c.params)
+        if ends == "none":
+            continue
+        p = c.params
+        bot = c.z
+        top = c.z + p.case_top_z
+        sides = []
+        if ends in ("left", "both"):
+            sides.append("left")
+        if ends in ("right", "both"):
+            sides.append("right")
+        for side in sides:
+            x0 = c.x if side == "left" else c.x + p.width - p.carcass_thk
+            hatch(svg, X(x0), Z(top), max(p.carcass_thk * s, 0.06), (top - bot) * s,
+                  spacing=0.045, sw=0.008, stroke=INK)
+            label_x = X(c.x) - 0.08 if side == "left" else X(c.x + p.width) + 0.08
+            svg.text(label_x, Z((bot + top) / 2), "FE", size=0.13,
+                     anchor="end" if side == "left" else "start", weight="bold", fill=INK)
+
+
+def _mark_end_view(svg, job, Yx, Z) -> None:
+    """The end view looks from the right. Label that face when it is a finished end."""
+    from .finishes import resolved_finished_ends
+    for run in ("base", "upper"):
+        row = [c for c in job.cabs if c.run == run]
+        if not row:
+            continue
+        cab = max(row, key=lambda c: c.x + c.params.width)
+        if resolved_finished_ends(cab.params) not in ("right", "both"):
+            continue
+        p = cab.params
+        svg.text(Yx(p.depth * 0.45), Z(cab.z + p.case_top_z * 0.55), "FE",
+                 size=0.16, anchor="middle", weight="bold", fill=INK)
+
+
 def _filler_box(job: Job):
     from .model3d import Box
     if not job.filler:
@@ -266,6 +323,15 @@ def front_elevation(svg: Svg, job: Job, box) -> None:
     top = max(c.z + c.params.height for c in job.cabs)
     s, words = _scale(x1 - x0, top, bw - 2.6, bh - 2.2)
     _heading(svg, bx, by + 0.2, "FRONT ELEVATION", words)
+    notes = []
+    tbd = _color_tbd_note(job)
+    if tbd:
+        notes.append(tbd)
+    from .finishes import resolved_finished_ends
+    if any(resolved_finished_ends(c.params) != "none" for c in job.cabs):
+        notes.append("FE = finished end")
+    if notes:
+        svg.text(bx + 4.6, by + 0.2, "  ·  ".join(notes), size=0.11, weight="bold", fill=INK)
     ox = bx + 0.6 + (bw - 2.6 - (x1 - x0) * s) / 2 - x0 * s
     floor = by + 1.25 + top * s
     X = lambda x: ox + x * s
@@ -292,6 +358,7 @@ def front_elevation(svg: Svg, job: Job, box) -> None:
             svg.rect(X(x), Z(z + dz), dx * s, dz * s, fill=PULL, stroke="none", sw=0)
             continue
         svg.rect(X(x), Z(z + dz), dx * s, dz * s, fill=_color(b), stroke=_edge(b, "#56606b"), sw=0.006)
+    _mark_finished_ends(svg, job, X, Z, s)
     fb = _filler_box(job)
     if fb:
         fx, _, _ = fb.pos
@@ -432,6 +499,7 @@ def end_view(svg: Svg, job: Job, box) -> None:
     _wall_band(svg, Yx(wall), Z(top + 6), 0.15, (top + 6) * s)
     svg.line(Yx(wall), floor, Yx(wall), Z(top + 6), stroke=INK, sw=0.012)
     svg.line(Yx(-6), floor, Yx(wall) + 0.15, floor, stroke=INK, sw=0.014)
+    _mark_end_view(svg, job, Yx, Z)
     if job.bases:
         ct = job.counter
         front = ct.y_front if ct else -0.75

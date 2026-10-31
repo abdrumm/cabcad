@@ -77,10 +77,17 @@ that name, which overrides the job for that one cabinet):
 ```
 
 `cabgen/laminates.csv` maps manufacturer, number and name to an approximate
-display colour. The `texture` column is reserved for a later image and is left
-blank. An unknown number is drawn neutral gray and reported; the job still builds.
-`jobs/sample-kitchen.csv` is Ashwood Oak doors, white melamine case and interior,
-and Mineral Jet tops.
+display colour (the `swatch_note` column: not a manufacturer swatch). The
+`texture` column is reserved for a later image and is left blank. The form
+picks doors, case, interior and top from that list, and still writes
+`# doors=` and the other job keys. White (TBD) and the other TBD picks are
+labeled `color TBD` on the drawings. An unknown number is drawn neutral gray
+and reported; the job still builds. `jobs/sample-kitchen.csv` is Ashwood Oak
+doors, white melamine case and interior, and Mineral Jet tops.
+
+Edge banding codes (`L1 L2 W1 W2`, and `N1` on a base side) and finished ends
+are in `cabinet-shop-standards.md` section 9. The laminate cut list is
+`<job>-laminate-cutlist.csv` plus a page of the nest PDF.
 
 The command writes one Omacad model of the whole run, a layout table, and one
 cut list. It opens the model full screen on workspace 3. `--no-show` skips that.

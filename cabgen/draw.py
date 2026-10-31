@@ -249,6 +249,28 @@ def _front_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, floa
     return keys
 
 
+def _gable_bands(svg: Svg, t, p: Params, gable_d: float) -> None:
+    """Thick line on the banded edges of the side. A base gable shows the notch."""
+    from .edgeband import band_color
+    color = band_color(p.finish_case or "white")
+    sw = 0.04
+    top = p.case_top_z
+
+    def stroke(x1, y1, x2, y2):
+        # A near-white laminate still has to read on the paper.
+        svg.line(x1, y1, x2, y2, stroke="#222", sw=sw * 0.4, cap="square")
+        svg.line(x1, y1, x2, y2, stroke=color, sw=sw, cap="square")
+
+    if p.has_toe_kick and p.toe_kick_recess > 0:
+        # Front edge above the notch, and the top of the notch (N1). Not a solid panel.
+        stroke(t.x(0), t.y(p.toe_kick_h), t.x(0), t.y(top))
+        stroke(t.x(0), t.y(p.toe_kick_h), t.x(p.toe_kick_recess), t.y(p.toe_kick_h))
+    else:
+        stroke(t.x(0), t.y(0), t.x(0), t.y(top))
+        stroke(t.x(0), t.y(top), t.x(gable_d), t.y(top))
+        stroke(t.x(0), t.y(0), t.x(gable_d), t.y(0))
+
+
 def _side_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, float, float]) -> None:
     bx, by, bw, bh = box
     svg.text(bx, by - 0.12, "SIDE ELEVATION", size=0.13, weight="bold")
@@ -266,7 +288,7 @@ def _side_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, float
 
     svg.line(t.x(x_front) - 0.25, t.y(0), t.x(x_back) + 0.25, t.y(0), stroke=INK, sw=0.014)
 
-    # one gable: full height, with the toe-kick notch cut into it (no seam line)
+    # One gable, full height. The toe-kick notch is cut into that one piece (no seam, not a solid rectangle).
     if p.has_toe_kick and p.toe_kick_recess > 0:
         svg.poly([
             (t.x(0), t.y(p.case_top_z)),
@@ -279,6 +301,7 @@ def _side_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, float
     else:
         svg.rect(t.x(0), t.y(p.case_top_z), gable_d * scale,
                  p.case_top_z * scale, stroke=INK, sw=0.012)
+    _gable_bands(svg, t, p, gable_d)
     if p.back_style == "applied":
         svg.rect(t.x(gable_d), t.y(p.case_top_z), p.back_thk * scale,
                  p.case_top_z * scale, stroke=INK, sw=0.01)
@@ -334,7 +357,7 @@ def _cutlist_table(svg: Svg, parts: list[Part], box: tuple[float, float, float, 
         ("LENGTH", 0.75, "end"),
         ("THK", 0.5, "end"),
         ("MATERIAL", 1.1, "start"),
-        ("EDGE BANDING", 3.1, "start"),
+        ("EB", 1.7, "start"),
     ]
     xs = []
     x = bx
@@ -360,7 +383,7 @@ def _cutlist_table(svg: Svg, parts: list[Part], box: tuple[float, float, float, 
             fmt_in(part.length),
             fmt_in(part.thk),
             part.material,
-            part.banding,
+            part.eb or "—",
         ]
         for i, (title, w, align) in enumerate(cols):
             val = values[i]
@@ -371,6 +394,10 @@ def _cutlist_table(svg: Svg, parts: list[Part], box: tuple[float, float, float, 
         y += row_h
         drawn += 1
     svg.line(bx, y - 0.02, bx + sum(c[1] for c in cols), y - 0.02, stroke=HAIR, sw=0.005)
+    svg.text(bx, y + 0.12,
+             "EB: L1 L2 run with the length, W1 W2 are the ends, N1 is the top of the toe-kick notch. "
+             "Thick line on the side view = PVC.",
+             size=0.062, fill=HAIR)
     if drawn < len(parts) - start:
         svg.text(bx, y + 0.09, "continued on the cut list sheet", size=0.07, fill=HAIR)
     return drawn
@@ -565,7 +592,17 @@ def nesting_drawing(sheets: list[Sheet], title: str, kerf: float = 0.1875,
         x, y = sx(piece.x), sy(piece.y)
         w, h = piece.w * scale, piece.h * scale
         svg.rect(x, y, w, h, fill="none", stroke=INK, sw=0.008)
+        from .edgeband import band_color, draw_edge_marks
+        draw_edge_marks(
+            svg, x, y, w, h,
+            length=piece.part_l or piece.h, width=piece.part_w or piece.w,
+            mask=getattr(piece, "eb_mask", "") or "0000",
+            notch=getattr(piece, "notch", None),
+            along_x=False, color=band_color(getattr(piece, "eb_spec", "") or ""), sw=0.03,
+        )
         label = piece.label
+        if getattr(piece, "eb", ""):
+            label = f"{label}  {piece.eb}"
         if w > 0.55 and h > 0.22:
             svg.text(x + w / 2, y + h / 2 - 0.02, label, size=0.075, anchor="middle")
             svg.text(x + w / 2, y + h / 2 + 0.11, f'{fmt_in(piece.w)} x {fmt_in(piece.h)}',

@@ -2,8 +2,9 @@
 
 The shop names a finish by its catalogue number (or its name, when it has no
 number). ``cabgen/laminates.csv`` maps that to an approximate display colour.
-The ``texture`` column is reserved for a later image; it stays blank. Colours
-here are flat stand-ins, not manufacturer swatches.
+The ``texture`` column is reserved for a later image; it stays blank. The
+``swatch_note`` column says the hex values are flat stand-ins, not
+manufacturer swatches.
 
 Four surfaces:
 
@@ -13,6 +14,8 @@ Four surfaces:
 - interior: shelves, back, drawer boxes. Blank means white melamine.
 
 An unknown number never raises. It is drawn in a neutral gray and reported.
+A placeholder (White / Black / Woodgrain / Grey TBD) is a real pick for the
+form: the drawing says "color TBD" until the client chooses a number.
 """
 
 from __future__ import annotations
@@ -30,6 +33,19 @@ WHITE_HEX = "#F4F1EA"
 PULL_HEX = "#3B3F44"
 # Neutral gray when the number is not in the library. Obvious, and not a real laminate.
 FALLBACK_HEX = "#B7B1A8"
+# Unfinished end of a cabinet: the raw case (particle / melamine core), not a laminate.
+RAW_CASE_HEX = "#C6A56A"
+
+# Dropdown group order after the placeholders and the shop staples.
+GROUP_ORDER = ("white", "black", "grey", "woodgrain", "pattern", "color")
+GROUP_LABELS = {
+    "white": "White",
+    "black": "Black",
+    "grey": "Grey",
+    "woodgrain": "Woodgrain",
+    "pattern": "Pattern",
+    "color": "Color",
+}
 
 # ``# key=value`` lines on a job sheet, and the Params field they fill.
 JOB_KEYS = {
@@ -73,12 +89,33 @@ class Finish:
     approximate: bool
     texture: str
     kind: str
+    finish: str = ""
+    group: str = ""
+    staple: bool = False
+    tbd: bool = False
     fallback: bool = False
     warning: str = ""
 
     @property
     def label(self) -> str:
         return " ".join(bit for bit in (self.manufacturer, self.number, self.name) if bit)
+
+    @property
+    def display(self) -> str:
+        """What the dropdown shows. ``Formica 949-58 White (matte)``, or ``White (TBD)``."""
+        if self.tbd:
+            return f"{self.name} (TBD)"
+        bits = " ".join(bit for bit in (self.manufacturer, self.number, self.name) if bit)
+        if self.finish and self.finish.upper() != "TBD":
+            return f"{bits} ({self.finish.lower()})"
+        return bits
+
+    @property
+    def drawing(self) -> str:
+        """Words on a drawing. Placeholders are ``color TBD``, not the family name."""
+        if self.tbd:
+            return "color TBD"
+        return self.display
 
 
 def _load() -> tuple[list[Finish], dict[str, Finish]]:
@@ -96,21 +133,33 @@ def _load() -> tuple[list[Finish], dict[str, Finish]]:
                 approximate=str(raw.get("approximate") or "").strip().lower() in ("yes", "true", "1"),
                 texture=(raw.get("texture") or "").strip(),
                 kind=(raw.get("kind") or "").strip() or "laminate",
+                finish=(raw.get("finish") or "").strip(),
+                group=(raw.get("group") or "").strip().lower(),
+                staple=str(raw.get("staple") or "").strip().lower() in ("yes", "true", "1"),
+                tbd=str(raw.get("tbd") or "").strip().lower() in ("yes", "true", "1"),
             )
             rows.append(fin)
             aliases = [a.strip() for a in (raw.get("aliases") or "").split("|") if a.strip()]
+            # Bare "White" must stay the melamine number. A placeholder named
+            # White, or "Formica White", must not take that key.
+            generic = {"white", "black", "grey", "gray"}
+            number_key = _key(fin.number)
             keys = [
                 fin.number,
-                fin.name,
+                fin.display,
                 f"{fin.manufacturer} {fin.number}".strip(),
                 f"{fin.manufacturer} {fin.name}".strip(),
                 f"{fin.manufacturer} {fin.number} {fin.name}".strip(),
+                fin.name,
                 *aliases,
             ]
             for text in keys:
                 k = _key(text)
-                if k and k not in index:
-                    index[k] = fin
+                if not k or k in index:
+                    continue
+                if k in generic and k != number_key:
+                    continue
+                index[k] = fin
     return rows, index
 
 
@@ -156,9 +205,11 @@ def callout(spec: str) -> str:
     if not text:
         return ""
     fin = lookup(text)
+    if fin.tbd:
+        return "color TBD. "
     if fin.fallback:
         return f"UNKNOWN laminate {text!r}. "
-    return f"{fin.label}. "
+    return f"{fin.display}. "
 
 
 def row_finish(row: dict, field: str, job_value: str = "") -> str:
@@ -213,6 +264,7 @@ def paint_boxes(boxes, params) -> list[str]:
     """Set ``box.color`` from this cabinet's finishes. Returns warnings, once each."""
     warnings: list[str] = []
     seen: set[str] = set()
+    ends = resolved_finished_ends(params)
     for box in boxes:
         role = part_role(box.name, box.material)
         if role == "hardware":
@@ -220,6 +272,14 @@ def paint_boxes(boxes, params) -> list[str]:
             continue
         if role in ("substrate", "kick"):
             continue
+        side = gable_side(box.name)
+        if side:
+            # The colour is the outside face of that one gable. A base gable is
+            # still one piece; the toe-kick notch is a cut in it, not a second panel.
+            finished = ends == "both" or ends == side
+            if not finished:
+                box.color = RAW_CASE_HEX
+                continue
         spec = _spec_for(params, role)
         if not spec:
             continue
@@ -255,6 +315,105 @@ def job_top_spec(cabs, settings: dict | None) -> str:
             if spec:
                 return spec
     return ""
+
+
+def resolved_finished_ends(params) -> str:
+    """``left``, ``right``, ``both``, or ``none``.
+
+    A blank ``finished_ends`` follows the sides: an end that is not against a
+    wall (or the next cabinet, which is stored as a wall) is a finished end.
+    """
+    raw = str(getattr(params, "finished_ends", "") or "").strip().lower()
+    if raw in ("left", "right", "both", "none"):
+        return raw
+    left_open = str(getattr(params, "left_side", "wall") or "") != "wall"
+    right_open = str(getattr(params, "right_side", "open") or "") != "wall"
+    if left_open and right_open:
+        return "both"
+    if left_open:
+        return "left"
+    if right_open:
+        return "right"
+    return "none"
+
+
+def gable_side(name: str) -> str | None:
+    """``left`` or ``right`` when this solid is that gable, including a notch piece."""
+    part = (name or "").lower().split("/")[-1].strip()
+    if part.startswith("gable l") or part.startswith("gable left"):
+        return "left"
+    if part.startswith("gable r") or part.startswith("gable right"):
+        return "right"
+    return None
+
+
+def drawing_label(spec: str) -> str:
+    """Short words for a drawing. Blank stays blank. A TBD pick is ``color TBD``."""
+    text = str(spec or "").strip()
+    if not text:
+        return ""
+    return lookup(text).drawing
+
+
+def needs_laminate_skin(spec: str) -> bool:
+    """True when this finish is a sheet of laminate (or a number we do not know yet).
+
+    White melamine and solid surface are the sheet itself. They are not a skin
+    cut from a laminate sheet.
+    """
+    text = str(spec or "").strip()
+    if not text:
+        return False
+    fin = lookup(text)
+    if fin.tbd or fin.fallback:
+        return True
+    return fin.kind == "laminate"
+
+
+def is_woodgrain(spec: str) -> bool:
+    text = str(spec or "").strip()
+    if not text:
+        return False
+    return lookup(text).group == "woodgrain"
+
+
+def dropdown_groups() -> list[tuple[str, list[Finish]]]:
+    """Placeholders, then shop staples, then the colour groups. File order inside each."""
+    rows = library()
+    groups: list[tuple[str, list[Finish]]] = []
+    placeholders = [r for r in rows if r.tbd]
+    staples = [r for r in rows if r.staple and not r.tbd]
+    rest = [r for r in rows if not r.tbd and not r.staple]
+    if placeholders:
+        groups.append(("Not picked yet", placeholders))
+    if staples:
+        groups.append(("Shop staples", staples))
+    for key in GROUP_ORDER:
+        items = [r for r in rest if r.group == key]
+        if items:
+            groups.append((GROUP_LABELS.get(key, key), items))
+    other = [r for r in rest if r.group not in GROUP_ORDER]
+    if other:
+        groups.append(("Other", other))
+    return groups
+
+
+def option_value(fin: Finish) -> str:
+    """The job-sheet value. A catalogue number when there is one."""
+    return fin.number or fin.display
+
+
+def posted_finish(form: dict, key: str) -> str:
+    """The laminate a form posted for ``doors`` / ``case`` / ``interior`` / ``top``.
+
+    The dropdown value wins. ``__custom__`` (or a typed number with nothing
+    picked) is the catalogue number the shop typed.
+    """
+    picked = str((form or {}).get(key) or "").strip()
+    custom = str((form or {}).get(f"{key}_custom") or "").strip()
+    if picked == "__custom__":
+        return custom
+    return picked or custom
 
 
 def paint_filler(box, job) -> None:

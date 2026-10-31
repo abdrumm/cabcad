@@ -12,7 +12,7 @@ from .units import fmt_in
 def to_csv(parts: list[Part]) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["QTY", "PART", "MATERIAL", "THICKNESS", "WIDTH", "LENGTH", "EDGE BANDING", "LAMINATE", "NOTES"])
+    w.writerow(["QTY", "PART", "MATERIAL", "THICKNESS", "WIDTH", "LENGTH", "EB", "EDGE BANDING", "LAMINATE", "NOTES"])
     for part in parts:
         w.writerow([
             part.qty,
@@ -21,6 +21,7 @@ def to_csv(parts: list[Part]) -> str:
             fmt_in(part.thk),
             fmt_in(part.width),
             fmt_in(part.length),
+            part.eb,
             part.banding,
             part.laminate,
             part.notes,
@@ -29,12 +30,12 @@ def to_csv(parts: list[Part]) -> str:
 
 
 def to_markdown(parts: list[Part]) -> str:
-    out = ["| QTY | PART | MATERIAL | THK | WIDTH | LENGTH | EDGE BANDING | LAMINATE | NOTES |",
-           "|---|---|---|---|---|---|---|---|---|"]
+    out = ["| QTY | PART | MATERIAL | THK | WIDTH | LENGTH | EB | EDGE BANDING | LAMINATE | NOTES |",
+           "|---|---|---|---|---|---|---|---|---|---|"]
     for part in parts:
         out.append(
             f"| {part.qty} | {part.name} | {part.material} | {fmt_in(part.thk)} | "
-            f"{fmt_in(part.width)} | {fmt_in(part.length)} | {part.banding} | "
+            f"{fmt_in(part.width)} | {fmt_in(part.length)} | {part.eb} | {part.banding} | "
             f"{part.laminate} | {part.notes} |"
         )
     return "\n".join(out) + "\n"

@@ -21,6 +21,12 @@ class PlacedPiece:
     y: float      # across the sheet (48 direction), from the top edge
     w: float      # width (across the sheet)
     h: float      # length (along the sheet / grain)
+    eb_mask: str = "0000"
+    eb: str = ""
+    eb_spec: str = ""
+    notch: tuple | None = None
+    part_w: float = 0.0
+    part_l: float = 0.0
 
 
 @dataclass
@@ -43,12 +49,18 @@ class Sheet:
         return f"{self.sheet_w - self.used_w:.2f}\" x {self.sheet_h - self.used_h:.2f}\" remaining"
 
 
-def _expand(parts: list[Part]) -> list[tuple[str, str, float, float]]:
+def _expand(parts: list[Part]) -> list[tuple]:
     """Flatten the part list into individual cut pieces."""
     out = []
     for part in parts:
         for _ in range(part.qty):
-            out.append((part.name, part.label, part.width, part.length))
+            out.append((
+                part.name, part.label, part.width, part.length,
+                getattr(part, "eb_mask", "") or "0000",
+                getattr(part, "eb", "") or "",
+                getattr(part, "eb_spec", "") or "",
+                getattr(part, "notch", None),
+            ))
     return out
 
 
@@ -58,7 +70,7 @@ def nest(parts: list[Part], sheet_w: float = 96.0, sheet_h: float = 48.0,
     material group is NOT done here - call nest_by_material for that."""
     pieces = _expand(parts)
     # longest along grain first: shelves then get packed in a stable order
-    pieces.sort(key=lambda p: (-p[3], -p[2]))
+    pieces.sort(key=lambda p: (-p[3], -p[2], p[1]))
     sheets: list[Sheet] = []
     current = Sheet(index=1, material=parts[0].material if parts else "",
                     sheet_w=sheet_w, sheet_h=sheet_h)
@@ -76,7 +88,7 @@ def nest(parts: list[Part], sheet_w: float = 96.0, sheet_h: float = 48.0,
         shelf_h = 0.0
         shelf_x = 0.0
 
-    for name, label, w, h in pieces:
+    for name, label, w, h, eb_mask, eb, eb_spec, notch in pieces:
         if h > sheet_h or w > sheet_w:
             continue  # cannot be cut from this sheet; reported by the caller
         if shelf_h == 0:
@@ -89,7 +101,9 @@ def nest(parts: list[Part], sheet_w: float = 96.0, sheet_h: float = 48.0,
             new_sheet()
             shelf_h = h
         current.pieces.append(
-            PlacedPiece(name=name, label=label, x=shelf_x, y=shelf_y, w=w, h=h)
+            PlacedPiece(name=name, label=label, x=shelf_x, y=shelf_y, w=w, h=h,
+                        eb_mask=eb_mask, eb=eb, eb_spec=eb_spec, notch=notch,
+                        part_w=w, part_l=h)
         )
         shelf_x += w + kerf
         current.used_w = max(current.used_w, shelf_x - kerf)
