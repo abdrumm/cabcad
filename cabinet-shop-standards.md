@@ -243,12 +243,16 @@ Common to both:
   **1-1/4" solid surface edge strip, epoxied**. 1/4" lip + 1-1/4" strip = **1-1/2" reveal**.
   - Brook said a 1/2" x 1/2" rabbet; to get a 1/4" lip it is modelled **1/2" wide x 1/4" deep**
     **(to confirm)**. Ease revealed edges with a 1/8" round-over; sand flat.
-- **1" plywood stiffener strips** under the top bring it to **1-1/2" overall**, **centred where
-  cabinets meet** (Brook) so installers screw into plywood. Also at the front (behind the edge
-  strip), the back wall and the ends; **4" wide** like the laminate strips **(to confirm)**.
-  (Older note said 1" MDF backer; Brook now says 1" plywood.)
+- **Build-up strips directly under the sheet.** 4" wide (`STRIP_W`), **3/4" plywood**
+  (`SOLID_BUILDUP_THK` in `cabgen/counter.py`). MDF is the other stock that would fit;
+  plywood matches the laminate strips and goes in the nest. The strips are glued tight
+  to the underside of the 1/2" sheet. Because the front edge is still a 1-1/2" reveal,
+  a 3/4" strip starts 1/4" above the case.
+  - **Perimeter:** front (behind the edge strip), back, and both ends.
+  - **Case breaks:** one strip centred on every place two base cabinets meet, running
+    front-to-back between the front and back strips (same places as before).
 - Backsplash / side splash: 1/2" solid surface **(to confirm)**.
-- Solid surface pieces are **listed, not nested** on 4x8 plywood. Stiffeners are nested.
+- Solid surface pieces are **listed, not nested** on 4x8 plywood. Build-up strips are nested.
 - Front strip runs full length; side strips butt behind it **(to confirm)**.
 
 ### 3c. Seams: none automatic (Brook, 2026-10-27)

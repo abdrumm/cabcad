@@ -11,9 +11,10 @@ a side splash at a wall end when asked for.
 
 Solid surface (Corian): 1/2" top. A rabbet on the underside at the front and at
 finished side edges takes a 1-1/4" solid-surface edge strip, epoxied in; the
-1/4" lip that is left plus the 1-1/4" strip gives a 1-1/2" reveal. 1" plywood
-stiffener strips under the top (at the front, the back, the counter ends and
-centred on cabinet joints) bring it to 1-1/2" overall.
+1/4" lip that is left plus the 1-1/4" strip gives a 1-1/2" reveal. Under the
+sheet, 3/4" plywood build-up strips (SOLID_BUILDUP_THK), 4" wide (STRIP_W),
+run the whole perimeter — front, back, and both ends — and one more strip is
+centred on every case break. The strips are tight to the underside of the sheet.
 
 Anything Brook did not say is marked TO CONFIRM in ASSUMPTIONS and in
 cabinet-shop-standards.md section 3.
@@ -29,7 +30,12 @@ from .units import fmt_in
 
 KINDS = {"laminate": "Laminate", "solid": "Solid surface", "none": "None"}
 OPEN_OVERHANG = 1.0       # same as kitchen.OPEN_OVERHANG
-STRIP_W = 4.0             # build-up strips are 4" (Brook); solid-surface stiffeners the same (TO CONFIRM)
+STRIP_W = 4.0             # build-up strips, laminate and solid surface (Brook: 4")
+# Solid-surface build-up under the 1/2" sheet. 3/4" plywood, same as the laminate
+# strips. MDF was the other likely stock; plywood is what the nest already cuts.
+# The front edge is still a 1-1/2" solid-surface reveal, so a 3/4" strip tight to
+# the sheet starts 1/4" above the case (1" from the case up to the sheet).
+SOLID_BUILDUP_THK = 0.75
 SPLASH_H = 4.0            # backsplash and side splash height (Brook: both 4")
 # Side splash: automatic at every wall end (Brook). The form can still turn one off.
 EDGE = 1.5                # finished front / side edge
@@ -50,7 +56,8 @@ MAT = {
 }
 
 ASSUMPTIONS = [
-    "Solid surface stiffener strips are 4\" wide, like the laminate build-up strips (Brook confirmed 4\" for laminate).",
+    "Solid-surface build-up is 3/4\" plywood, 4\" wide (SOLID_BUILDUP_THK, STRIP_W). MDF would also do; plywood matches the laminate strips and nests with them.",
+    "Those strips are glued tight to the underside of the 1/2\" sheet. The front edge is still a 1-1/2\" solid-surface reveal, so the 3/4\" strip starts 1/4\" above the case.",
     "No laminate backer (balance) sheet on the underside: the top is screwed to the cabinets and the overhang is only 1-1/2\". Guides suggest one for bars, peninsulas and big overhangs.",
     "No automatic seams (Brook, Oct 27): the top, build-up and splash are each one piece the length of the run. A piece longer than its stock sheet (96\" plywood, 144\" solid surface or laminate) is flagged \"longer than stock sheet - seam TBD\".",
     "Laminate seam strip: Brook's 6\" strip is modelled as one 6\" band centred on the seam, cut at the seam so each piece carries 3\" (not a 6\" strip on each side).",
@@ -63,7 +70,7 @@ ASSUMPTIONS = [
     "The counter sits on top of the 33-1/2\" case, so the finished top is 35\" off the floor.",
     "A filler end gets one end strip at least 4\" wide (filler + 1-1/2\" when wider) instead of an end strip plus a joint strip.",
     "Laminate counters: no build-up strip along the back wall (Brook named front, edges and joints; JLC suggests front and rear strips).",
-    "Solid surface: 1\" plywood stiffeners at the front (behind the edge strip), along the back wall, at the ends and on cabinet joints.",
+    "Solid surface build-up: 4\" strips on the whole perimeter (front, back, both ends) and one centred on every case break, directly under the sheet.",
     "Solid surface rabbet: Brook said 1/2\" x 1/2\", but a 1/4\" lip plus a 1-1/4\" strip = 1-1/2\" means the rabbet is 1/2\" wide x 1/4\" deep in the 1/2\" top. Modelled that way.",
     "Solid surface corners: the front edge strip runs the full length and the side strips butt behind it.",
     "Laminate is listed as a square-foot takeoff (+10% allowance), not nested on sheets.",
@@ -381,44 +388,50 @@ def _laminate(c: Counter, fl: float, fr: float) -> None:
 
 
 def _solid(c: Counter, fl: float, fr: float) -> None:
-    ss, ply = MAT["ss"], MAT["ply1"]
+    ss, ply = MAT["ss"], MAT["ply34"]
     rab = 0.5                         # rabbet width = edge strip thickness
     lip = 0.25                        # top left over the rabbet
     strip_h = EDGE - lip              # 1-1/4" edge strip
-    z_top0 = c.z0 + 1.0               # underside of the 1/2" top
+    sheet = 0.5
+    z_top0 = c.z0 + EDGE - sheet      # underside of the 1/2" top; finished top stays 1-1/2"
+    z_bu = z_top0 - SOLID_BUILDUP_THK # build-up tight to that underside
     spans = _spans(c)
     for i, (a, b) in enumerate(spans, start=1):
         n = _num(i, len(spans))
         ax = a + (rab if (c.left_open and a == c.x0) else 0.0)
         bx = b - (rab if (c.right_open and b == c.x1) else 0.0)
-        boxes = [((ax, c.y_front + rab, z_top0), (bx - ax, c.depth - rab, 0.5)),
+        boxes = [((ax, c.y_front + rab, z_top0), (bx - ax, c.depth - rab, sheet)),
                  ((a, c.y_front, c.z0 + strip_h), (b - a, rab, lip))]
         if c.left_open and a == c.x0:
             boxes.append(((a, c.y_front + rab, c.z0 + strip_h), (rab, c.depth - rab, lip)))
         if c.right_open and b == c.x1:
             boxes.append(((b - rab, c.y_front + rab, c.z0 + strip_h), (rab, c.depth - rab, lip)))
-        _add(c, f"TOP{n}", f"Top{(' ' + n) if n else ''}", ss, 0.5, c.depth, b - a, boxes,
+        _add(c, f"TOP{n}", f"Top{(' ' + n) if n else ''}", ss, sheet, c.depth, b - a, boxes,
              "1/2\" x 1/4\" deep rabbet underneath at the front and finished side edges.")
     for i, (a, b) in enumerate(spans, start=1):
         n = _num(i, len(spans))
-        _add(c, f"EF{n}", f"Edge strip, front{(' ' + n) if n else ''}", ss, 0.5, strip_h, b - a,
+        _add(c, f"EF{n}", f"Edge strip, front{(' ' + n) if n else ''}", ss, sheet, strip_h, b - a,
              [((a, c.y_front, c.z0), (b - a, rab, strip_h))],
              "Epoxied into the front rabbet. 1/4\" lip + 1-1/4\" strip = 1-1/2\" reveal.")
     side_d = c.depth - rab
     if c.left_open:
-        _add(c, "EL", "Edge strip, left side", ss, 0.5, strip_h, side_d,
+        _add(c, "EL", "Edge strip, left side", ss, sheet, strip_h, side_d,
              [((c.x0, c.y_front + rab, c.z0), (rab, side_d, strip_h))], "Epoxied into the side rabbet.")
     if c.right_open:
-        _add(c, "ER", "Edge strip, right side", ss, 0.5, strip_h, side_d,
+        _add(c, "ER", "Edge strip, right side", ss, sheet, strip_h, side_d,
              [((c.x1 - rab, c.y_front + rab, c.z0), (rab, side_d, strip_h))], "Epoxied into the side rabbet.")
-    fy0 = c.y_front + rab
+    # Perimeter build-up, then the case-break strips between the front and back
+    # strips (same places as before). All of them tight to the sheet.
+    bu = SOLID_BUILDUP_THK
+    note = "Directly under the solid surface sheet. 4\" wide."
+    fy0 = c.y_front + rab                 # behind the front edge strip
     for i, (a, b) in enumerate(spans, start=1):
         n = _num(i, len(spans))
-        _add(c, f"STF{n}", f"Stiffener, front{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
-             [((a, fy0, c.z0), (b - a, STRIP_W, 1.0))], "Behind the front edge strip.")
-        _add(c, f"STB{n}", f"Stiffener, back{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
-             [((a, c.y_back - STRIP_W, c.z0), (b - a, STRIP_W, 1.0))], "Along the back wall.")
-    _cross_strips(c, 1.0, c.z0, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "ST", rab, "Stiffener")
+        _add(c, f"BUF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, bu, STRIP_W, b - a,
+             [((a, fy0, z_bu), (b - a, STRIP_W, bu))], note + " Front edge, behind the edge strip.")
+        _add(c, f"BUB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, bu, STRIP_W, b - a,
+             [((a, c.y_back - STRIP_W, z_bu), (b - a, STRIP_W, bu))], note + " Back edge.")
+    _cross_strips(c, bu, z_bu, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "BU", rab, "Build-up")
     _splashes(c, ss, 0.5)
 
 

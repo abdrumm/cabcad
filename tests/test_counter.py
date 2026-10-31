@@ -39,8 +39,32 @@ def test_laminate_build():
 def test_solid_build():
     ct = build_counter(_cabs([30, 24]), {"counter": "solid"})
     mats = {x.material for x in ct.pieces}
-    assert '1/2" solid surface' in mats and '1" plywood' in mats
+    assert '1/2" solid surface' in mats and '3/4" plywood' in mats
     assert not ct.laminate and not ct.dogbones
+
+
+def test_solid_build_up_frames_the_sheet_and_the_case_breaks():
+    """4\" strips tight under the sheet: front, back, both ends, and every case break.
+    Laminate still has no back strip."""
+    from cabgen.counter import SOLID_BUILDUP_THK, STRIP_W
+    ct = build_counter(_cabs([30, 24]), {"counter": "solid"})
+    by_name = {p.name: p for p in ct.pieces}
+    for name in ("Build-up, front", "Build-up, back", "Build-up, left end",
+                 "Build-up, right end", "Build-up, cabinet joint 1"):
+        assert name in by_name, name
+        piece = by_name[name]
+        assert piece.material == '3/4" plywood'
+        assert abs(piece.thk - SOLID_BUILDUP_THK) < 1e-6
+        assert abs(piece.width - STRIP_W) < 1e-6
+        box = piece.boxes[0]
+        assert abs(box.pos[2] + box.size[2] - (ct.z0 + 1.0)) < 1e-6  # tight to the sheet
+    assert by_name["Build-up, front"].length == ct.length
+    assert by_name["Build-up, back"].length == ct.length
+    joint = by_name["Build-up, cabinet joint 1"].boxes[0]
+    assert abs((joint.pos[0] + joint.size[0] / 2) - 30.0) < 1e-6     # centred on the break
+    lam = build_counter(_cabs([30, 24]), {"counter": "laminate"})
+    assert not any(p.name == "Build-up, back" for p in lam.pieces)
+    assert any(p.name == "Build-up, front" for p in lam.pieces)
 
 
 def test_long_laminate_top_is_one_piece_flagged_not_seamed():
@@ -96,7 +120,7 @@ def test_nest_includes_ply_not_solid():
     groups = nest_project(cabs, extra=ct.parts())
     names = " ".join(groups)
     assert "solid surface" not in names.lower()
-    assert any("1" in g for g in groups)
+    assert any("plywood" in g.lower() for g in groups)
 
 
 def test_client_sheet_counter_page(tmp_dir=None):
