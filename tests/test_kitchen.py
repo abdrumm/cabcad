@@ -173,7 +173,8 @@ def test_group_page_starts_with_one_base_and_one_upper():
     page = _run_page(group_view(None))
     assert "Add an upper" in page and "Add a base cabinet" in page
     assert 'id="uw1"' in page and 'id="bw1"' in page
-    assert 'value="27"' in page
+    # first tiles use the one set of default widths (3 drawers 18", 2-door upper 30")
+    assert 'id="bw1" name="bw1"' in page and 'value="18"' in page and 'value="30"' in page
     assert 'id="uw2"' in page and "hidden" in page
     assert 'id="walls-left"' in page and "checked" in page
     assert "Offset from the left wall" in page

@@ -230,8 +230,8 @@ def _row_state(form, width_name, style_name, default_style, default_width, start
 def group_view(form: dict | None) -> dict:
     """What the run form should show. A fresh page is one base and one upper."""
     view = {
-        "bases": _row_state(form, "bw", "bs", "3drawer", "27", 1, "bd"),
-        "uppers": _row_state(form, "uw", "us", "upper", "27", 1, "ud"),
+        "bases": _row_state(form, "bw", "bs", "3drawer", f"{DEFAULT_WIDTHS['3drawer']:g}", 1, "bd"),
+        "uppers": _row_state(form, "uw", "us", "upper", f"{DEFAULT_WIDTHS['upper']:g}", 1, "ud"),
         "walls": "left",
         "uoff": "0",
         "boff": "0",
@@ -503,6 +503,12 @@ RUN_CSS = """
   #wire .wf-dim { stroke: currentColor; stroke-width: .2; opacity: .7; }
   #wire .wf-dimtext { font: 2.6px system-ui, sans-serif; fill: currentColor; text-anchor: middle; opacity: .8; }
   .foot { margin: .6rem 0 0; font-size: .82rem; opacity: .65; }
+  .cutlive summary { cursor: pointer; display: flex; gap: .8rem; align-items: baseline; list-style: none; }
+  #cutlist { max-height: 22rem; overflow: auto; margin-top: .4rem; }
+  table.cut { font-size: .78rem; margin: 0; }
+  table.cut td, table.cut th { padding: .16rem .45rem; }
+  table.cut .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.cut tr.cuthead td { font-weight: 700; padding-top: .55rem; border-bottom: 1px solid #8886; }
   #end-rule { margin: .7rem 0 0; font-size: .85rem; }
 </style>
 """
@@ -701,6 +707,20 @@ document.addEventListener('pointercancel', end);
 RUN_FORM.addEventListener('change', drawWire);
 RUN_FORM.addEventListener('input', drawWire);
 drawWire();
+/* ---- live cut list: the server builds it from the same parts code ---- */
+let CUT_T = null, CUT_N = 0;
+function refreshCut() {
+  const box = document.getElementById('cutlist');
+  if (!box) return;
+  const n = ++CUT_N;
+  fetch('/cutlist', { method: 'POST', body: new URLSearchParams(new FormData(RUN_FORM)) })
+    .then((r) => r.text()).then((t) => { if (n === CUT_N) box.innerHTML = t; }).catch(() => {});
+}
+function queueCut() { clearTimeout(CUT_T); CUT_T = setTimeout(refreshCut, 250); }
+RUN_FORM.addEventListener('input', queueCut);
+RUN_FORM.addEventListener('change', queueCut);
+document.addEventListener('click', (e) => { if (e.target.closest('.seg button, button.del, button.plus, button.link')) queueCut(); });
+refreshCut();
 </script>
 """
 
@@ -905,6 +925,7 @@ def _run_fields(view: dict) -> str:
     js = (RUN_JS.replace("DEFAULTW", json.dumps(DEFAULT_WIDTHS))
           .replace("UCOUNT", str(view["uppers"]["count"]))
           .replace("BCOUNT", str(view["bases"]["count"])))
+    cutlist = view.get("cutlist", "")
     return f"""{RUN_CSS}
 <form method="post" action="/run" class="cc">
 <header class="bar">
@@ -949,6 +970,9 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="wirehead"><span class="rowname">Front view</span><span class="optlabel">simple wireframe, to scale, updates as you change the form</span></div>
 <svg id="wire" role="img" aria-label="Front view of the cabinets" preserveAspectRatio="xMidYMid meet"></svg>
 </section>
+<details class="wire cutlive" open><summary><span class="rowname">Cut list</span>
+<span class="optlabel">every part, from the widths above; updates as you type</span></summary>
+<div id="cutlist">{cutlist}</div></details>
 <p class="sub" id="end-rule">The left end is a wall, so the counter is flush there. The open right end overhangs 1 inch.</p>
 <p class="foot">4" backsplash on the wall; open ends get a finished edge with a 1" overhang. The countertop and splashes are drawn, and their parts go in the cut list and nest.
 Building takes about a minute; the model opens full screen on workspace 3.</p>
@@ -1081,6 +1105,51 @@ def _handle_ar(form: dict, out_dir: Path, host: str, port: int) -> str:
     return _run_page(view, ar=panel)
 
 
+def live_cutlist(form: dict, out_dir: Path) -> str:
+    """The cut list for exactly the widths on the form right now (Brook, Oct 30: it must
+    follow the widths as they change). Same parts code as Show in Omacad; no files kept
+    but a scratch CSV."""
+    from .kitchen import apply_discovered_rules, load_kitchen, place_kitchen, scene_of
+    from .nest_project import cabinet_codes
+    from .units import fmt_in
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return f'<p class="warn">{html.escape(str(exc))}</p>'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "cutlist-live.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        sett, rows = load_kitchen(sheet)
+        cabs = place_kitchen(rows, sett, sheet.name)
+        apply_discovered_rules(cabs, sett)
+        _b, _h, parts = scene_of(cabs, sett)
+    except (KitchenError, ValueError) as exc:
+        return f'<p class="warn">{html.escape(str(exc))}</p>'
+    codes = cabinet_codes(cabs)
+    width_of = {c.name: c.params.width for c in cabs}
+    out = ['<table class="cut"><tr><th>Cabinet</th><th>Part</th><th class="num">Qty</th>'
+           '<th class="num">Width</th><th class="num">Length</th><th class="num">Thk</th>'
+           '<th>Material</th></tr>']
+    last = None
+    for part in parts:
+        cab, _, name = part.name.partition(" / ")
+        if cab != last:
+            label = (f"{codes.get(cab, '')} &middot; {html.escape(cab)} &middot; "
+                     f"{html.escape(fmt_in(width_of[cab]))} wide" if cab in width_of else html.escape(cab))
+            out.append(f'<tr class="cuthead"><td colspan="7">{label}</td></tr>')
+            last = cab
+        out.append(
+            f"<tr><td></td><td>{html.escape(name)}</td><td class=\"num\">{part.qty}</td>"
+            f"<td class=\"num\">{html.escape(fmt_in(part.width))}</td>"
+            f"<td class=\"num\">{html.escape(fmt_in(part.length))}</td>"
+            f"<td class=\"num\">{html.escape(fmt_in(part.thk))}</td>"
+            f"<td>{html.escape(part.material)}</td></tr>")
+    out.append("</table>")
+    return "".join(out)
+
+
 def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1203,6 +1272,9 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 return
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
+                return
+            if path == "/cutlist":
+                self._html(live_cutlist(form, out_dir))
                 return
             if path == "/client-sheet":
                 pdf, page = _handle_client_sheet(form, out_dir)

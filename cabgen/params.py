@@ -174,6 +174,28 @@ DEFAULT_WIDTHS = {
     "base": DEFAULT_WIDTH_BASE_1D2D,
     "sink": DEFAULT_WIDTH_BASE_1D2D,   # same as the 1 drawer over 2 doors base
 }
+# Form style key -> preset key. The ONE place the default widths live is DEFAULT_WIDTHS:
+# the CLI presets (Params(style=...) with no width), the form's first tiles and the
+# tile/style-switch defaults all read it (Brook, Oct 30: CLI and form must match).
+FORM_STYLE_KEYS = {
+    "upper": STYLE_UPPER_2D,
+    "upper1": STYLE_UPPER_1D,
+    "open": STYLE_UPPER_OPEN,
+    "microwave": STYLE_UPPER_MW,
+    "3drawer": STYLE_BASE_3D,
+    "base": STYLE_BASE_1D2D,
+    "sink": STYLE_BASE_SINK,
+}
+for _form_key, _style in FORM_STYLE_KEYS.items():
+    STYLE_PRESETS[_style]["width"] = DEFAULT_WIDTHS[_form_key]
+
+
+def default_width(style: str) -> float:
+    """Default width for a preset key (base_3drawers) or a form key (3drawer)."""
+    key = {v: k for k, v in FORM_STYLE_KEYS.items()}.get(style, style)
+    return DEFAULT_WIDTHS[key]
+
+
 MIN_WIDTH_BY_STYLE = {STYLE_UPPER_1D: UPPER_1DOOR_MIN_WIDTH}
 
 
