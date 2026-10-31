@@ -153,8 +153,12 @@ Rules and assumptions: `~/Work/cabinet-shop-standards.md` section 3. Code: `cabg
 
 - Laminate: 3/4" ply top + 4" ply build-up strips (glued and stapled) at the front, ends and
   every cabinet joint; laminate takeoff in sq ft, in order (sides, front, top).
-- Solid surface: 1/2" top, 1-1/4" edge strip in a rabbet, 1" ply stiffeners. Solid surface is
-  listed, not nested; the plywood is nested with the rest of the project.
+- Solid surface: 1/2" top, 1-1/4" edge strip in a rabbet, 4" × 3/4" plywood build-up glued
+  under the sheet (perimeter and every case break; no staples into the sheet). Open-end
+  strips are held 1/2" back from the edge strip. Solid surface is listed, not nested; the
+  plywood is nested with the rest of the project.
+- Kick plate (optional, off by default): `# kickplate=yes`, `# kickplate_color=black|grey`,
+  `# kickplate_h=` (default 3.75"). One piece across each run of bases that touch.
 - Seams: only when the run is longer than 96" (plywood) / 144" (solid surface), always on a
   cabinet joint, pieces about equal. Laminate seams use Brook's method: 6" strip centred on the
   seam (3" per piece), dogbone pockets 1/2" deep, adhesive, dogbone clamps at install.

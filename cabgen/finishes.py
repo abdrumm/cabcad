@@ -143,7 +143,7 @@ def paint_boxes(boxes, settings: dict) -> list[str]:
     picked = picks(settings)
     for box in boxes:
         role = role_of(box)
-        if role == "pull":
+        if role in ("pull", "kick"):
             continue
         finish = picked.get("fronts" if role == "front" else
                             "counter" if role in ("laminate_top", "solid_top") else "box")

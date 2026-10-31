@@ -323,10 +323,16 @@ def write_project(payload: dict, out_path: Path) -> tuple[bool, str]:
     return True, res.stdout.strip()
 
 
-def export_omacad(p: Params, out_path: Path, name: str | None = None) -> tuple[bool, str]:
+def export_omacad(p: Params, out_path: Path, name: str | None = None,
+                  settings: dict | None = None, extra_boxes=None) -> tuple[bool, str]:
     """Build the Omacad project for one cabinet. Returns (ok, message)."""
     _parts, layout = build_parts(p)
     model = build_model(p, layout)
+    if extra_boxes:
+        model.boxes.extend(extra_boxes)
+    if settings:
+        from .finishes import paint_boxes
+        paint_boxes(model.boxes, settings)
     return write_project(scene_payload(name or p.name, model.boxes, model.holes), out_path)
 
 

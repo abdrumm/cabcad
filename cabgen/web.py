@@ -18,8 +18,8 @@ from .kitchen import (
     group_settings, parse_group, group_sheet, write_kitchen,
 )
 from .params import (
-    DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH, _coerce,
-    door_rule_warnings,
+    DEFAULT_WIDTHS, FORM_FIELDS, KICK_PLATE_H, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH,
+    _coerce, door_rule_warnings,
 )
 
 PAGE = """<!doctype html>
@@ -193,9 +193,87 @@ def _form_html(values: dict) -> str:
         for f in fields:
             out.append(_field_html(f, values))
         out.append("</div></fieldset>")
+    out.append(_single_shop_fields(values))
     out.append('<button type="submit">Generate drawings</button>')
     out.append("</form>")
     return "".join(out)
+
+
+def _single_shop_fields(values: dict) -> str:
+    """Kick plate and the laminate colour picks that apply to one cabinet."""
+    kick = str(values.get("kickplate") or "no")
+    color = str(values.get("kickplate_color") or "black")
+    height = str(values.get("kickplate_h") or f"{KICK_PLATE_H:g}")
+
+    def sel(name: str, current: str, pairs) -> str:
+        opts = "".join(
+            f'<option value="{html.escape(v)}"'
+            f'{" selected" if v == current else ""}>{html.escape(t)}</option>'
+            for v, t in pairs
+        )
+        return f'<select id="{name}" name="{name}">{opts}</select>'
+
+    fronts = _finish_select("finish_fronts", str(values.get("finish_fronts") or ""), ("laminate",))
+    box = _finish_select("finish_box", str(values.get("finish_box") or ""), ("laminate",))
+    return (
+        '<fieldset id="single-kick"><legend>Kick plate</legend><div class="grid">'
+        f'<div><label for="kickplate">Kick plate (bases)</label>'
+        f'{sel("kickplate", kick, (("no", "No"), ("yes", "Yes")))}</div>'
+        f'<div><label for="kickplate_color">Colour</label>'
+        f'{sel("kickplate_color", color, (("black", "Black"), ("grey", "Grey")))}</div>'
+        f'<div><label for="kickplate_h">Height (in)</label>'
+        f'<input type="number" id="kickplate_h" name="kickplate_h" min="0.5" max="4" step="0.0625" '
+        f'value="{html.escape(height)}"></div>'
+        '</div><p class="sub">One finished plate in the toe kick, the width of this cabinet. '
+        'Off unless you say yes. Uppers do not get one.</p></fieldset>'
+        '<fieldset><legend>Laminate colours</legend><div class="grid">'
+        f'<div><label for="finish_fronts">Doors and fronts</label>{fronts}</div>'
+        f'<div><label for="finish_box">Box</label>{box}</div>'
+        '</div><p class="sub">Same laminate list as the kitchen form. Blank keeps the drawing colours. '
+        'The countertop colour is chosen on the kitchen run, which is where the top is built.</p></fieldset>'
+        '<script>(function () {'
+        'function syncKick() {'
+        '  var s = document.querySelector(\'[name="style"]\');'
+        '  var box = document.getElementById("single-kick");'
+        '  if (!s || !box) return;'
+        '  box.hidden = String(s.value || "").indexOf("upper") === 0;'
+        '}'
+        'document.addEventListener("DOMContentLoaded", function () {'
+        '  var s = document.querySelector(\'[name="style"]\');'
+        '  if (s) s.addEventListener("change", syncKick);'
+        '  syncKick();'
+        '});'
+        '})();</script>'
+    )
+
+
+def _single_extras(p: Params, form: dict):
+    """Kick plate parts for one base, and the finish picks that paint its model."""
+    from .kickplate import build_kick, color_name
+    from .kitchen import Cab, KitchenError
+    settings = {}
+    for key in ("finish_fronts", "finish_box"):
+        raw = " ".join(str(form.get(key) or "").split())
+        if raw:
+            settings[key] = raw
+    kick = str(form.get("kickplate") or "no").strip().lower()
+    if kick not in ("yes", "no"):
+        raise KitchenError("the kick plate is yes or no")
+    settings["kickplate"] = kick
+    extras, boxes = [], []
+    if kick == "yes" and p.has_toe_kick and not str(p.style).startswith("upper"):
+        try:
+            settings["kickplate_color"] = color_name(form.get("kickplate_color") or "black")
+        except ValueError as exc:
+            raise KitchenError(str(exc)) from exc
+        raw_h = form.get("kickplate_h")
+        if raw_h is not None and str(raw_h).strip() != "":
+            settings["kickplate_h"] = float(raw_h)
+        cab = Cab(p.name or "Cabinet", p, "base", 0.0, 0.0, 0.0, 0.0)
+        plates = build_kick([cab], settings)
+        extras = [plate.part() for plate in plates]
+        boxes = [plate.box() for plate in plates]
+    return extras or None, boxes or None, settings or None
 
 
 def _result_html(p: Params, files: list[str], warnings: list[str], out_dir: Path) -> str:
@@ -293,6 +371,9 @@ def group_view(form: dict | None) -> dict:
         "counter": "laminate",
         "splash_left": "yes",
         "splash_right": "yes",
+        "kickplate": "no",
+        "kickplate_color": "black",
+        "kickplate_h": f"{KICK_PLATE_H:g}",
     }
     n = len(view["uppers"]["widths"])
     handles = ["right"] * n
@@ -315,7 +396,7 @@ def group_view(form: dict | None) -> dict:
         for key in ("job", "client", "job_no", "rev", "finish_fronts", "finish_box", "finish_counter"):
             if form.get(key) is not None:
                 view[key] = str(form.get(key)).strip()
-        for key in ("counter", "splash_left", "splash_right"):
+        for key in ("counter", "splash_left", "splash_right", "kickplate", "kickplate_color", "kickplate_h"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
     return view
@@ -371,8 +452,10 @@ def _seg(name: str, current: str, choices, disabled: bool = False,
 
 
 def _counter_fields(view: dict) -> str:
-    """Countertop type, and a side splash at each wall end."""
+    """Countertop type, a side splash at each wall end, and the kick plate."""
     yes_no = (("yes", "Splash"), ("no", "None"))
+    kick_yes_no = (("yes", "Yes"), ("no", "No"))
+    kick_colors = (("black", "Black"), ("grey", "Grey"))
     walls = view["walls"]
     left_hidden = "" if walls in ("left", "both") else " hidden"
     right_hidden = "" if walls in ("right", "both") else " hidden"
@@ -383,6 +466,14 @@ def _counter_fields(view: dict) -> str:
         f'{_seg("splash_left", view["splash_left"], yes_no, label="Left wall side splash")}</div>'
         f'<div class="opt" id="splash-right-box"{right_hidden}><span class="optlabel">Right wall side splash</span>'
         f'{_seg("splash_right", view["splash_right"], yes_no, label="Right wall side splash")}</div>'
+        '<div class="opt" id="kick-box"><span class="optlabel">Kick plate</span>'
+        f'{_seg("kickplate", view.get("kickplate") or "no", kick_yes_no, label="Kick plate")}</div>'
+        '<div class="opt" id="kick-color-box"><span class="optlabel">Kick plate colour</span>'
+        f'{_seg("kickplate_color", view.get("kickplate_color") or "black", kick_colors, label="Kick plate colour")}</div>'
+        '<div class="opt" id="kick-h-box"><span class="optlabel">Kick plate height</span>'
+        f'<input type="number" id="kickplate_h" name="kickplate_h" min="0.5" max="4" step="0.0625" '
+        f'value="{html.escape(str(view.get("kickplate_h") or f"{KICK_PLATE_H:g}"))}" aria-label="Kick plate height, inches">'
+        '<span>in</span></div>'
         '<script>(function () {'
         "function syncSplash() {"
         "  const w = (document.querySelector('input[name=\"walls\"]:checked') || {}).value || 'left';"
@@ -602,6 +693,9 @@ RUN_CSS = """
   #wire .wf-wall { fill: #8884; stroke: currentColor; stroke-width: .35; }
   #wire .wf-case { fill: #8881; stroke: currentColor; stroke-width: .35; }
   #wire .wf-kick { fill: #8884; stroke: none; }
+  #wire .wf-kick-black { fill: #1c1c1c; stroke: none; }
+  #wire .wf-kick-grey { fill: #8e9399; stroke: none; }
+  #kickplate_h { width: 5.5rem; }
   #wire .wf-inside { fill: #8883; stroke: none; }
   #wire .wf-shelf { fill: #8886; stroke: currentColor; stroke-width: .2; }
   #wire .wf-front { fill: #3b82f61f; stroke: currentColor; stroke-width: .3; }
@@ -813,13 +907,19 @@ function drawWire() {
   }
   bases.forEach((c) => cabinet(c, 0, false));
   if (filler) rect(fillerLeft ? 0 : baseEnd - filler, 0, filler, baseTop, 'wf-filler');
+  if (wfVal('kickplate') === 'yes' && bases.length) {
+    const x0 = fillerLeft ? 0 : bases[0].x;
+    const tone = wfVal('kickplate_color') === 'grey' ? 'grey' : 'black';
+    const typed = parseFloat(wfVal('kickplate_h'));
+    rect(x0, 0, baseEnd - x0, typed > 0 ? typed : WIRE.kick_h, 'wf-kick-' + tone);
+  }
 
   // countertop over the base run (and the filler), splashes
   if (counter !== 'none' && bases.length) {
     const L = (leftWall ? 0 : bases[0].x - WIRE.open_overhang);
     const R = (rightWall ? baseEnd : baseEnd + WIRE.open_overhang);
     const thk = WIRE.splash_thk[counter] || 0.75;
-    rect(L, baseTop + WIRE.counter_edge, R - L, WIRE.splash_h, 'wf-splash');
+    rect(L, baseTop + WIRE.counter_edge, R - L, WIRE.splash_h, 'wf-counter wf-' + counter);
     rect(L, baseTop, R - L, WIRE.counter_edge, 'wf-counter wf-' + counter);
     if (leftWall && wfVal('splash_left') !== 'no') rect(L, baseTop + WIRE.counter_edge, thk, WIRE.splash_h, 'wf-counter wf-' + counter);
     if (rightWall && wfVal('splash_right') !== 'no') rect(R - thk, baseTop + WIRE.counter_edge, thk, WIRE.splash_h, 'wf-counter wf-' + counter);
@@ -1689,7 +1789,15 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 self._html("<h1>Not found</h1>", 404)
                 return
             p = params_from_form(form)
-            result = generate(p, out_dir, with_omacad=True)
+            try:
+                extras, extra_boxes, finish_settings = _single_extras(p, form)
+            except (KitchenError, ValueError) as exc:
+                vals = defaults()
+                vals.update({k: v for k, v in form.items() if k in vals or k.startswith("kick") or k.startswith("finish_")})
+                self._page(f'<p class="warn">{html.escape(str(exc))}</p>' + _form_html(vals))
+                return
+            result = generate(p, out_dir, with_omacad=True, extras=extras,
+                              finish_settings=finish_settings, extra_boxes=extra_boxes)
             warnings = [str(u) for u in result["uncuttable"]]
             warnings += list(result.get("warnings", []))
             warnings += list(getattr(result["layout"], "assumptions", []))
@@ -1840,8 +1948,8 @@ def _wire_data() -> dict:
     cabinets, so the page does not keep its own copy of the numbers."""
     from .counter import EDGE, OPEN_OVERHANG as CT_OVERHANG, SPLASH_H
     from .kitchen import DRAWER_HEIGHTS, DRAWER_STYLES, STYLES, UPPER_BOTTOM
-    from .params import (Params, UPPER_1DOOR_MAX_WIDTH, UPPER_PULL_CC, UPPER_PULL_EDGE_INSET,
-                         UPPER_PULL_FROM_BOTTOM)
+    from .params import (KICK_PLATE_H, Params, UPPER_1DOOR_MAX_WIDTH, UPPER_PULL_CC,
+                         UPPER_PULL_EDGE_INSET, UPPER_PULL_FROM_BOTTOM)
     from .parts import build_parts, open_shelf_z
 
     def fronts(p: Params) -> dict:
@@ -1888,6 +1996,7 @@ def _wire_data() -> dict:
         "splash_h": SPLASH_H,
         "splash_thk": {"laminate": 0.75, "solid": 0.5},   # as counter.Counter.splash_thk
         "open_overhang": CT_OVERHANG,
+        "kick_h": KICK_PLATE_H,
         "upper_pull": {"cc": UPPER_PULL_CC, "from_bottom": UPPER_PULL_FROM_BOTTOM,
                        "inset": UPPER_PULL_EDGE_INSET},
         "base_pull": {"span": ref.pull_span, "from_top": ref.pull_from_top,

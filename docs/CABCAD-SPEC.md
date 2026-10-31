@@ -252,9 +252,11 @@ Base H is the case under a 1-1/2" countertop (33.5 with no countertop); see 6.1.
 - **Units and formatting:** keep cut-list dimensions in the simplest fractions (1/16").
 
 ### 6.3 Case anatomy. BUILT
-- **Gables (sides):** run to the floor and are **notched at the front bottom for the toe kick**, 3" deep × 4" tall on bases.
+- **Gables (sides):** one piece, full height, floor to the top of the case. The toe-kick notch (3" deep × 4" tall) is cut into that panel. The gable is never a second piece stacked under the case for the bottom 4".
   - Size: width = case top height, length = gable depth.
   - Banding: front edge and bottom edge (toe-kick side).
+  - The cut-list note says to notch the one piece and not to split it. The shop side elevation draws the notch as one outline.
+- **Finished kick plate (optional).** Off unless the job says `# kickplate=yes`. Black or grey (`# kickplate_color=black` or `grey`; `gray` is grey). Height is **3.75"** (`KICK_PLATE_H`), overridable with `# kickplate_h=`, and it has to stay inside the 4" toe kick. One piece covers each stretch of bases that touch, filler included on the end. A gap between bases starts another piece. It is a 1/4" skin on the room side of the structural toe-kick plate. The gables stay one piece. Sample jobs leave it off.
 - **Back:** default **applied**, meaning it sits behind the sides at full case width, from the floor to the top of the sides. The `dado` option makes it inside width × (case height − 3/4).
 - **Bottom plate:** captured between the gables, flush front and back, with the front edge banded. On bases it sits on the toe-kick stiles.
 - **Base top:** two **flat stiles, 4" front to back**, at inside width.
@@ -384,8 +386,10 @@ Bases are under a countertop (32" case, Oct 30).
 - **Solid surface (Corian):**
   - **1/2" top**. An underside rabbet, **1/2" wide × 1/4" deep** (Brook said 1/2 × 1/2; modelled 1/2 × 1/4 to leave a 1/4" lip; to confirm), at the front and finished sides takes a **1-1/4" solid-surface edge strip, epoxied**. 1/4 lip + 1-1/4 strip = 1-1/2" reveal.
   - Ease the revealed edges with a 1/8" round-over and sand flat. The front strip runs the full length, and the side strips butt behind it.
-  - **1" plywood stiffener strips, 4" wide** (width to confirm): at the front (behind the edge strip), along the back wall, at the ends, and centred on cabinet joints. Overall 1-1/2". (An older note said a 1" MDF backer; Brook now says 1" plywood.)
-  - Splashes are 1/2" solid surface. Solid surface is **listed, not nested**; the plywood stiffeners are nested.
+  - **Build-up strips directly under the sheet.** 4" wide, **3/4" plywood** (`SOLID_BUILDUP_THK`). Glued tight to the underside of the 1/2" sheet. No staples or screws into the solid surface. Because the front edge is still a 1-1/2" reveal, a 3/4" strip starts 1/4" above the case.
+    - **Perimeter:** front (behind the edge strip), back, and both ends. Front and back stop short of the 1/2" solid-surface edge strip at an open end. That end strip's note says to hold 1/2" back.
+    - **Case breaks:** one strip centred on every place two base cabinets meet.
+  - Splashes are 1/2" solid surface, the same colour as the counter. Solid surface is **listed, not nested**; the plywood build-up is nested.
   - Also a shop rule (Oct 26): **1/2" solid-surface tops get a 1" MDF or wood substrate siliconed underneath**, for 1-1/2" height and something to screw into.
 - **Seams (Brook, Oct 27): none automatic.** The top, the front build-up and the backsplash are each **one piece the length of the run** everywhere (Omacad, client sheet, AR, front view, cut list, nest).
   - A piece longer than its stock sheet (96" plywood; 144" solid surface or laminate) is flagged **"LONGER THAN STOCK SHEET - seam TBD"** in its note. It's listed under "Not nested" in the nested cut list and on the nest summary page, in red, and isn't drawn on any sheet. Brook decides the seam.
