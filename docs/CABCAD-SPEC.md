@@ -1,6 +1,6 @@
 # CABCAD-SPEC.md: complete rebuild specification for CabCad
 
-Version: 2026-10-30, 9:50 PM EDT (sync check and branding added). Owner: Brook (abdrumm), casework PM at Coppinger Exhibits.
+Version: 2026-10-30, 10:15 PM EDT (Oct 30 build: 33-1/2" height, branding, notes, finishes, email drafts, plans page). Owner: Brook (abdrumm), casework PM at Coppinger Exhibits.
 Sources: the code on the iMac (`~/Work/cabinet-gen`, `~/Work/omacad`), `~/Work/cabinet-shop-standards.md`, `CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `cabinet-generator-context.md` and `cabinet-generator-state.md`, plus Brook's decisions saved in assistant memory (Oct 19 to Oct 30, 2026).
 Status tags: **BUILT** (in code and working), **DECIDED-NOT-BUILT** (Brook decided it, but the code doesn't do it yet), **PLANNED** (on the roadmap, details not final), **OPEN** (a question still waiting for Brook's answer). **UNKNOWN** means the sources don't say.
 
@@ -63,6 +63,9 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
     - `POST /run` handles "Show in Omacad".
     - `POST /client-sheet` returns the PDF inline.
     - `POST /ar` builds the AR files and shows the AR panel.
+    - `POST /cutlist` returns the live cut-list table (HTML) and writes `out/cutlist-live.csv`.
+    - `POST /finishes` saves a custom finish (name, code, kind, colour) and returns it as JSON.
+    - `POST /email-ar` writes the "Email AR to me" draft folder; `POST /client-email` writes the "Draft client email" folder. Neither sends anything.
     - `GET /files/<name>` serves output files, locked to the out dir.
     - `GET|HEAD /ar/<file>` serves `.glb` and `.usdz`, plus `/ar/view` (phone page) and `/ar/preview.svg`.
   - **Security.** Only loopback clients may use the form and the POST routes. LAN clients get only `/ar/...`, and anything else returns 403 "Only the AR pages are shared on the network."
@@ -84,11 +87,12 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - `kitchen <sheet.csv> [--name] [--out] [--no-show] [--kerf] [--sheet-w] [--sheet-l]` builds a whole job from a CSV.
   - `client <sheet.csv> [--out out/client-sheet] [--name] [--stem]` builds the client sheet.
   - `ar <sheet.csv> [--out out/ar] [--name] [--title]` builds the AR files.
+  - `render <sheet.csv> [--out out/render] [--name] [--stem]` writes the client render (PNG 1800×1200, 150 dpi).
   - `web [--host] [--lan] [--port 8777] [--out]` starts the form server.
-- **Tests.** Run `cd ~/Work/cabinet-gen && python3 -m pytest -q`. There are **72 tests in 9 files**:
-  - `test_ar_export` 5, `test_ar_web` 7, `test_client_sheet` 3, `test_counter` 9, `test_form_wire` 4, `test_kitchen` 13, `test_nest_project` 8, `test_sink_and_microwave` 12, `test_uppers` 11.
-  - Oct 30 run on a clean box: 70 passed. The 2 that need `~/Work/omacad` and `rsvg-convert` failed there, as expected. The laptop run on Oct 28 had 71 pass.
-  - Note: pytest is **not installed** on the iMac's system Python or the Omacad venv right now. Install it before running the tests there.
+- **Tests.** Run `cd ~/Work/cabinet-gen && ~/Work/omacad/.venv/bin/python -m pytest -q` (about 35 s). There are **97 tests in 16 files**:
+  - `test_ar_export` 5, `test_ar_web` 7, `test_base_height` 3, `test_branding` 4, `test_client_sheet` 3, `test_counter` 9, `test_defaults_and_cutlist` 2, `test_drafts` 4, `test_finishes` 4, `test_form_wire` 4, `test_kitchen` 14, `test_nest_project` 8, `test_notes` 5, `test_plans_page` 2, `test_sink_and_microwave` 12, `test_uppers` 11.
+  - Oct 30 (late) run on the iMac: **97 passed**.
+  - pytest is installed in the Omacad venv (Oct 30, `cd ~/Work/omacad && uv pip install --python .venv/bin/python pytest`; the venv has no pip). The system `python3` still has no pytest.
 - **Layout checker.** `python3 tools/check_svg.py out/<name>-drawing.svg` reports elements off the page and overlapping text labels. Run it after every `draw.py` change.
 
 ---
@@ -104,11 +108,16 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - `cabgen/cutlist.py`: CSV, markdown and table-saw text.
 - `cabgen/draw.py`: the 11x17 single-cabinet shop drawing and cut-list overflow sheet. `cabgen/svg.py` is a tiny SVG writer.
 - `cabgen/units.py`: `fmt_in` (for example `27"`, `13 15/16"`, `3/4"`, rounded to 1/16) and `parse_in`.
-- `cabgen/client_sheet.py`: the client presentation PDF.
+- `cabgen/client_sheet.py`: the client presentation PDF, its title block (`title_block`) and the finish palette (`palette_for`, `pal`, `role_of`).
+- `cabgen/branding.py`: Coppinger name, address, phone, navy `#263460`, and the logo as SVG (`logo_svg`, `corner_mark`) or a data URI (`logo_data_uri`).
+- `cabgen/notes.py`: the condensed, context-aware notes: a data list of `Note(id, audience, title, text, when)`; `select(facts, "shop"|"client")`.
+- `cabgen/finishes.py`: the finish catalog (`assets/finishes/catalog.json`), custom finishes (`assets/finishes/custom.json`), picks, palette and AR material roles.
+- `cabgen/render.py`: the client render still (PNG).
+- `cabgen/drafts.py`: "Email AR to me" and "Draft client email" draft folders (.eml, mailto, copy-paste text). Never sends. Recipients in `config/email.json`.
 - `cabgen/ar_export.py`: GLB and USDZ writer. `cabgen/ar_web.py`: AR panel, phone page and QR code.
 - `cabgen/omacad_export.py`: the `.omacad` writer and the window control.
 - `cabgen/web.py`: the web form, the front-view wireframe and the routes. `cabgen/cli.py`: argparse.
-- `jobs/one-cabinet.csv`, `jobs/sample-kitchen.csv`, `jobs/upper-styles.csv`: example jobs. `briefs/ar-export.md` is the AR spec. `tools/check_svg.py`. `tools/cabcad-sync-check` and `tools/systemd/` (section 13). `assets/branding/coppinger/` (placeholder logo, roadmap step 5). `docs/CABCAD-SPEC.md` (this file).
+- `jobs/one-cabinet.csv`, `jobs/sample-kitchen.csv`, `jobs/upper-styles.csv`: example jobs. `briefs/ar-export.md` is the AR spec. `tools/check_svg.py`. `tools/cabcad-sync-check` and `tools/systemd/` (section 13). `assets/branding/coppinger/` (placeholder logo, roadmap step 5). `assets/finishes/` (catalog, custom list, CC0 textures, README). `config/email.json` (draft recipients). `tools/plans-page` and `tools/cabcad-plans` (plans dashboard, 9.10). `docs/CABCAD-SPEC.md` (this file).
 - `.gitignore`: `out/ __pycache__/ *.pyc .venv/ .pytest_cache/ *.bak*`.
 - Docs that live **outside** the repo, in `~/Work/`: `cabinet-shop-standards.md` (the live rules), `CABCAD-PLAN.md`, `CABCAD-IDEAS.md`, `CABCAD-SPEC.md` (this file), `cabinet-generator-context.md`, `cabinet-generator-state.md`.
 
@@ -117,13 +126,15 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 ## 4. Inputs: every field, default and unit (all inches)
 
 ### 4.1 CabCad group form (`/run`, the main page). BUILT
-- **Header bar** with the brand "CabCad · cabinet group" and three buttons:
+- **Header bar** with the brand "CabCad · cabinet group" and five buttons:
   - **Show in Omacad** (POST /run): writes everything and opens the model.
   - **Client sheet (PDF)** (POST /client-sheet, new tab).
   - **AR view** (POST /ar).
+  - **Email AR to me** (POST /email-ar) and **Draft client email** (POST /client-email). Draft only; see 9.9.
+- **Job line** (Oct 30): Job, Client, Job no., Rev (default "A"). They go on the client title block, the render and the email drafts (`job`, `client`, `job_no`, `rev`; whitespace collapsed, max 80 characters).
 - **Uppers row** (top) and **Base cabinets row** (below), matching how they sit on the wall.
   - Each row starts with **1 cabinet**. 8 tiles are pre-drawn (`SHOWN_COLUMNS = 8`), and **+** adds more past 8 with **no limit** (the old 8-cabinet cap was removed Oct 27). "Remove last upper/base" and a per-tile delete are there too.
-  - First tile on a fresh page: the base is style `3drawer`, width **27**; the upper is style `upper`, width **27**. Form field names: `bw#`/`bs#`/`bd#` for base width, style and drawer; `uw#`/`us#`/`uh#` for upper width, style and handle.
+  - First tile on a fresh page: the base is style `3drawer`, width **18**; the upper is style `upper`, width **30** (from `DEFAULT_WIDTHS`; the old 27/27 is gone, Oct 30). Form field names: `bw#`/`bs#`/`bd#` for base width, style and drawer; `uw#`/`us#`/`uh#` for upper width, style and handle.
   - **Upper offset from the left wall** (`uoff`): default 0, step 1/16, can't be negative. The base offset `boff` is hidden and fixed at 0, because the base filler replaced the old base offset.
   - **Row totals** are read-only. The base total includes the filler but not the offset.
   - **Drag and drop.** Drag a tile by its header label (U1, B1 ...) to reorder it within its own row. It uses pointer events and works on tiles added past the 8 drawn ones. The goal is that clients can rearrange cabinets.
@@ -134,13 +145,15 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - **Width** (in).
   - **Drawer height** for `base` and `sink` only: choices **4, 5, 6, 7, 8**, default **6**. The 4 to 8 range is a placeholder (OPEN: check historical jobs); 6 is confirmed.
   - **Handle L/R** for `upper1` only, default R. The handle goes on the picked side and the hinges on the other. The tile icon mirrors when L is picked.
-- **Default width when a tile is added, or its style is switched while the width box is empty or still holds the old style's default** (a typed width is never overwritten): upper 30, upper1 18, open 24, microwave 30, 3drawer 18, base 30, sink 30.
+- **Default width when a tile is added, or its style is switched while the width box is empty or still holds the old style's default** (a typed width is never overwritten): upper 30, upper1 18, open 24, microwave 30, 3drawer 18, base 30, sink 30. **One place:** `params.DEFAULT_WIDTHS`; the CLI style presets take their width from it too (`FORM_STYLE_KEYS`, `default_width(style)`), so the CLI and the form always agree (CONFIRMED Brook, Oct 30; `test_defaults_and_cutlist`).
 - **Minimum widths:** 12 for everything, 9 for the 1-door upper.
 - **Base run ends** (`walls`, radios): `0` (No wall), `left` (default), `right`, `both`.
   - With **both**: **filler width** `1`, `2` or `3` (default 1; 1 is typical, 3 is the most) and **filler side** left or right (default right).
 - **Countertop** (`counter`): `laminate` (default), `solid` (solid surface) or `none`.
   - **Left wall side splash** and **Right wall side splash**: yes (default) or no. They only show at wall ends and are hidden when the counter is none.
-- **Front view**: a live wireframe below the options (see section 9.6).
+- **Finishes** (Oct 30): three pickers, **Doors and fronts**, **Box** (laminate finishes) and **Countertop** (laminate or solid surface, filtered by the countertop choice; off when the counter is none), each with a colour swatch. "Drawing colours" (blank) keeps the old palette. **Add custom finish** (name, code, laminate/solid surface, colour) saves to `assets/finishes/custom.json` and joins the dropdowns at once (see 9.8).
+- **Front view**: a live wireframe below the options (see section 9.6). It is painted in the picked finish colours.
+- **Cut list** (Oct 30): a collapsible section that rebuilds live (debounced POST /cutlist) from the same parts code as the shop output, grouped by cabinet ("B1 · name · 24" wide"). It always shows the widths typed on the form.
 - **Info lines** show the end-rule sentence and the footer note about the 4" backsplash and the 1" open-end overhang.
 - **Validation errors** are shown in plain words: a row with a gap; an empty width; under the minimum width; an unknown style; a drawer outside 4 to 8; a filler other than 1, 2 or 3; an offset past the wall; "add at least one cabinet".
 
@@ -148,6 +161,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - **Settings** are `# key=value` lines:
   - Numbers: `upper_bottom` (default **54**), `upper_offset`, `base_offset`, `filler`, `sheet_w` (48), `sheet_l` (96), `kerf` (0.1875).
   - Text: `base_walls` (0/left/right/both), `filler_side`, `counter` (laminate/solid/none; also accepts "solid surface", "corian", "lam", "no"), `splash_left`, `splash_right`.
+  - Job text (Oct 30, `kitchen.JOB_TEXT_KEYS`): `job`, `client`, `job_no`, `rev`, `finish_fronts`, `finish_box`, `finish_counter` (finish ids from the catalog).
 - **Columns:**
   - Required: `name`, `style`, `width`.
   - Optional: `run` (base/lower/floor or upper/wall; default base), `height`, `depth`, `x`, `z`, `gap_after` (base filler only; an error on uppers), `drawer_front_h`, `handle` (l/r/left/right; default right), `left`, `right` (wall/open/reveal).
@@ -161,7 +175,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - microwave / upper_microwave / mw
 
   `upper_drawer` is rejected with "uppers never have drawers".
-- Blank height and depth keep the style's values. Duplicate names get `-2`, `-3` added.
+- Blank height and depth keep the style's values. A blank base height becomes `base_case_height(counter)`: 32 under a laminate or solid top, 33.5 with none. Duplicate names get `-2`, `-3` added.
 
 ### 4.3 Single-cabinet form (`/`) and `Params` fields. BUILT (legacy page; the group form is the main UI)
 - **Identity:** `style`, `name`.
@@ -195,15 +209,17 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 
 ## 5. Styles (presets in `params.py`). BUILT
 
-| Key (code) | Form key | Label | Default W (CLI preset / form) | H | D | Drawers | Doors | Other |
+| Key (code) | Form key | Label | Default W (CLI = form) | H (case) | D | Drawers | Doors | Other |
 |---|---|---|---|---|---|---|---|---|
-| base_1drawer_2doors | base | Base, 1 drawer over 2 doors | 27 / 30 | 33.5 | 23.5 | 1 (6" front) | 2 | toe kick, adjustable shelf |
-| base_3drawers | 3drawer | Base, 3 drawers | 27 / 18 | 33.5 | 23.5 | 3 (split evenly) | 0 | toe kick |
-| base_sink | sink | Base, sink | 30 / 30 | 33.5 | 23.5 | 1 FALSE front (6") | 2 | toe kick, no shelf, `sink=True` |
-| upper_2doors | upper | Wall upper, 2 doors | 27 / 30 | 30 | 12 | 0 | 2 | no shelf (as built) |
-| upper_1door | upper1 | Wall upper, 1 door | 18 / 18 | 30 | 12 | 0 | 1 | handle L/R, min width 9 |
-| upper_open | open | Wall upper, open shelves | 30 / 24 | 30 | 12 | 0 | 0 | 2 adjustable shelves, finished interior |
-| upper_microwave | microwave | Wall upper, microwave shelf, 2 doors above | 30 / 30 | 30 | 12 | 0 | 2 | 17-1/4" opening, finished interior |
+| base_1drawer_2doors | base | Base, 1 drawer over 2 doors | 30 | 32 | 23.5 | 1 (6" front) | 2 | toe kick, adjustable shelf |
+| base_3drawers | 3drawer | Base, 3 drawers | 18 | 32 | 23.5 | 3 (split evenly) | 0 | toe kick |
+| base_sink | sink | Base, sink | 30 | 32 | 23.5 | 1 FALSE front (6") | 2 | toe kick, no shelf, `sink=True` |
+| upper_2doors | upper | Wall upper, 2 doors | 30 | 30 | 12 | 0 | 2 | no shelf (as built) |
+| upper_1door | upper1 | Wall upper, 1 door | 18 | 30 | 12 | 0 | 1 | handle L/R, min width 9 |
+| upper_open | open | Wall upper, open shelves | 24 | 30 | 12 | 0 | 0 | 2 adjustable shelves, finished interior |
+| upper_microwave | microwave | Wall upper, microwave shelf, 2 doors above | 30 | 30 | 12 | 0 | 2 | 17-1/4" opening, finished interior |
+
+Base H is the case under a 1-1/2" countertop (33.5 with no countertop); see 6.1. Widths are unified in `DEFAULT_WIDTHS` (Oct 30; the old CLI presets 27/27/27/30 are gone).
 
 - `STYLE_UPPER_1D2D = "upper_1drawer_2doors"` still exists as a constant, but uppers **never have drawers** (Brook, Oct 23). It has no preset and the CSV rejects it.
 - **Upper dimensions** were placeholders until Brook brings shop plans and CAD from work. The 12" upper depth and everything about the microwave are CONFIRMED.
@@ -214,8 +230,11 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 ## 6. Construction rules and shop standards
 
 ### 6.1 Heights and depths. BUILT
-- **Base:** overall case height **33-1/2"**, floor to the top of the case, including the **4"** toe kick. The countertop sits on top: 1-1/2" edge, so the finished top is at **35"** (marked to confirm).
-  - Note: an older standards section says 33.5 = 4 kick + 28 case + 1.5 counter. The code no longer does that. With `has_counter=False`, the case runs to 33.5.
+- **Base (CONFIRMED Brook, Oct 30; supersedes the 35" top and the ADA option):** the **total finished height including the countertop is 33-1/2" on every job**. The case = 33.5 − the countertop thickness, and the toe kick stays 4".
+  - `params.FINISHED_COUNTER_TOP = 33.5`, `COUNTER_THICKNESS = {laminate: 1.5, solid: 1.5, none: 0}`, `base_case_height(kind)`, `BASE_CASE_H = 32`.
+  - Laminate or solid surface (both 1-1/2" builds): **case 32"** (4" kick + 28" box), top at 33-1/2". No countertop: case 33-1/2".
+  - 33-1/2" is under the ADA 34" maximum (2010 ADA 902.3 / 606.3), so no separate ADA option is needed (it was dropped).
+  - Applies to the cut lists, 3D, AR, client sheet, front view (`_wire_data` carries an `info["none"]` height for the no-counter case) and the standards doc (`cabinet-shop-standards.md`, overall height row and line 177; backup `cabinet-shop-standards.md.bak-20261030-height`).
 - **Base depth:** 23-1/2" finished. That's the gables at 23" plus the 1/2" applied back. Counter depth is **25"** (1-1/2" front overhang past the case).
   - An older standards note says "base depth is always counter depth minus 1"" (24"). Superseded by the code's 23.5. OPEN only if Brook objects.
 - **Uppers:** **30" tall, 12" deep** (11-1/2" gables + 1/2" back). Bottoms hang at **54"** off the floor (`upper_bottom`).
@@ -225,7 +244,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 ### 6.2 Materials. BUILT
 - **Carcass:** 3/4" melamine. **Back:** 1/2" melamine.
 - **Fronts** (doors, drawer fronts, false front): 3/4" melamine.
-- **Drawer boxes:** 3/4" melamine sides, fronts and backs, with a 1/4" bottom. The code labels the bottom's material `1/2" melamine` but uses thk 1/4". That's a known label mismatch; fix it to 1/4".
+- **Drawer boxes:** 3/4" melamine sides, fronts and backs, with a **1/4" bottom labelled `1/4" melamine`** (`parts.MAT_1_4`; label fixed Oct 30, CONFIRMED Brook).
 - **Laminate (Formica), light oak in the first job:** on **reveal faces only** (the visible, open side). Doors and fronts get laminate on both faces and all edges.
   - **Spray method:** cut the laminate to the final size **+1"** (1/2" per side), contact-adhesive both surfaces, trim with a palm router, sand the unfinished edges, and hand-file the exposed edges.
   - **Waterfall order:** bottom face, then sides/edges, then top. Exceptions are rare and must be noted on the drawing.
@@ -277,7 +296,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 
 ### 6.6 Drawer boxes. BUILT (assumptions OPEN)
 - **Outer width** = inside width − 2 × 1/2 slide clearance (min 8). **Depth** = gable depth − 1 (22" in a 23" side, which leaves 1" for the slide; min 8).
-- **Height:** the cut list uses front height − 2 (min 2). The 3D model uses the fixed 4". The **3-drawer box height is OPEN** (the two disagree for 3-drawer bases).
+- **Height:** box height = **front height − 2** (min 2), in the cut list **and the 3D model** (`p.drawer_box_height(...)`; the 3D model followed the fixed 4" until Oct 30, so 3-drawer bases now match the cut list). `drawer_box_h` 4.0 is legacy. Brook will give more drawer-box size rules later; the 3-drawer box height rule itself is kept as is pending his explanation.
 - **Box:** sides 3/4", front and back captured between the sides, bottom 1/4" in a 1/4" groove, 1/2" up from the bottom of the sides. The bottom is inside size + 2 × groove. The box sits 1/4" above the stile below it.
 
 ### 6.7 Style-specific rules
@@ -320,15 +339,17 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - **Not decided** (the tool doesn't guess): how an upper run meets a wall (other than "no filler ever"), and edge cases for fillers between two out-of-spec walls. OPEN.
 
 ### 6.9 Worked numbers (the code's output; use these to verify a rebuild)
+Bases are under a countertop (32" case, Oct 30).
 - **Base, 1 drawer over 2 doors, 30 wide:**
-  - Gables 2× 33-1/2 × 23; bottom 28-1/2 × 23.
-  - Back 30 × 33-1/2 × 1/2.
+  - Gables 2× 32 × 23; bottom 28-1/2 × 23.
+  - Back 30 × 32 × 1/2.
   - Top stile front, top stile back, drawer stile, toe-kick plate and toe-kick back: each 28-1/2 × 4.
-  - Doors 2× 14-11/16 × 22-7/8; drawer front 29-1/2 × 6.
-  - Drawer box: sides 2× 4 × 22, front/back 2× 4 × 26, bottom 26-1/2 × 21 × 1/4.
-  - Shelf 28-1/4 × 22-3/4. Drawer band z 27.25 to 33.25; rail z 26.8125 to 27.5625.
-- **Base, 3 drawers, 18 wide:** 3 fronts 17-1/2 × 9-9/16 (9.5833), 2 drawer stiles, box sides 6× 7-9/16 × 22, front/back 6× 7-9/16 × 14, bottoms 3× 14-1/2 × 21.
-- **Sink base, 30 wide:** sink front board 28-1/2 × 6-7/8 (z 26.625 to 33.5), back stile 28-1/2 × 4, false front 29-1/2 × 6, doors 14-11/16 × 22-7/8, no drawer box, no shelf, no drawer stile.
+  - Doors 2× 14-11/16 × 21-3/8 (z 4.25 to 25.625); drawer front 29-1/2 × 6.
+  - Drawer box: sides 2× 4 × 22, front/back 2× 4 × 26, bottom 26-1/2 × 21 × 1/4 (`1/4" melamine`).
+  - Shelf 28-1/4 × 22-3/4. Opening z 4.25 to 31.75 (27-1/2).
+- **Base, 3 drawers, 18 wide:** 3 fronts 17-1/2 × 9-1/16, 2 drawer stiles, box sides 6× 7-1/16 × 22, front/back 6× 7-1/16 × 14, bottoms 3× 14-1/2 × 21. The 3D boxes are 7-1/16 tall too.
+- **Sink base, 30 wide:** sink front board 28-1/2 × 6-7/8 (z 25.125 to 32), back stile 28-1/2 × 4, false front 29-1/2 × 6, doors 14-11/16 × 21-3/8, no drawer box, no shelf, no drawer stile.
+- With **no countertop** the bases are 33-1/2 (the pre-Oct 30 numbers: gables 33-1/2 × 23, doors 22-7/8, 3-drawer fronts 9-9/16).
 - **Upper, 2 doors, 30 wide:** gables 30 × 11-1/2; top and bottom 28-1/2 × 11-1/2; back 30 × 30; doors 2× 14-11/16 × 29-1/2.
 - **Upper, 1 door, 18 wide:** door 17-1/2 × 29-1/2.
 - **Open upper, 24 wide:** 2 shelves 22-1/4 × 11-1/4.
@@ -440,9 +461,10 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - **Page 1, the whole kitchen:** title, front elevation (uppers over bases, doors, drawers, filler), isometric shaded 3D, plan view, end view, the cabinet schedule (it goes to 2 columns of W×H×D on long jobs), and a title block.
   - **Page 2, the countertop** (if any): sections, plus seam and dogbone details.
   - **Then one detail page per cabinet style:** front, side, top and 3D of one cabinet, one set of dimensions, a feature list, and a table of the other widths of that style used in the job.
-- **Title block:** job name, Drawing ("Kitchen layout - client presentation"), Date (for example "October 30, 2026"), Page "n of N", Cabinets ("N (b base, u upper)"), Countertop description, and a blank "Prepared by" line. Footer: "Preliminary, for discussion. Not for construction."
+- **Title block (Oct 30, on every page):** white box, hairline frame, a thin navy `#263460` top rule; the Coppinger logo (0.34" tall) top left and "Coppinger Exhibits / 9955 Westpoint Dr, Suite 150 / Indianapolis, IN 46256 · (317) 913-1400" right-aligned; then the job name (+ "· No. <job_no>") in bold; then two quiet columns: Client, Date (for example "October 30, 2026"), Revision, Sheet "n of N" | Drawing, Cabinets ("N (b base, u upper)"), Countertop, Prepared by. Long text is trimmed to fit. Footer: "Preliminary, for discussion. Not for construction."
+- **Notes on page 1** (Oct 30): up to 5 short client notes from `notes.py` (picked finishes first, then only the notes that apply: height, counter kind, uppers, filler, sink, microwave, site check), under a shorter iso view.
 - **Scales:** chosen from 1-1/2", 1", 3/4", 1/2", 3/8", 1/4", 3/16" and 1/8" = 1'-0".
-- **Palette:** INK `#1f2933`, SOFT `#6b7785`, DIM `#3d4b5c`, fronts `#d7e0ea`, case `#f5f3ee`, filler `#e6dccb`, pull `#3b3f44`, wall `#9aa3ad`, laminate top `#d8cfbf`, solid top `#ebe8e2`.
+- **Palette:** INK `#1f2933`, SOFT `#6b7785`, DIM `#3d4b5c`, fronts `#d7e0ea`, case `#f5f3ee`, filler `#e6dccb`, pull `#3b3f44`, wall `#9aa3ad`, laminate top `#d8cfbf`, solid top `#ebe8e2`. Picked finishes replace the front, case, filler and top colours (`palette_for(job)`); blank picks keep these.
 - **Content rules:** a 1-door upper shows a dashed swing V (point = hinge side). Sparse, with overall widths; no manufacturing detail.
 - The CLI also writes PNG previews (110 dpi). The form button returns the PDF inline and doesn't touch Omacad.
 
@@ -451,11 +473,11 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - **No dependencies.** The GLB is written with struct and JSON. The USDZ is an **uncompressed zip with one ASCII `.usda` layer, every file 64-byte aligned** (binary `.usdc` is used if OpenUSD `pxr` is available).
 - **Coordinates:** metres, Y up, +Z toward the viewer: `gl = (x, z, -y) × 0.0254`. The model is centred on its footprint and sits on the floor. Life size.
 - **Geometry:** the same boxes as the client sheet (model3d + parts + counter + filler); rounded corners are stepped.
-- **Materials:** the client-sheet colours converted to linear RGB.
+- **Materials:** the client-sheet colours (or the picked finishes) converted to linear RGB. Wood, marble and concrete finishes carry their 512 px CC0 JPEG texture (Oct 30): GLB uses `images`/`textures`/a repeat sampler and `TEXCOORD_0`; the USDZ uses `UsdUVTexture` + `UsdPrimvarReader_float2` with `primvars:st` and the JPEGs stored after the layer in `textures/`. Texture scale comes from the finish's `tile_in`. Not yet tried on a real iPhone with textures.
   - Case: roughness 0.75. Front: 0.55. Pull: metallic 0.8, roughness 0.35. Laminate top: 0.45. Solid top: 0.3.
 - **MIME types:** `.usdz` is **`model/vnd.usdz+zip`**, `.glb` is `model/gltf-binary`. Some phone viewers send a HEAD request first, which is supported.
 - **AR panel on the form:** size in inches and metres, the part count, and download links. With `--lan` it also shows a **QR code** (via `qrencode`) for `http://<lan-ip>:8777/ar/view?v=<version>`. Without `--lan` it shows a warning explaining `cabcad --lan` and the ufw command.
-- **Phone page `/ar/view`:**
+- **Phone page `/ar/view`:** the Coppinger logo in a small white pill at the top, navy button.
   - iPhone: tap the preview image (`<a rel="ar" href=...usdz>`).
   - Android: a Scene Viewer intent button (`intent://arvr.google.com/scene-viewer/1.0?file=...&mode=ar_preferred`, `scheme=https`).
   - Instructions: point at the floor, drag to place, twist to turn.
@@ -474,12 +496,44 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - `@media (max-height: 900px) { #wire { height: clamp(240px, 45vh, 480px); } }`
   - Full card width, twice the old 320px on a big screen, shrinking on short windows. `preserveAspectRatio="xMidYMid meet"`.
 - **Totals table:** uppers listed on top, bases below.
+- **Finish colours** (Oct 30): fronts, case, filler and countertop shapes (`.wf-front`, `.wf-case`, `.wf-filler`, `.wf-laminate`/`.wf-solid`) are filled with the picked finish colours. There is no separate 3D view inside the form; the 3D colour shows on the client sheet iso view, the render and AR.
+
+### 9.7 Branding on client output (Oct 30). BUILT
+- Logo: `assets/branding/coppinger/coppinger-logo-traced.svg` (PLACEHOLDER), embedded as a nested SVG (about 125 KB each). Used small: client sheet title block on every page, the render corner mark (bottom right), the AR phone page. Shop drawings (`draw.py`) keep their existing look, with no branding.
+- Render (`render.py`, `cli render`, and the client email): 12×8 in on `#f3f3f1`, the shaded iso view only, a hairline, the job name and client bottom left, the logo corner mark bottom right; 1800×1200 PNG. One angle; studio lighting waits for a real renderer.
+
+### 9.8 Finishes (Oct 30). BUILT (MVP)
+- **Catalog** `assets/finishes/catalog.json`, 13 starter finishes, generic names (no brand names; "close to <brand code>" only once a real match is known):
+  - Laminate solids: White, Black, Gray, Navy, Sage.
+  - Laminate wood looks (CC0 textures from ambientCG, 512 px, rotated for vertical grain): Maple look (Wood048), White oak look (Wood049), Walnut look (Wood027), Birch ply look (Wood090A), tile 24×24".
+  - Solid surface: White, Warm gray, Veined quartz look (Marble012, 30×30"), Concrete look (Concrete034, 48×24").
+  - Each entry: id, kind (`laminate`/`solid_surface`), family, name, brand/code/close_to (blank), color, roughness, texture, tile_in, source, license, on_estimate.
+  - Sources and licence in `assets/finishes/README.md` (CC0 1.0; textures about 236 KB total).
+- **Custom finish stub:** `finishes.add_custom(name, code, kind, color)` → id `custom-<slug>`, saved to `assets/finishes/custom.json` (override path: env `CABCAD_CUSTOM_FINISHES`), flagged `needs_match` and "custom, not yet on an estimate". The assistant matches a CC0 look-alike later.
+- **Where picks apply:** client sheet colours + notes, front-view wireframe, render, AR (GLB + USDZ). Box finish = case and interior; fronts = doors, drawer fronts and filler; countertop = laminate or solid top.
+- OPEN: Rick's most-sold list from QuickBase/Archie's estimates; who may add finishes.
+
+### 9.9 Email drafts (Oct 30). BUILT (draft only, never sends)
+- **Email AR to me** (`POST /email-ar`, `drafts.draft_ar_email`): writes `out/email-ar/<job-slug>/` with `cabcad.usdz` (iPhone), `cabcad.glb` (Android), `email.eml` (To brook@printrbot.com, `X-Unsent: 1`, both files attached) and `mailto.txt`, then opens the folder (`xdg-open`, detached).
+  - Recipients in `config/email.json`, enabled entries only: **brook@printrbot.com**. **Rick, ricks@cexhibits.com, is listed but `enabled: false`** (future recipient; do not include until Brook says so).
+- **Draft client email** (`POST /client-email`, test mode): writes `out/client-email/<job-slug>/` with `<job>-client-sheet.pdf`, `<job>-render.png`, `<job>.usdz`, `<job>.glb`, `email.txt` (subject + copy-paste body) and `email.eml` (no To: address; all four files attached), opens the folder, and shows the body with a **Copy email text** button.
+- Neither route contains any mail-sending code; the tests replace `smtplib.SMTP` to prove nothing tries to send.
+
+### 9.10 Plans dashboard (Oct 30). BUILT
+- `tools/plans-page` (stdlib Python) reads `~/Work/CABCAD-PLAN.md` and `~/Work/CABCAD-IDEAS.md` and writes **`~/Work/CABCAD-PLANS.html`**: counts, **Open questions** (highlighted, navy rule), the build order with a **Status** column, next steps, and the features/ideas table with status badges (BUILT / NEXT / LATER / OPEN QUESTION) and a **How to test** line for each built item.
+  - Markdown conventions: `- STATUS — text` (DONE→BUILT, NOW→NEXT) and an indented `  - Test: ...` line; a `Status` column in the PLAN build-order table; bullets under "Open items"/"Open questions" are open questions.
+- `tools/cabcad-plans` (linked as `~/.local/bin/cabcad-plans`): rebuilds the page and (re)opens it as a Chromium app window (`omarchy-launch-webapp file://...`), then goes to workspace 9. `--login` opens it quietly.
+- Hyprland: `~/.config/hypr/hyprland.lua` rule `o.window("^chrome-__home_.*_CABCAD-PLANS\\.html-Default$", { workspace = "9 silent" })`; `~/.config/hypr/autostart.lua` runs `cabcad-plans --login` at start. Backups: `*.bak-20261030-plans` next to both files.
+
+### 9.11 Notes (Oct 30). BUILT
+- `cabgen/notes.py` holds every standard note once, each with an audience (shop/client) and an applies-when condition on the design's facts (counter kind, drawers, sink, microwave, uppers, filler, laminate, open ends ...). The shop drawing notes block and the client sheet use `select()`, so a laminate job never shows solid-surface notes and a door-only job never shows drawer notes. Assumption lines already covered by a note are dropped (`extra_checks`). The shop title block only says "Corian top" when the cabinet has a counter.
 
 ---
 
 ## 10. Status summary of features beyond section 9
 
-- BUILT: everything in sections 2 to 9 not tagged otherwise.
+- BUILT: everything in sections 2 to 9 not tagged otherwise, including the Oct 30 work: finished height 33-1/2", drawer bottom label, unified widths + live cut list, 3D drawer boxes = front − 2, branding/title block, render, context notes, finish picker MVP, Email AR to me, Draft client email (test mode), plans dashboard.
+- CONFIRMED Oct 30 (Brook): drawer bottom 1/4" (label fixed); one set of default widths (upper 30, upper1 18, open 24, microwave 30, 3drawer 18, base 30, sink 30); total finished height 33-1/2" on all jobs with the case = 33.5 − counter; 3D drawer boxes follow the cut list; AR email to Brook only, Rick disabled.
 - DECIDED-NOT-BUILT:
   - Shelf-pin standard (6.10).
   - Over-sink short upper (6.7).
@@ -515,7 +569,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
      - #10, the reveal-side laminate rule per cabinet;
      - #11, whether the drawer front covers the top stile (the code: fronts start 1/4" below the case top, with the flat stile behind);
      - #12, one rail per drawer gap (the code does that).
-  8. Counter items marked "to confirm" in 6.11: the 35" top, the 25" depth, side-splash butt, no back strip, no backer sheet, +10% laminate, 4" stiffeners, the rabbet depth, splash materials.
+  8. Counter items marked "to confirm" in 6.11: the 25" depth (the top height is settled: 33-1/2" finished, Oct 30), side-splash butt, no back strip, no backer sheet, +10% laminate, 4" stiffeners, the rabbet depth, splash materials.
   9. Open-shelf upper: shelf count, fixed vs adjustable, interior finish.
 
 ---
@@ -523,7 +577,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 ## 11. Roadmap (Oct 30 plan; build order)
 
 1. **Local git and sync.** BUILT on the iMac: bare repos, plus `cabcad-sync-check` running at login, after resume and every 30 min. PENDING on the laptop: clone, sync-check install and SSH/Tailscale. Done when both machines sit on the same commit and the check is green on both (see section 13).
-2. **Finish catalog (laminate and solid surface).** PLANNED (next).
+2. **Finish catalog (laminate and solid surface).** MVP BUILT Oct 30 (9.8): 13 generic starter finishes, CC0 textures, three picks, AR. Still PLANNED: the real list from QuickBase/Archie, "close to" labels, Rick's top sellers first.
    - The list comes from finishes on the **real QuickBase job records and historical purchases / Archie's estimates**. It's not in QuickBooks; Sue has that.
    - Every finish is labelled **"close to <brand> <code> <name>"**. Never ship brand images or files (they're copyrighted).
    - Each one gets a close **CC0 look-alike** (ambientCG, Poly Haven) or a solid colour plus roughness/gloss.
@@ -531,13 +585,13 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
    - Stored as a data file (JSON or YAML) in the repo, one entry per finish: type, brand, code, name, look-alike source + licence, colour, roughness, texture path, scale, and an "on a real estimate" flag.
    - Starter set: about 12 to 15 finishes (solids: white, black, grey, navy, sage; woods: maple, white oak, walnut, birch ply; 3 or 4 solid-surface or quartz looks) until the real list arrives.
    - Finishes apply to the 3D view, the renders and the AR file (textures make the USDZ a little bigger; keep it email-friendly).
-3. **Custom finish.** PLANNED.
+3. **Custom finish.** STUB BUILT Oct 30 (name, code, colour → custom.json, in the dropdown, flagged). The research/match step is still manual (the assistant).
    - The user types a name and code (laminate or solid surface). The **assistant researches it and matches the closest CC0 look-alike**, and it's added to the dropdown permanently.
    - Flag it "custom, not yet on an estimate" until it appears on one.
    - Later: turn a phone photo of a sample chip into a tileable texture.
    - OPEN: who can add finishes, Brook only or Rick too.
-4. **Render feature.** PLANNED. Stills with soft studio light, a neutral background, 1 to 3 angles and a small logo watermark.
-5. **Branding and title block on client output.** PLANNED.
+4. **Render feature.** FIRST STILL BUILT Oct 30 (9.7: one angle, flat shading, logo corner mark). PLANNED: stills with soft studio light, a neutral background, 1 to 3 angles and a small logo watermark.
+5. **Branding and title block on client output.** BUILT Oct 30 (9.3, 9.7), except the approval box and revision change notes.
    - Minimal Coppinger Exhibits branding, but fully professional ("as if a whole team were behind it"). The shop prints keep their existing look.
    - **Title block on every client sheet:** logo, job name and number, client, date, revision, sheet number, and "Prepared by".
    - **Colours:** accent navy **`#263460`**; greens **`#037c39`** (wordmark), **`#93bc3c`** and **`#5fa549`** (sphere), used sparingly. Clean sans-serif, white space, thin rules.
@@ -552,7 +606,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 
   Brook approved it as a placeholder. Ask Mike or marketing for the official AI/EPS/SVG master.
    - Later: revision tracking (Rev A/B/C with change notes).
-6. **Sales package plus a "Draft client email" button.** PLANNED.
+6. **Sales package plus a "Draft client email" button.** TEST MODE BUILT Oct 30 (9.9): folder + copy-paste body + .eml, nothing sent; plus "Email AR to me".
    - One button loads the client PDF, the render(s) and the AR USDZ into an email draft that Rick edits and sends.
    - For testing first: a copy-paste version we send to ourselves to see exactly what the client sees.
    - **Approval stays manual.** Client approvals usually come with changes; they're not a yes/no. Automated approval (client clicks or signs, the job is marked approved in QuickBase) is LATER and on hold.
@@ -576,11 +630,20 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
    - At the same moment, the purchase list goes to Eddie: detailed and clean, each line **IN STOCK** or **ORDER**. Base materials are mostly stocked. Custom laminate, solid surface and hardware are long-lead and ordered at release, arriving while the casework is built.
    - Later: drawings carpenters build from with zero redraw ("close, not there yet").
 
-Ideas backlog: `~/Work/CABCAD-IDEAS.md` (NOW/NEXT/LATER/DONE). Feed new ideas to Brook as they come up.
+Ideas backlog: `~/Work/CABCAD-IDEAS.md` (BUILT/NEXT/LATER/OPEN QUESTION, with "Test:" lines; shown on the plans page, 9.10). Feed new ideas to Brook as they come up.
 
 ---
 
-## 12. Tests to recreate (72; names from `~/Work/cabinet-gen/tests`)
+## 12. Tests to recreate (97; names from `~/Work/cabinet-gen/tests`)
+- **Added Oct 30:**
+  - `test_base_height` (3): 33-1/2" finished on every counter kind; case = 33.5 − counter; 3D drawer boxes = front − 2.
+  - `test_branding` (4): the logo and address on every client page; the title block fields; the render has the corner mark; form job fields reach the sheet.
+  - `test_defaults_and_cutlist` (2): CLI and form default widths are the same table; the live cut list follows the typed widths.
+  - `test_notes` (5): laminate jobs show no solid-surface notes; door-only jobs show no drawer notes; sink/microwave notes only when present; client notes short; duplicate assumptions dropped.
+  - `test_finishes` (4): catalog licensed and split by kind; picks change the client sheet colours and notes; AR carries finishes and textures (aligned USDZ, GLB TEXCOORD_0); the form has three pickers and custom finishes join them.
+  - `test_drafts` (4): config has Brook only and Rick disabled; the buttons are on the form; Email AR writes a USDZ+GLB draft to Brook; the client email collects PDF, render and AR.
+  - `test_plans_page` (2): status badges, test lines and open questions; the real docs build.
+  - `test_kitchen` gained the drawer-bottom label test (14).
 - **`test_ar_export` (5):**
   - creates the files;
   - the bounding box is the kitchen in metres, on the floor;
@@ -670,7 +733,8 @@ Ideas backlog: `~/Work/CABCAD-IDEAS.md` (NOW/NEXT/LATER/DONE). Feed new ideas to
   - `0edde35` initial snapshot
   - `b0ca402` sync-check script and systemd units
   - `b7b009d` this spec as `docs/CABCAD-SPEC.md`
-  - then the branding assets and this update
+  - `3e62520` branding assets
+  - Oct 30 features: `0a8dbf9` drawer bottom label, `e559e6b` unified widths + live cut list, `d8d3489` 33-1/2" finished height, `4b4108f` branding + title block + render, `e3ade5d` context notes, `8ae4c91` finish picker, `a7e008e` Email AR to me, `6a6856f` Draft client email, `712860e` plans dashboard, then this spec update
 - **Laptop.** It clones and mirrors over the LAN or Tailscale. The iMac is `imaco` on the LAN and `imaco-ts` / 100.66.33.81 on Tailscale. The laptop's remotes use the same names with SSH URLs, like `ssh://abdrumm@100.66.33.81/home/abdrumm/Work/git/cabinet-gen.git`. It needs key-based SSH from the laptop to the iMac. Status: **PENDING**, since the laptop has been offline.
 - **Sync check (`cabcad-sync-check`).** BUILT on the iMac; PENDING on the laptop.
   - **Script:** `~/.local/bin/cabcad-sync-check` (bash). The repo copy is `tools/cabcad-sync-check`.
