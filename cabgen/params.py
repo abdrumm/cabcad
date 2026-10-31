@@ -289,6 +289,13 @@ class Params:
     # --- laminate ------------------------------------------------------------
     laminate: bool = True
     laminate_right_side: bool = True  # right gable is a reveal -> laminate
+    # Catalogue numbers (cabgen/laminates.csv). Blank case and interior are white
+    # melamine. Blank doors keep the plain front colour. Blank top keeps the
+    # counter's own laminate or solid-surface colour. A row or a # line can set these.
+    finish_case: str = ""
+    finish_doors: str = ""
+    finish_top: str = ""
+    finish_interior: str = ""
 
     # --- sheet goods ---------------------------------------------------------
     sheet_w: float = 48.0
@@ -296,6 +303,12 @@ class Params:
     kerf: float = 0.1875              # 3/16" saw blade
 
     def __post_init__(self) -> None:
+        for key in ("finish_case", "finish_doors", "finish_top", "finish_interior"):
+            val = getattr(self, key)
+            if val is None or val is False:
+                setattr(self, key, "")
+            else:
+                setattr(self, key, str(val).strip())
         preset = STYLE_PRESETS[self.style]
         for key in ("width", "height", "depth", "drawer_front_h"):
             if getattr(self, key) is None and key in preset:

@@ -66,6 +66,22 @@ inches, before the next cabinet in that row.
 Styles you can type: `3drawer`, `base` (1 drawer over 2 doors), `upper` (2 doors;
 uppers never have drawers). A filled height or depth replaces the style for that one cabinet.
 
+Finishes are catalogue numbers, on the same `# key=value` lines (or a column of
+that name, which overrides the job for that one cabinet):
+
+```
+# case=              box exterior. Blank means white melamine.
+# doors=5786-NG      doors and drawer fronts. Formica 5786-NG Ashwood Oak.
+# top=3450-58        countertop show faces. Formica 3450-58 Mineral Jet.
+# interior=white     inside the box. Blank means white melamine.
+```
+
+`cabgen/laminates.csv` maps manufacturer, number and name to an approximate
+display colour. The `texture` column is reserved for a later image and is left
+blank. An unknown number is drawn neutral gray and reported; the job still builds.
+`jobs/sample-kitchen.csv` is Ashwood Oak doors, white melamine case and interior,
+and Mineral Jet tops.
+
 The command writes one Omacad model of the whole run, a layout table, and one
 cut list. It opens the model full screen on workspace 3. `--no-show` skips that.
 
@@ -91,6 +107,8 @@ at the case front. See the standards file, section 2, and TBD #11/#12.
 
 ```
 cabgen/params.py     parameters, style presets, the web form fields
+cabgen/finishes.py   laminate numbers and the approximate display colours
+cabgen/laminates.csv the shop's laminate / solid-surface list
 cabgen/parts.py      the part schedule and the vertical layout of the fronts
 cabgen/model3d.py    where every part sits in space (X width, Y depth, Z height)
 cabgen/omacad_export.py  writes the .omacad project (uses the Omacad venv)

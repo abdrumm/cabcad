@@ -16,7 +16,7 @@ import datetime as _dt
 import math
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .kitchen import (
@@ -76,6 +76,7 @@ class Job:
     codes: dict
     filler: tuple[float, float] | None   # (x0, x1) of the base filler
     counter: object = None               # cabgen.counter.Counter or None
+    finish_warnings: list = field(default_factory=list)
 
     @property
     def bases(self):
@@ -123,7 +124,8 @@ def join_counter_pieces(boxes: list) -> list:
             out.append(b)
             continue
         key = (_PIECE_NO.sub("", b.name), b.material,
-               round(b.pos[1], 4), round(b.size[1], 4), round(b.pos[2], 4), round(b.size[2], 4))
+               round(b.pos[1], 4), round(b.size[1], 4), round(b.pos[2], 4), round(b.size[2], 4),
+               getattr(b, "color", ""))
         groups.setdefault(key, []).append(b)
         out.append(key)
     merged: dict = {}
@@ -146,7 +148,7 @@ def join_counter_pieces(boxes: list) -> list:
             first = run[0]
             boxes_out.append(Box(key[0], (x0, first.pos[1], first.pos[2]),
                                  (round(x1 - x0, 4), first.size[1], first.size[2]),
-                                 first.material, first.join))
+                                 first.material, first.join, "", getattr(first, "color", "")))
         merged[key] = boxes_out
     final, seen = [], set()
     for item in out:
@@ -179,10 +181,14 @@ def job_from(cabs, settings: dict, name: str) -> Job:
             else:
                 x0 = max(c.x + c.params.width for c in bases)
                 filler = (x0, x0 + facts["filler"])
-    return Job(name, cabs, settings, keep, cabinet_codes(cabs), filler, counter)
+    return Job(name, cabs, settings, keep, cabinet_codes(cabs), filler, counter,
+               list(settings.get("finish_warnings") or []))
 
 
 def _color(box) -> str:
+    chosen = str(getattr(box, "color", "") or "").strip()
+    if len(chosen) == 7 and chosen.startswith("#"):
+        return chosen
     mat = box.material
     if "pull" in mat or "hardware" in mat:
         return PULL

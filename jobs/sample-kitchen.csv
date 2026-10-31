@@ -3,6 +3,10 @@
 # run=base sits on the floor. run=upper hangs at upper_bottom, back against the wall.
 # gap_after is a filler space, in inches, before the next cabinet. Bases only; uppers never get a filler.
 # upper_bottom=54
+# Finishes are laminate numbers (cabgen/laminates.csv). Blank case is white melamine.
+# doors=5786-NG
+# top=3450-58
+# interior=white
 name,style,width,run,height,depth,z,x,gap_after,left,right
 Base cabinet 27,3drawer,27,base,,,,,,
 Base cabinet 18,base,18,base,,,,,,

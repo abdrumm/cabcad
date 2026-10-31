@@ -39,6 +39,29 @@ MAT_1_2_CORIAN = '1/2" Corian'
 MAT_1_MDF = '1" MDF'
 
 
+def _finish_note(spec: str) -> str:
+    from .finishes import callout
+    return callout(spec)
+
+
+def _front_laminate(p: Params, oversize: bool = True) -> str:
+    """Cut-list laminate cell for a door or drawer front, with the catalogue number when set."""
+    note = _finish_note(p.finish_doors)
+    if not p.laminate:
+        return note.rstrip()
+    if oversize:
+        body = (
+            "Both faces + all edges, waterfall order: bottom face, side edges, "
+            'top face. +1" oversize for spray, trim with palm router.'
+        )
+    else:
+        body = (
+            "Both faces + all edges, waterfall order: bottom face, side edges, "
+            "top face."
+        )
+    return note + body
+
+
 @dataclass
 class Part:
     name: str
@@ -188,10 +211,11 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
             length=gable_depth,
             banding="Front edge; bottom edge (toe kick side). Sand and hand-file.",
             laminate=(
-                "Reveal face(s) only: laminate per waterfall order "
+                _finish_note(p.finish_case)
+                + "Reveal face(s) only: laminate per waterfall order "
                 '(bottom face, side edges, top face). +1" oversize, trim with palm router.'
                 if p.laminate
-                else ""
+                else _finish_note(p.finish_case).rstrip()
             ),
             notes=(
                 f"Notch the front bottom {fmt(p.toe_kick_recess)} deep by "
@@ -452,12 +476,7 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
                     width=p.door_width,
                     length=layout.door_heights[0],
                     banding="All four edges (both faces).",
-                    laminate=(
-                        "Both faces + all edges, waterfall order: bottom face, side edges, "
-                        "top face. +1\" oversize for spray, trim with palm router."
-                        if p.laminate
-                        else ""
-                    ),
+                    laminate=_front_laminate(p),
                     notes=(
                         single_door_note(p)
                         if p.doors == 1 else
@@ -490,10 +509,7 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
                 width=p.front_width,
                 length=layout.drawer_heights[0],
                 banding="All four edges (both faces).",
-                laminate=(
-                    "Both faces + all edges, waterfall order: bottom face, side edges, "
-                    "top face." if p.laminate else ""
-                ),
+                laminate=_front_laminate(p, oversize=False),
                 notes=(
                     "False drawer front: same size and reveals as a real drawer front. "
                     "NO pull, drill no holes. Screw it to the sink front board from behind."
@@ -511,10 +527,7 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
                     width=p.front_width,
                     length=dh,
                     banding="All four edges (both faces).",
-                    laminate=(
-                        "Both faces + all edges, waterfall order: bottom face, side edges, "
-                        "top face." if p.laminate else ""
-                    ),
+                    laminate=_front_laminate(p, oversize=False),
                     notes=(
                         f"Covers {fmt(p.door_overhang)} of each gable "
                         f"({fmt(p.edge_reveal)} reveal at the sides and the top). "
