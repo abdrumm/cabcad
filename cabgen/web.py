@@ -18,8 +18,8 @@ from .kitchen import (
     group_settings, parse_group, group_sheet, write_kitchen,
 )
 from .params import (
-    DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH, _coerce,
-    door_rule_warnings,
+    DEFAULT_WIDTHS, FORM_FIELDS, KICK_PLATE_H, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH,
+    _coerce, door_rule_warnings,
 )
 
 PAGE = """<!doctype html>
@@ -245,6 +245,7 @@ def group_view(form: dict | None) -> dict:
         "splash_right": "yes",
         "kickplate": "no",
         "kickplate_color": "black",
+        "kickplate_h": f"{KICK_PLATE_H:g}",
     }
     n = len(view["uppers"]["widths"])
     handles = ["right"] * n
@@ -264,7 +265,7 @@ def group_view(form: dict | None) -> dict:
             view["filler_side"] = str(form.get("filler_side")).strip()
         if form.get("filler") is not None and str(form.get("filler")).strip() != "":
             view["filler"] = str(form.get("filler")).strip()
-        for key in ("counter", "splash_left", "splash_right", "kickplate", "kickplate_color"):
+        for key in ("counter", "splash_left", "splash_right", "kickplate", "kickplate_color", "kickplate_h"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
     return view
@@ -338,6 +339,10 @@ def _counter_fields(view: dict) -> str:
         f'{_seg("kickplate", view.get("kickplate") or "no", kick_yes_no, label="Kick plate")}</div>'
         '<div class="opt" id="kick-color-box"><span class="optlabel">Kick plate colour</span>'
         f'{_seg("kickplate_color", view.get("kickplate_color") or "black", kick_colors, label="Kick plate colour")}</div>'
+        '<div class="opt" id="kick-h-box"><span class="optlabel">Kick plate height</span>'
+        f'<input type="number" id="kickplate_h" name="kickplate_h" min="0.5" max="4" step="0.0625" '
+        f'value="{html.escape(str(view.get("kickplate_h") or f"{KICK_PLATE_H:g}"))}" aria-label="Kick plate height, inches">'
+        '<span>in</span></div>'
         '<script>(function () {'
         "function syncSplash() {"
         "  const w = (document.querySelector('input[name=\"walls\"]:checked') || {}).value || 'left';"
@@ -643,7 +648,7 @@ function drawWire() {
     const L = (leftWall ? 0 : bases[0].x - WIRE.open_overhang);
     const R = (rightWall ? baseEnd : baseEnd + WIRE.open_overhang);
     const thk = WIRE.splash_thk[counter] || 0.75;
-    rect(L, baseTop + WIRE.counter_edge, R - L, WIRE.splash_h, 'wf-splash');
+    rect(L, baseTop + WIRE.counter_edge, R - L, WIRE.splash_h, 'wf-counter wf-' + counter);
     rect(L, baseTop, R - L, WIRE.counter_edge, 'wf-counter wf-' + counter);
     if (leftWall && wfVal('splash_left') !== 'no') rect(L, baseTop + WIRE.counter_edge, thk, WIRE.splash_h, 'wf-counter wf-' + counter);
     if (rightWall && wfVal('splash_right') !== 'no') rect(R - thk, baseTop + WIRE.counter_edge, thk, WIRE.splash_h, 'wf-counter wf-' + counter);

@@ -79,10 +79,18 @@ def build_model(p: Params, layout: Layout) -> Model:
         ))
 
     def gable(name: str, x: float) -> None:
-        # One panel from the floor to the top of the case. A base gable includes the
-        # toe-kick zone; the notch is cut into this piece (the cut list says how),
-        # and the kick plate is a separate recessed board. The side is never two boards.
-        add(name, (x, 0, 0), (t, gable_d, top), '3/4" melamine')
+        # One panel, floor to the top of the case. A base gable has the toe-kick notch
+        # cut into that one piece: full depth above the kick, and only the back of the
+        # panel through the kick. Two boxes share a join key so Omacad and the cut list
+        # treat them as one part; the drawings outline the notch as one shape.
+        mat = '3/4" melamine'
+        if p.has_toe_kick and p.toe_kick_h > 0 and p.toe_kick_recess > 0:
+            add(name, (x, 0, p.toe_kick_h),
+                (t, gable_d, top - p.toe_kick_h), mat, join=name)
+            add(name + " heel", (x, p.toe_kick_recess, 0),
+                (t, gable_d - p.toe_kick_recess, p.toe_kick_h + 0.01), mat, join=name)
+        else:
+            add(name, (x, 0, 0), (t, gable_d, top), mat)
 
     gable("Gable L", 0)
     gable("Gable R", w - t)

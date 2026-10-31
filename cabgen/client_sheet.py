@@ -428,6 +428,7 @@ def end_view(svg: Svg, job: Job, box) -> None:
         dx, dy, dz = b.size
         svg.rect(Yx(y), Z(z + dz), dy * s, dz * s, fill=PULL if "pull" in b.material else _color(b),
                  stroke=_edge(b, "#56606b"), sw=0.005)
+    _stroke_notches(svg, _gable_groups(job.boxes), Yx, Z)
     _wall_band(svg, Yx(wall), Z(top + 6), 0.15, (top + 6) * s)
     svg.line(Yx(wall), floor, Yx(wall), Z(top + 6), stroke=INK, sw=0.012)
     svg.line(Yx(-6), floor, Yx(wall) + 0.15, floor, stroke=INK, sw=0.014)
@@ -745,8 +746,49 @@ def _single(cab, name: str, settings: dict | None = None) -> Job:
 
 
 def _edge(b, stroke: str) -> str:
-    """No outline on the thin slices that draw a rounded corner (microwave shelf)."""
-    return "none" if getattr(b, "shape", "") == "slice" else stroke
+    """No outline on rounded-corner slices, or on the two boxes of one notched gable.
+
+    The gable outline is drawn once, as the notch, so the shared edge is not a seam.
+    """
+    if getattr(b, "shape", "") == "slice":
+        return "none"
+    part = b.name.split("/")[-1].strip()
+    if b.join and part.startswith("Gable"):
+        return "none"
+    return stroke
+
+
+def _notch_loop(parts) -> list[tuple[float, float]] | None:
+    """(y, z) of one notched gable. None when the side is a plain rectangle."""
+    if len(parts) < 2:
+        return None
+    y0 = min(b.pos[1] for b in parts)
+    y1 = max(b.pos[1] + b.size[1] for b in parts)
+    z0 = min(b.pos[2] for b in parts)
+    z1 = max(b.pos[2] + b.size[2] for b in parts)
+    heel = max(parts, key=lambda b: b.pos[1])
+    front = min(parts, key=lambda b: b.pos[1])
+    if heel.pos[1] <= y0 + 1e-4:
+        return None
+    return [(y0, z1), (y1, z1), (y1, z0), (heel.pos[1], z0), (heel.pos[1], front.pos[2]), (y0, front.pos[2])]
+
+
+def _gable_groups(boxes) -> dict:
+    groups: dict = {}
+    for b in boxes:
+        part = b.name.split("/")[-1].strip()
+        if b.join and part.startswith("Gable"):
+            groups.setdefault(b.join, []).append(b)
+    return groups
+
+
+def _stroke_notches(svg, groups, X, Y) -> None:
+    """One outline per gable, in the side or end view (depth horizontal, height vertical)."""
+    for parts in groups.values():
+        loop = _notch_loop(parts)
+        if not loop:
+            continue
+        svg.poly([(X(y), Y(z)) for y, z in loop], fill="none", stroke="#56606b", sw=0.006)
 
 
 def _ortho(svg: Svg, boxes, view: str, X, Y) -> None:
@@ -764,6 +806,8 @@ def _ortho(svg: Svg, boxes, view: str, X, Y) -> None:
         pull = "pull" in b.material
         svg.rect(x0, y0, x1 - x0, y1 - y0, fill=PULL if pull else _color(b),
                  stroke="none" if pull else _edge(b, "#56606b"), sw=0 if pull else 0.006)
+    if view == "side":
+        _stroke_notches(svg, _gable_groups(boxes), X, Y)
 
 
 def _swing_marks(svg: Svg, boxes, X, Z) -> None:
@@ -1052,8 +1096,11 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
         lines = [
             '1/2" solid surface top, with a 1/2" wide x 1/4" deep rabbet under the front and finished edges.',
             "1-1/4\" solid surface edge strip epoxied into the rabbet: 1/4\" + 1-1/4\" = 1-1/2\" reveal.",
-            '3/4" plywood build-up, 4" wide, glued tight under the sheet: front, back, both ends,',
-            "  and centred on every case break (where two base cabinets meet).",
+            '3/4" plywood build-up, 4" wide, glued to the underside of the sheet. No staples',
+            "  or screws into the solid surface. Tight to the sheet, so the strips start 1/4\"",
+            "  above the case (the front edge is still a 1-1/2\" reveal).",
+            "Front, back, and both ends. Front and back stop short of a side edge strip.",
+            "  A strip is centred on every case break.",
             '4" solid surface backsplash; 4" side splash at a wall end.',
             'Open ends: 1" overhang with a finished edge. Wall ends: flush.',
         ]

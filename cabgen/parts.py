@@ -222,8 +222,8 @@ def build_parts(p: Params) -> tuple[list[Part], Layout]:
                 else _finish_note(p.finish_case).rstrip()
             ),
             notes=(
-                f"Notch the front bottom {fmt(p.toe_kick_recess)} deep by "
-                f"{fmt(p.toe_kick_h)} tall. "
+                f"One piece, full height. Notch the front bottom {fmt(p.toe_kick_recess)} "
+                f"deep by {fmt(p.toe_kick_h)} tall; do not cut the side into two parts. "
                 if is_base else ""
             ) + (
                 f"Shelf-pin holes {fmt(p.shelf_pin_dia)} dia, {fmt(p.shelf_pin_depth)} "

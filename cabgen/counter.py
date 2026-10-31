@@ -278,14 +278,15 @@ def _add(c: Counter, code: str, name: str, mat: str, thk: float, w: float, l: fl
 
 
 def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: str,
-                  fl: float, fr: float, code: str, inset_open: float, word: str) -> None:
+                  fl: float, fr: float, code: str, inset_open: float, word: str,
+                  fasten: str = "", joint: str = "Screw down here.") -> None:
     """Front-to-back strips: one at each counter end, one centred on each cabinet joint."""
     length = y1 - y0
     wl = max(STRIP_W, fl + 1.5) if fl else STRIP_W
     wr = max(STRIP_W, fr + 1.5) if fr else STRIP_W
     lx = c.x0 + (inset_open if c.left_open else 0.0)
     rx = c.x1 - (inset_open if c.right_open else 0.0)
-    how = "Glued and stapled to the top. " if code == "BU" else ""
+    how = (fasten + " ") if fasten else ""
     _add(c, f"{code}L", f"{word}, left end", mat, thk, wl, length,
          [((lx, y0, z), (wl, length, thk))], how + "Flush with the left end of the counter.")
     import math
@@ -311,7 +312,7 @@ def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: s
             continue
         _add(c, f"{code}J{i}", f"{word}, cabinet joint {i}", mat, thk, STRIP_W, length,
              [((j - STRIP_W / 2, y0, z), (STRIP_W, length, thk))],
-             how + f"Centred on the joint at {at}. Screw down here.")
+             how + f"Centred on the joint at {at}. {joint}")
     _add(c, f"{code}R", f"{word}, right end", mat, thk, wr, length,
          [((rx - wr, y0, z), (wr, length, thk))], how + "Flush with the right end of the counter.")
 
@@ -346,7 +347,8 @@ def _laminate(c: Counter, fl: float, fr: float) -> None:
         _add(c, f"BUF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, t, STRIP_W, b - a,
              [((a, c.y_front, c.z0), (b - a, STRIP_W, t))],
              "Glued and stapled under the front edge; with the top makes the 1-1/2\" edge.")
-    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back, ply, fl, fr, "BU", 0.0, "Build-up")
+    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back, ply, fl, fr, "BU", 0.0, "Build-up",
+                  fasten="Glued and stapled to the top.")
     _splashes(c, ply, t)
 
     # laminate takeoff, in the order it goes on. Laminate sheets run to 144", so the
@@ -421,17 +423,27 @@ def _solid(c: Counter, fl: float, fr: float) -> None:
         _add(c, "ER", "Edge strip, right side", ss, sheet, strip_h, side_d,
              [((c.x1 - rab, c.y_front + rab, c.z0), (rab, side_d, strip_h))], "Epoxied into the side rabbet.")
     # Perimeter build-up, then the case-break strips between the front and back
-    # strips (same places as before). All of them tight to the sheet.
+    # strips (same places as before). All of them tight to the sheet. Front and
+    # back stop short of a solid-surface side edge strip so the two do not collide.
     bu = SOLID_BUILDUP_THK
-    note = "Directly under the solid surface sheet. 4\" wide."
+    glued = ("Glued to the underside of the solid surface. No staples or screws into the sheet. "
+             "Directly under the sheet, 4\" wide.")
     fy0 = c.y_front + rab                 # behind the front edge strip
+    x_lo = c.x0 + (rab if c.left_open else 0.0)
+    x_hi = c.x1 - (rab if c.right_open else 0.0)
+    clear = ""
+    if c.left_open or c.right_open:
+        clear = " Stops short of the solid-surface side edge strip at an open end."
     for i, (a, b) in enumerate(spans, start=1):
         n = _num(i, len(spans))
-        _add(c, f"BUF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, bu, STRIP_W, b - a,
-             [((a, fy0, z_bu), (b - a, STRIP_W, bu))], note + " Front edge, behind the edge strip.")
-        _add(c, f"BUB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, bu, STRIP_W, b - a,
-             [((a, c.y_back - STRIP_W, z_bu), (b - a, STRIP_W, bu))], note + " Back edge.")
-    _cross_strips(c, bu, z_bu, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "BU", rab, "Build-up")
+        lo = max(a, x_lo)
+        hi = min(b, x_hi)
+        _add(c, f"SBF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, bu, STRIP_W, hi - lo,
+             [((lo, fy0, z_bu), (hi - lo, STRIP_W, bu))], glued + " Front edge, behind the edge strip." + clear)
+        _add(c, f"SBB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, bu, STRIP_W, hi - lo,
+             [((lo, c.y_back - STRIP_W, z_bu), (hi - lo, STRIP_W, bu))], glued + " Back edge." + clear)
+    _cross_strips(c, bu, z_bu, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "SB", rab, "Build-up",
+                  fasten=glued, joint="Screw up from the cabinet into the plywood, not into the solid surface.")
     _splashes(c, ss, 0.5)
 
 

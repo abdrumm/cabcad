@@ -46,25 +46,26 @@ def test_counter_is_one_slab_and_it_paints_above_the_bases():
             assert counter_paint_rank(b, deck) < counter_paint_rank(top, deck)
 
 
-def test_base_gables_are_one_full_height_piece():
+def test_base_gables_are_one_piece_with_the_toe_kick_notch():
     job = load_job(JOB)
-    assert not any("Gable" in b.name and "heel" in b.name for b in job.boxes)
     for cab in job.bases:
         parts, layout = build_parts(cab.params)
         gables = [p for p in parts if p.name.startswith("Gable")]
         assert len(gables) == 1
         assert gables[0].qty == 2
-        assert abs(gables[0].width - cab.params.height) < 1e-6  # floor to the top of the case
+        assert abs(gables[0].width - cab.params.height) < 1e-6  # blank is full height
+        assert "One piece" in gables[0].notes and "Notch" in gables[0].notes
         model = build_model(cab.params, layout)
-        sides = [b for b in model.boxes if b.name.startswith("Gable")]
-        assert len(sides) == 2
-        for b in sides:
-            assert "heel" not in b.name
-            assert b.pos[2] == 0.0
-            assert abs(b.size[2] - cab.params.case_top_z) < 1e-6
-            assert abs(b.size[1] - cab.params.gable_depth) < 1e-6
-    text = render(job, date="October 31, 2026").to_string()
-    assert "Gable L heel" not in text and "Gable R heel" not in text
+        left = [b for b in model.boxes if b.name.startswith("Gable L")]
+        assert len(left) == 2 and len({b.join for b in left}) == 1
+        upper = min(left, key=lambda b: b.pos[1])
+        heel = max(left, key=lambda b: b.pos[1])
+        assert upper.pos[2] == cab.params.toe_kick_h
+        assert abs(upper.pos[2] + upper.size[2] - cab.params.case_top_z) < 1e-6
+        assert heel.pos[2] == 0.0 and heel.pos[1] == cab.params.toe_kick_recess
+        # the notch itself is empty: nothing of this gable in front of the recess, below the kick
+        assert not any(b.pos[1] < cab.params.toe_kick_recess - 1e-6 and b.pos[2] < cab.params.toe_kick_h - 1e-6
+                       for b in left)
 
 
 def test_splashes_share_the_countertop_finish(tmp_path: Path):
