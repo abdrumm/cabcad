@@ -41,7 +41,7 @@ def _hex_rgb(h: str) -> tuple[float, float, float]:
 
 
 def _materials() -> dict[str, dict]:
-    """name -> linear colour, metallic, roughness. Colours from the client sheet."""
+    """name -> linear colour, metallic, roughness. The schematic palette, before a finish is named."""
     from .client_sheet import CASE, FRONT, LAMTOP, PULL, SOLID
     return {
         "Case": {"rgb": _hex_rgb(CASE), "metallic": 0.0, "roughness": 0.75},
@@ -49,14 +49,48 @@ def _materials() -> dict[str, dict]:
         "Pull": {"rgb": _hex_rgb(PULL), "metallic": 0.8, "roughness": 0.35},
         "Laminate_top": {"rgb": _hex_rgb(LAMTOP), "metallic": 0.0, "roughness": 0.45},
         "Solid_top": {"rgb": _hex_rgb(SOLID), "metallic": 0.0, "roughness": 0.3},
+        "Interior": {"rgb": _hex_rgb("#F4F1EA"), "metallic": 0.0, "roughness": 0.75},
     }
 
 
-def _material_of(box) -> str:
-    """Same rule as client_sheet._color, by material name."""
+def swatch(box) -> tuple[str, str, float, float]:
+    """Material name, sRGB hex, metallic, roughness.
+
+    A named finish keeps the role (Case, Front, Laminate_top, ...) and, when the
+    colour is not that role's default, the hex, so two cabinets can differ.
+    Hardware stays the pull metal. A blank door or top finish keeps the old palette.
+    """
     from .client_sheet import CASE, FRONT, LAMTOP, PULL, SOLID, _color
-    return {PULL: "Pull", SOLID: "Solid_top", LAMTOP: "Laminate_top",
-            FRONT: "Front", CASE: "Case"}.get(_color(box), "Case")
+    from .finishes import WHITE_HEX, part_role
+
+    role = part_role(box.name, box.material)
+    if role == "hardware":
+        return "Pull", PULL, 0.8, 0.35
+    chosen = str(getattr(box, "color", "") or "").strip()
+    if not chosen:
+        hex_c = _color(box)
+        name = {PULL: "Pull", SOLID: "Solid_top", LAMTOP: "Laminate_top",
+                FRONT: "Front", CASE: "Case"}.get(hex_c, "Case")
+        metal = 0.8 if name == "Pull" else 0.0
+        rough = {"Pull": 0.35, "Solid_top": 0.3, "Laminate_top": 0.45, "Front": 0.55}.get(name, 0.75)
+        return name, hex_c, metal, rough
+    solid = "solid surface" in (box.material or "").lower()
+    canon = {"doors": "Front", "top": "Solid_top" if solid else "Laminate_top",
+             "interior": "Interior", "case": "Case"}.get(role, "Case")
+    default_hex = {"Front": FRONT, "Solid_top": SOLID, "Laminate_top": LAMTOP,
+                   "Interior": WHITE_HEX, "Case": WHITE_HEX}[canon]
+    if chosen.lower() == default_hex.lower():
+        name = canon
+    else:
+        name = f"{canon} {chosen.upper()}"
+    rough = {"Front": 0.55, "Solid_top": 0.3, "Laminate_top": 0.4,
+             "Interior": 0.75, "Case": 0.72}[canon]
+    return name, chosen, 0.0, rough
+
+
+def _material_of(box) -> str:
+    """Material name for one solid. Kept for callers that only need the name."""
+    return swatch(box)[0]
 
 
 # --------------------------------------------------------------------------- geometry
@@ -67,6 +101,8 @@ def job_boxes(job) -> list:
     filler = _filler_box(job)
     if filler is not None:
         filler.material = "3/4\" melamine + laminate"   # a finished face, like a front
+        from .finishes import paint_filler
+        paint_filler(filler, job)
         boxes.append(filler)
     return boxes
 
@@ -116,7 +152,9 @@ def build_meshes(boxes) -> tuple[dict[str, dict], tuple[float, float, float]]:
     shift = (-(lo[0] + hi[0]) / 2, -lo[1], -(lo[2] + hi[2]) / 2)
     meshes: dict[str, dict] = {}
     for box, (blo, bhi) in zip(boxes, spans):
-        m = meshes.setdefault(_material_of(box), {"points": [], "normals": [], "tris": []})
+        key, hex_c, metal, rough = swatch(box)
+        m = meshes.setdefault(key, {"points": [], "normals": [], "tris": [],
+                                    "rgb": _hex_rgb(hex_c), "metallic": metal, "roughness": rough})
         blo = tuple(blo[i] + shift[i] for i in range(3))
         bhi = tuple(bhi[i] + shift[i] for i in range(3))
         v, n, t = _box_faces(blo, bhi)
@@ -130,8 +168,7 @@ def build_meshes(boxes) -> tuple[dict[str, dict], tuple[float, float, float]]:
 
 # --------------------------------------------------------------------------- GLB
 def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
-    mats = _materials()
-    order = [m for m in mats if m in meshes]
+    order = [m for m in meshes if meshes[m]["points"]]
     buf = bytearray()
     views, accessors, prims = [], [], []
 
@@ -168,8 +205,8 @@ def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
         "nodes": [{"name": name, "mesh": 0}],
         "meshes": [{"name": name, "primitives": prims}],
         "materials": [{"name": k, "pbrMetallicRoughness": {
-            "baseColorFactor": [*mats[k]["rgb"], 1.0],
-            "metallicFactor": mats[k]["metallic"], "roughnessFactor": mats[k]["roughness"]}}
+            "baseColorFactor": [*meshes[k]["rgb"], 1.0],
+            "metallicFactor": meshes[k]["metallic"], "roughnessFactor": meshes[k]["roughness"]}}
             for k in order],
         "accessors": accessors,
         "bufferViews": views,
@@ -184,6 +221,11 @@ def make_glb(meshes: dict[str, dict], name: str = "Kitchen") -> bytes:
 
 
 # --------------------------------------------------------------------------- USD
+def _usd_name(key: str) -> str:
+    """USD prim names are identifiers. Spaces and '#' in a finish name become underscores."""
+    return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in key)
+
+
 def _f(v: float) -> str:
     return f"{v:.6g}"
 
@@ -193,17 +235,17 @@ def _tup(t) -> str:
 
 
 def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
-    mats = _materials()
-    order = [m for m in mats if m in meshes]
+    order = [m for m in meshes if meshes[m]["points"]]
     out = ['#usda 1.0', '(', '    defaultPrim = "Kitchen"', '    metersPerUnit = 1',
            '    upAxis = "Y"', f'    doc = "{name} - cabgen AR export"', ')', '',
            'def Xform "Kitchen" (', '    kind = "component"', ')', '{']
     out += ['    def Scope "Materials"', '    {']
     for k in order:
-        m = mats[k]
+        m = meshes[k]
+        safe = _usd_name(k)
         out += [
-            f'        def Material "{k}"', '        {',
-            f'            token outputs:surface.connect = </Kitchen/Materials/{k}/Surface.outputs:surface>',
+            f'        def Material "{safe}"', '        {',
+            f'            token outputs:surface.connect = </Kitchen/Materials/{safe}/Surface.outputs:surface>',
             '            def Shader "Surface"', '            {',
             '                uniform token info:id = "UsdPreviewSurface"',
             f'                color3f inputs:diffuseColor = {_tup(m["rgb"])}',
@@ -217,7 +259,7 @@ def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
         lo = [min(p[i] for p in pts) for i in range(3)]
         hi = [max(p[i] for p in pts) for i in range(3)]
         out += [
-            f'    def Mesh "{k}" (', '        prepend apiSchemas = ["MaterialBindingAPI"]', '    )', '    {',
+            f'    def Mesh "{_usd_name(k)}" (', '        prepend apiSchemas = ["MaterialBindingAPI"]', '    )', '    {',
             f'        float3[] extent = [{_tup(lo)}, {_tup(hi)}]',
             f'        int[] faceVertexCounts = [{", ".join("3" for _ in m["tris"])}]',
             f'        int[] faceVertexIndices = [{", ".join(str(i) for t in m["tris"] for i in t)}]',
@@ -227,7 +269,7 @@ def make_usda(meshes: dict[str, dict], name: str = "Kitchen") -> str:
             '        uniform token orientation = "rightHanded"',
             '        uniform token subdivisionScheme = "none"',
             '        uniform bool doubleSided = 0',
-            f'        rel material:binding = </Kitchen/Materials/{k}>',
+            f'        rel material:binding = </Kitchen/Materials/{_usd_name(k)}>',
             '    }']
     out += ['}', '']
     return "\n".join(out)
@@ -277,8 +319,9 @@ def export_job(job, out_dir: str | Path, name: str) -> dict:
     layer = (f"{name}.usdc", usdc) if usdc else (f"{name}.usda", usda.encode("utf-8"))
     usdz_path = out_dir / f"{name}.usdz"
     write_usdz(usdz_path, [layer])
+    warnings = list(getattr(job, "finish_warnings", None) or [])
     return {"glb": str(glb_path), "usdz": str(usdz_path), "boxes": len(boxes),
-            "size_m": size, "usd_layer": layer[0]}
+            "size_m": size, "usd_layer": layer[0], "warnings": warnings}
 
 
 def export_ar(cabs: list | None = None, settings: dict | None = None,

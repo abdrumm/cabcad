@@ -38,6 +38,26 @@ Base cabinet, one drawer over two doors, with solid-surface top:
 | MDF backer | 1" | under the Corian, screw medium + edge build-up |
 | Edge banding | 0.5–2 mm | **never** alters stated part dimensions |
 
+### Finish numbers (display colour, 2026-10-30)
+
+A job names four finishes by catalogue number. The lines sit with the other
+`# key=value` settings. A cabinet row can override with the same column name.
+Blank `case` and `interior` mean white melamine. Blank `doors` keeps the plain
+front colour. Blank `top` keeps the counter's laminate or solid-surface colour.
+
+| Line | Surface |
+|---|---|
+| `# case=` | box exterior (gables, toe kick, visible stiles) |
+| `# doors=` | doors and drawer fronts |
+| `# top=` | countertop show faces (deck, front edge, splashes) |
+| `# interior=` | shelves, back, drawer boxes. Default white melamine |
+
+The list is `cabgen/laminates.csv`: manufacturer, number, name, an approximate
+hex (not a manufacturer swatch), and a `texture` column left blank for a later
+image. An unknown number is a neutral gray plus a warning. It does not stop the job.
+`jobs/sample-kitchen.csv` uses Formica 5786-NG Ashwood Oak doors, white interior,
+and Formica 3450-58 Mineral Jet tops.
+
 ### Laminating rules (the "spray" method)
 - Take the **final dimension** of the piece and **add 1"** (1/2" per side) so there is
   wiggle room for overspray when the laminate and the melamine are sprayed with

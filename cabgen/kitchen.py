@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .cutlist import to_csv
+from .finishes import JOB_KEYS, job_top_spec, paint_boxes, paint_counter_boxes, row_finish
 from .model3d import Box, HoleSpec, build_model
 from .params import STYLE_PRESETS, Params, door_rule_warnings, enforce_upper_door_limit, min_width
 from .parts import build_parts
@@ -99,6 +100,8 @@ def load_kitchen(path: Path) -> tuple[dict, list[dict]]:
                     settings[key] = _float(value, f"{path.name} {key}")
                 elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right"):
                     settings[key] = value
+                elif key in JOB_KEYS:
+                    settings[JOB_KEYS[key]] = value
             continue
         body.append(raw)
     if not body:
@@ -143,7 +146,11 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
             raise KitchenError(f"{source} line {number}: uppers never get a filler, so leave gap_after blank")
         drawer_h = _optional(row.get("drawer_front_h"), f"{source} line {number} drawer_front_h")
         params = Params(style=style, name=name, width=width, height=height, depth=depth,
-                        drawer_front_h=drawer_h, handle_side=handle)
+                        drawer_front_h=drawer_h, handle_side=handle,
+                        finish_case=row_finish(row, "finish_case", settings.get("finish_case", "")),
+                        finish_doors=row_finish(row, "finish_doors", settings.get("finish_doors", "")),
+                        finish_top=row_finish(row, "finish_top", settings.get("finish_top", "")),
+                        finish_interior=row_finish(row, "finish_interior", settings.get("finish_interior", "")))
         draft.append({
             "name": name, "params": params, "run": run,
             "x": x, "z": z, "gap_after": gap,
@@ -181,12 +188,14 @@ def scene_of(cabs: list[Cab], settings: dict | None = None) -> tuple[list[Box], 
     boxes: list[Box] = []
     holes: list[HoleSpec] = []
     parts = []
+    warnings: list[str] = []
     from .nest_project import box_labels, cabinet_codes, part_labels
 
     codes = cabinet_codes(cabs)
     for cab in cabs:
         built, layout = build_parts(cab.params)
         model = build_model(cab.params, layout)
+        warnings.extend(paint_boxes(model.boxes, cab.params))
         # The cut-sheet label (B1-GL ...) leads each name so CAD matches the nest PDF.
         labels = box_labels([b.name for b in model.boxes], part_labels(codes[cab.name], built))
         for box, label in zip(model.boxes, labels):
@@ -195,7 +204,7 @@ def scene_of(cabs: list[Cab], settings: dict | None = None) -> tuple[list[Box], 
             boxes.append(Box(
                 f"{tag}{cab.name} / {box.name}",
                 (box.pos[0] + cab.x, box.pos[1] + cab.y, box.pos[2] + cab.z),
-                box.size, box.material, join, box.shape,
+                box.size, box.material, join, box.shape, box.color,
             ))
         for hole in model.holes:
             ox, oy, oz = hole.origin
@@ -210,9 +219,16 @@ def scene_of(cabs: list[Cab], settings: dict | None = None) -> tuple[list[Box], 
         from .counter import build_counter
         counter = build_counter(cabs, settings)
         if counter:
+            warnings.extend(paint_counter_boxes(counter.boxes, job_top_spec(cabs, settings)))
             boxes += counter.boxes
             for part, _labels in counter.parts():
                 parts.append(replace(part, name=f"Countertop / {part.name}"))
+    if settings is not None:
+        seen: list[str] = []
+        for warning in warnings:
+            if warning not in seen:
+                seen.append(warning)
+        settings["finish_warnings"] = seen
     return boxes, holes, parts
 
 
@@ -431,6 +447,10 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
             lines.append(f"# counter={settings['counter']}")
             lines.append(f"# splash_left={settings.get('splash_left', 'yes')}")
             lines.append(f"# splash_right={settings.get('splash_right', 'yes')}")
+        for key, label in (("finish_case", "case"), ("finish_doors", "doors"),
+                           ("finish_top", "top"), ("finish_interior", "interior")):
+            if settings.get(key):
+                lines.append(f"# {label}={settings[key]}")
     lines.append("# Blank height and depth keep the style. x is the left edge of that cabinet.")
     lines.append("name,style,width,run,height,depth,x,drawer_front_h,handle")
     for cab in cabinets:
@@ -469,6 +489,11 @@ def group_settings(form: dict) -> dict:
         if raw not in ("yes", "no"):
             raise KitchenError(f"side splash on the {side} is yes or no")
         splash[f"splash_{side}"] = raw
+    finishes = {}
+    for form_key, field in JOB_KEYS.items():
+        raw = form.get(form_key)
+        if field not in finishes and raw is not None and str(raw).strip():
+            finishes[field] = str(raw).strip()
     return {
         "counter": counter,
         **splash,
@@ -477,6 +502,7 @@ def group_settings(form: dict) -> dict:
         "base_walls": walls,
         "filler_side": filler_side,
         "filler": filler,
+        **finishes,
     }
 
 
@@ -633,6 +659,7 @@ def write_kitchen(sheet: Path, out_dir: Path, name: str, show: bool,
         *[f"  {path}" for path in nest_files],
         "  sheets: " + ", ".join(f"{g.key} {len(g.sheets)}" for g in groups.values()),
         f"  {msg}",
+        *[f"warning: {w}" for w in settings.get("finish_warnings") or []],
     ]
     if show:
         from .omacad_export import open_in_omacad

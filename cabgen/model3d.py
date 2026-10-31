@@ -35,6 +35,7 @@ class Box:
     # and the round is a quarter circle centred on its +x/+y (or -x / -y) corner. Omacad
     # gets a true cylinder there; the client views and AR get it as fine steps.
     shape: str = ""
+    color: str = ""       # display hex from the finish library; blank keeps the schematic colour
 
 
 @dataclass
@@ -409,5 +410,5 @@ def expand_round(boxes: list[Box], steps: int = 8) -> list[Box]:
                 continue
             out.append(Box(b.name, (round(xa, 4), round(y0, 4), z),
                            (round(xb - xa, 4), round(y1 - y0, 4), sz), b.material, b.join,
-                           "slice"))
+                           "slice", b.color))
     return out

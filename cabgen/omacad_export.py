@@ -31,6 +31,17 @@ from omacad.io.exporter import Exporter
 
 payload = json.load(open({payload!r}))
 doc = Document(payload["name"])
+
+def paint(body_id, color):
+    # body_colors is what the .omacad file stores (sRGB 0..1). The viewport reads body.color.
+    if not color or body_id not in doc.bodies:
+        return
+    rgba = [float(c) for c in color]
+    if len(rgba) == 3:
+        rgba.append(1.0)
+    doc.body_colors[body_id] = rgba
+    doc.bodies[body_id].color = list(rgba)
+
 groups = {{}}
 for b in payload["boxes"]:
     dx, dy, dz = b["size"]
@@ -45,13 +56,21 @@ for b in payload["boxes"]:
         body = doc.add_box(dx, dy, dz, name=b["name"], translation=b["pos"])
     key = b.get("join") or ""
     if key:
-        groups.setdefault(key, []).append(body.body_id)
-for key, ids in groups.items():
+        groups.setdefault(key, []).append((body.body_id, b.get("color")))
+    elif b.get("color"):
+        paint(body.body_id, b.get("color"))
+for key, items in groups.items():
+    ids = [item[0] for item in items]
+    color = next((item[1] for item in items if item[1]), None)
     if len(ids) < 2:
+        if ids and color:
+            paint(ids[0], color)
         continue
     doc.join_bodies(ids)
     if ids[0] in doc.bodies:
         doc.bodies[ids[0]].name = key
+        if color:
+            paint(ids[0], color)
 for hole in payload.get("hole_groups", []):
     doc.add_hole(hole["points"], diameter=hole["diameter"], depth=hole["depth"], through=False)
 import numpy as np
@@ -230,6 +249,12 @@ def open_in_omacad(omad_path: Path, log: Path | None = None) -> tuple[bool, str]
     return True, f"Omacad is showing {omad_path.name} on {where} (log: {log})"
 
 
+def _rgba(hex_color: str) -> list[float]:
+    """sRGB hex -> [r, g, b, a] in 0..1, the units Omacad stores on a body."""
+    h = hex_color.lstrip("#")
+    return [round(int(h[i:i + 2], 16) / 255.0, 4) for i in (0, 2, 4)] + [1.0]
+
+
 def scene_payload(name: str, boxes, holes, labels=None) -> dict:
     """Boxes and holes are in inches. Omacad stores millimetres."""
     groups: dict[tuple[float, float], list[dict]] = {}
@@ -248,6 +273,7 @@ def scene_payload(name: str, boxes, holes, labels=None) -> dict:
                 "size": [round(max(v, 0.01) * MM, 3) for v in b.size],
                 "join": b.join,
                 **({"shape": b.shape} if getattr(b, "shape", "") else {}),
+                **({"color": _rgba(b.color)} if getattr(b, "color", "") else {}),
             }
             for b in boxes
         ],
@@ -300,7 +326,12 @@ def export_omacad(p: Params, out_path: Path, name: str | None = None) -> tuple[b
     """Build the Omacad project for one cabinet. Returns (ok, message)."""
     _parts, layout = build_parts(p)
     model = build_model(p, layout)
-    return write_project(scene_payload(name or p.name, model.boxes, model.holes), out_path)
+    from .finishes import paint_boxes
+    warnings = paint_boxes(model.boxes, p)
+    ok, msg = write_project(scene_payload(name or p.name, model.boxes, model.holes), out_path)
+    if ok and warnings:
+        msg = msg + "\n" + "\n".join(f"warning: {w}" for w in warnings)
+    return ok, msg
 
 
 def export_scene(name: str, boxes, holes, out_path: Path, labels=None) -> tuple[bool, str]:

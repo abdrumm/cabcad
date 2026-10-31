@@ -245,6 +245,8 @@ def cmd_ar(args: argparse.Namespace) -> int:
     w, h, d = res["size_m"]
     print(f"  {res['glb']}\n  {res['usdz']}  ({res['usd_layer']})")
     print(f"  {res['boxes']} parts, {w:.3f} x {h:.3f} x {d:.3f} m (W x H x D)")
+    for warning in res.get("warnings") or []:
+        print(f"warning: {warning}", file=sys.stderr)
     return 0
 
 
