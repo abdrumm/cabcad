@@ -94,7 +94,7 @@ def test_every_style_has_a_stock_default_width_in_the_form():
     assert set(DEFAULT_WIDTHS) == keys
     assert all(w % 3 == 0 for w in DEFAULT_WIDTHS.values())
     assert DEFAULT_WIDTHS == {"upper": 30, "upper1": 18, "open": 24, "microwave": 30,
-                              "3drawer": 18, "base": 30, "sink": 30}
+                              "3drawer": 18, "base1": 18, "base": 30, "sink": 30}
     page = _page()
     m = re.search(r"const DEFAULT_W = (\{.*?\});", page)
     assert m and json.loads(m.group(1)) == DEFAULT_WIDTHS

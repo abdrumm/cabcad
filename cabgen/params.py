@@ -13,6 +13,7 @@ from typing import Any
 # Each style drives the part schedule; dimensions stay user-entered.
 
 STYLE_BASE_1D2D = "base_1drawer_2doors"
+STYLE_BASE_1D = "base_1door"
 STYLE_BASE_3D = "base_3drawers"
 STYLE_BASE_SINK = "base_sink"
 STYLE_UPPER_2D = "upper_2doors"
@@ -87,6 +88,18 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "doors": 2,
         "drawer_front_h": 6.0,
         "width": 27.0,
+        "height": BASE_CASE_H,
+        "depth": 23.5,
+        "has_shelf": True,
+    },
+    STYLE_BASE_1D: {
+        "label": "Base — 1 door",
+        "has_counter": False,
+        "has_toe_kick": True,
+        "drawers": 0,
+        "doors": 1,
+        "drawer_front_h": 6.0,
+        "width": 18.0,
         "height": BASE_CASE_H,
         "depth": 23.5,
         "has_shelf": True,
@@ -182,6 +195,7 @@ DEFAULT_WIDTH_UPPER_1DOOR = 18.0    # single doors are stock 9"-21"; 24" is the 
 DEFAULT_WIDTH_UPPER_OPEN = 24.0
 DEFAULT_WIDTH_UPPER_MW = 30.0       # microwave shelf: 30" fits a countertop microwave + trim
 DEFAULT_WIDTH_BASE_3DRAWERS = 18.0  # drawer bases are stock 12"-24"; 18" is the usual one
+DEFAULT_WIDTH_BASE_1DOOR = 18.0     # one door, same stock width as a 1-door upper
 DEFAULT_WIDTH_BASE_1D2D = 30.0      # always 2 doors here: 2-door bases are stock 24"-36"
 DEFAULT_WIDTHS = {
     "upper": DEFAULT_WIDTH_UPPER_2DOORS,
@@ -189,6 +203,7 @@ DEFAULT_WIDTHS = {
     "open": DEFAULT_WIDTH_UPPER_OPEN,
     "microwave": DEFAULT_WIDTH_UPPER_MW,
     "3drawer": DEFAULT_WIDTH_BASE_3DRAWERS,
+    "base1": DEFAULT_WIDTH_BASE_1DOOR,
     "base": DEFAULT_WIDTH_BASE_1D2D,
     "sink": DEFAULT_WIDTH_BASE_1D2D,   # same as the 1 drawer over 2 doors base
 }
@@ -201,6 +216,7 @@ FORM_STYLE_KEYS = {
     "open": STYLE_UPPER_OPEN,
     "microwave": STYLE_UPPER_MW,
     "3drawer": STYLE_BASE_3D,
+    "base1": STYLE_BASE_1D,
     "base": STYLE_BASE_1D2D,
     "sink": STYLE_BASE_SINK,
 }

@@ -36,6 +36,8 @@ STYLES = {
     "base_1drawer_2doors": "base_1drawer_2doors",
     "1d2d": "base_1drawer_2doors",
     "1drawer": "base_1drawer_2doors",
+    "base1": "base_1door",
+    "base_1door": "base_1door",
     "3drawer": "base_3drawers",
     "3drawers": "base_3drawers",
     "base_3drawers": "base_3drawers",
@@ -311,6 +313,7 @@ def posted_indexes(form, prefix: str) -> list[int]:
 OPEN_OVERHANG = 1.0
 BASE_CHOICES = (
     ("3drawer", "3 drawers"),
+    ("base1", "1 door"),
     ("base", "1 drawer over 2 doors"),
     ("sink", "Sink: false drawer front over 2 doors"),
 )
@@ -320,7 +323,7 @@ UPPER_CHOICES = (
     ("open", "Open shelves"),
     ("microwave", "Microwave shelf, 2 doors above"),
 )
-HANDLE_STYLES = {"upper1"}  # 1 door: pick the handle side; the hinges go on the other side
+HANDLE_STYLES = {"upper1", "base1"}  # 1 door: pick the handle side; the hinges go on the other side
 DRAWER_STYLES = {"base", "sink"}  # 1 drawer (or false front) over 2 doors; uppers never have drawers
 DRAWER_HEIGHTS = (4, 5, 6, 7, 8)  # inches; 6 is typical
 DRAWER_DEFAULT = 6
@@ -507,7 +510,7 @@ def group_settings(form: dict) -> dict:
 def parse_group(form: dict) -> list[dict]:
     """Uppers and bases from the run form. The rows are separate."""
     settings = group_settings(form)
-    bases = _members(form, "bw", "bs", "base cabinet", BASE_CHOICES, "3drawer", "bd")
+    bases = _members(form, "bw", "bs", "base cabinet", BASE_CHOICES, "3drawer", "bd", "bh")
     uppers = _members(form, "uw", "us", "upper", UPPER_CHOICES, "upper", "ud", "uh")
     if not bases and not uppers:
         raise KitchenError("add at least one cabinet")
