@@ -265,13 +265,23 @@ def _upper_door_pull(model: Model, p: Params, index: int, door_x: float, door_w:
 
 def _door_pull(model: Model, p: Params, index: int, door_x: float, door_w: float,
                door_top: float) -> None:
-    """Base doors: vertical 4 inch pull, holes 2 inches off the case centerline."""
-    center = p.width / 2
+    """Base doors: vertical 4 inch pull, holes 2 and 6 inches down from the top.
+
+    A pair sits 2 inches off the case centerline. One door uses the same side
+    rule as a 1-door upper: the holes are ``UPPER_PULL_EDGE_INSET`` in from the
+    handle edge (``handle_side``), and the hinges are on the other side. The
+    height stays the base-door height; only the side moves.
+    """
     if p.doors == 2:
+        center = p.width / 2
         hole_x = center - p.pull_off_center if index == 0 else center + p.pull_off_center
+    elif p.doors == 1:
+        hole_x = upper_pull_x(p, index, door_x, door_w)
     else:
         hole_x = door_x + door_w / 2
-    if not (door_x + 0.3 < hole_x < door_x + door_w - 0.3):
+    # A single door keeps the handle-edge hole even on a narrow door. Pairs and
+    # any other count fall back to the middle of that door if the hole misses it.
+    if p.doors != 1 and not (door_x + 0.3 < hole_x < door_x + door_w - 0.3):
         hole_x = door_x + door_w / 2
     z_hi = door_top - p.pull_from_top
     z_lo = z_hi - p.pull_span

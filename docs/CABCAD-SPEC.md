@@ -134,18 +134,18 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 - **Job line** (Oct 30): Job, Client, Job no., Rev (default "A"). They go on the client title block, the render and the email drafts (`job`, `client`, `job_no`, `rev`; whitespace collapsed, max 80 characters).
 - **Uppers row** (top) and **Base cabinets row** (below), matching how they sit on the wall.
   - Each row starts with **1 cabinet**. 8 tiles are pre-drawn (`SHOWN_COLUMNS = 8`), and **+** adds more past 8 with **no limit** (the old 8-cabinet cap was removed Oct 27). "Remove last upper/base" and a per-tile delete are there too.
-  - First tile on a fresh page: the base is style `3drawer`, width **18**; the upper is style `upper`, width **30** (from `DEFAULT_WIDTHS`; the old 27/27 is gone, Oct 30). Form field names: `bw#`/`bs#`/`bd#` for base width, style and drawer; `uw#`/`us#`/`uh#` for upper width, style and handle.
+  - First tile on a fresh page: the base is style `3drawer`, width **18**; the upper is style `upper`, width **30** (from `DEFAULT_WIDTHS`; the old 27/27 is gone, Oct 30). Form field names: `bw#`/`bs#`/`bd#`/`bh#` for base width, style, drawer and handle; `uw#`/`us#`/`uh#` for upper width, style and handle.
   - **Upper offset from the left wall** (`uoff`): default 0, step 1/16, can't be negative. The base offset `boff` is hidden and fixed at 0, because the base filler replaced the old base offset.
   - **Row totals** are read-only. The base total includes the filler but not the offset.
   - **Drag and drop.** Drag a tile by its header label (U1, B1 ...) to reorder it within its own row. It uses pointer events and works on tiles added past the 8 drawn ones. The goal is that clients can rearrange cabinets.
 - **Each tile** has:
   - **Style** as segmented icon buttons, not a dropdown:
-    - Bases: `3drawer` ("3 drawers"), `base` ("1 drawer over 2 doors"), `sink` ("Sink: false drawer front over 2 doors").
+    - Bases: `3drawer` ("3 drawers"), `base1` ("1 door"), `base` ("1 drawer over 2 doors"), `sink` ("Sink: false drawer front over 2 doors").
     - Uppers: `upper` ("2 doors"), `upper1` ("1 door"), `open` ("Open shelves"), `microwave` ("Microwave shelf, 2 doors above").
   - **Width** (in).
   - **Drawer height** for `base` and `sink` only: choices **4, 5, 6, 7, 8**, default **6**. The 4 to 8 range is a placeholder (OPEN: check historical jobs); 6 is confirmed.
-  - **Handle L/R** for `upper1` only, default R. The handle goes on the picked side and the hinges on the other. The tile icon mirrors when L is picked.
-- **Default width when a tile is added, or its style is switched while the width box is empty or still holds the old style's default** (a typed width is never overwritten): upper 30, upper1 18, open 24, microwave 30, 3drawer 18, base 30, sink 30. **One place:** `params.DEFAULT_WIDTHS`; the CLI style presets take their width from it too (`FORM_STYLE_KEYS`, `default_width(style)`), so the CLI and the form always agree (CONFIRMED Brook, Oct 30; `test_defaults_and_cutlist`).
+  - **Handle L/R** for `upper1` and `base1`, default R. The handle goes on the picked side and the hinges on the other. The tile icon mirrors when L is picked. On an upper wider than 24" the control hides, because that cabinet is built as a pair. A 1-door base keeps the control at any width.
+- **Default width when a tile is added, or its style is switched while the width box is empty or still holds the old style's default** (a typed width is never overwritten): upper 30, upper1 18, open 24, microwave 30, 3drawer 18, base1 18, base 30, sink 30. **One place:** `params.DEFAULT_WIDTHS`; the CLI style presets take their width from it too (`FORM_STYLE_KEYS`, `default_width(style)`), so the CLI and the form always agree (CONFIRMED Brook, Oct 30; `test_defaults_and_cutlist`).
 - **Minimum widths:** 12 for everything, 9 for the 1-door upper.
 - **Base run ends** (`walls`, radios): `0` (No wall), `left` (default), `right`, `both`.
   - With **both**: **filler width** `1`, `2` or `3` (default 1; 1 is typical, 3 is the most) and **filler side** left or right (default right).
@@ -167,6 +167,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
   - Optional: `run` (base/lower/floor or upper/wall; default base), `height`, `depth`, `x`, `z`, `gap_after` (base filler only; an error on uppers), `drawer_front_h`, `handle` (l/r/left/right; default right), `left`, `right` (wall/open/reveal).
 - **Style aliases:**
   - base / base_1drawer_2doors / 1d2d / 1drawer
+  - base1 / base_1door
   - 3drawer / 3drawers / base_3drawers
   - sink / base_sink / sink_base
   - upper / upper_2doors / 2door
@@ -212,6 +213,7 @@ This is the single source of truth for CabCad, Brook's cabinet configurator. Her
 | Key (code) | Form key | Label | Default W (CLI = form) | H (case) | D | Drawers | Doors | Other |
 |---|---|---|---|---|---|---|---|---|
 | base_1drawer_2doors | base | Base, 1 drawer over 2 doors | 30 | 32 | 23.5 | 1 (6" front) | 2 | toe kick, adjustable shelf |
+| base_1door | base1 | Base, 1 door | 18 | 32 | 23.5 | 0 | 1 | toe kick, adjustable shelf, handle L/R (default R) |
 | base_3drawers | 3drawer | Base, 3 drawers | 18 | 32 | 23.5 | 3 (split evenly) | 0 | toe kick |
 | base_sink | sink | Base, sink | 30 | 32 | 23.5 | 1 FALSE front (6") | 2 | toe kick, no shelf, `sink=True` |
 | upper_2doors | upper | Wall upper, 2 doors | 30 | 30 | 12 | 0 | 2 | no shelf (as built) |
@@ -280,7 +282,7 @@ Base H is the case under a 1-1/2" countertop (33.5 with no countertop); see 6.1.
 - **Doors and fronts:** all four edges banded (both faces).
 
 ### 6.5 Hardware and holes. BUILT (positions are "for now" unless marked confirmed)
-- **Base door pulls:** 4" wire pull, vertical. Holes are **2" and 6" down from the top of the door**, **2" off the case centreline** on each door of a pair. Hole diameter 0.2.
+- **Base door pulls:** 4" wire pull, vertical. Holes are **2" and 6" down from the top of the door**, **2" off the case centreline** on each door of a pair. Hole diameter 0.2. A single door keeps that height and moves the holes to **2" in from the handle edge** (the same side rule as a 1-door upper; `handle_side`, default right). The hinges go on the other side.
 - **Drawer pulls:** 4" wire pull, centred on the case, holes ±2" off the centre at the front's mid-height.
 - **Upper door pulls** (Brook, Oct 24; stock wire pull, two screws from the back, **4" c-c**, vertical):
   - Every number is to a hole centre: bottom hole **1-1/2" up** from the door bottom, top hole **5-1/2" up**, both **2" from the handle (opening) edge**.
@@ -301,6 +303,7 @@ Base H is the case under a 1-1/2" countertop (33.5 with no countertop); see 6.1.
 
 ### 6.7 Style-specific rules
 - **1 drawer over 2 doors base.** BUILT. A 6" drawer front is typical. It has one adjustable shelf: inside width − 2 × 1/8 wide, gable depth − 1/4 deep, front edge banded.
+- **1-door base.** BUILT. One full-height door, no drawer, toe kick, one adjustable shelf. Default 18" wide. Door label `B#-D`, name "Door, handle L|R". The pull is the base door pull (2" and 6" down from the top) set 2" in from the handle edge. The client sheet and the front-view wireframe draw a dashed swing V, point on the hinge side. The 24" single-door limit is for wall uppers only.
 - **3-drawer base.** BUILT. Equal fronts, 2 drawer stiles, no doors, no shelf.
 - **Sink base** (Brook, Oct 27). BUILT. Built like the 1-drawer base, with these differences:
   - **False drawer front:** same size, reveals and gaps as the real one, **no pull, no holes**. Label `B#-FF`.
@@ -489,7 +492,7 @@ Bases are under a countertop (32" case, Oct 30).
 
 ### 9.6 Front-view wireframe (on `/run`). BUILT
 - An SVG `#wire`, to scale, updated live as the form changes, **below the cabinet tiles and above the info lines**. It's "the star of the show for sales".
-- **Draws:** floor, walls, cases, toe kick, interior, open shelves, fronts (drawers and doors), pulls, the 1-door swing V, the microwave opening, the countertop over the bases and the filler, splashes, and overall width dimensions.
+- **Draws:** floor, walls, cases, toe kick, interior, open shelves, fronts (drawers and doors), pulls, the 1-door swing V (uppers and 1-door bases), the microwave opening, the countertop over the bases and the filler, splashes, and overall width dimensions. A 1-door base pull sits on the handle side, 2" in from that edge, still 2" and 6" down from the top of the door. A pair of base doors stays 2" off the case centreline. Drawer pulls stay centred.
 - **Its numbers come from the server** (`_wire_data()`, built from the same code as the cabinets), so the page never keeps its own copy of the dimensions.
 - **Sizing for small screens (Oct 30 fit):**
   - `#wire { display:block; width:100%; max-width:100%; height: clamp(320px, 60vh, 640px); }`

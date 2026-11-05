@@ -254,6 +254,16 @@ def _width_input(name: str, label: str, value: str, disabled: bool) -> str:
 SHOWN_COLUMNS = 8
 
 
+def _posted_handles(form, prefix: str, n: int) -> list[str]:
+    """Handle side posted for one row. Anything other than left or right stays right."""
+    handles = ["right"] * n
+    for i in range(1, n + 1):
+        raw = str((form or {}).get(f"{prefix}{i}") or "").strip().lower()
+        if raw in ("left", "right"):
+            handles[i - 1] = raw
+    return handles
+
+
 def _at(values, i: int, default: str) -> str:
     """values[i-1], or the default when the list is short or missing."""
     return values[i - 1] if values and 0 < i <= len(values) else default
@@ -294,13 +304,8 @@ def group_view(form: dict | None) -> dict:
         "splash_left": "yes",
         "splash_right": "yes",
     }
-    n = len(view["uppers"]["widths"])
-    handles = ["right"] * n
-    for i in range(1, n + 1):
-        raw = str((form or {}).get(f"uh{i}") or "").strip().lower()
-        if raw in ("left", "right"):
-            handles[i - 1] = raw
-    view["uppers"]["handles"] = handles
+    view["uppers"]["handles"] = _posted_handles(form, "uh", len(view["uppers"]["widths"]))
+    view["bases"]["handles"] = _posted_handles(form, "bh", len(view["bases"]["widths"]))
     if form:
         if form.get("walls"):
             view["walls"] = str(form.get("walls")).strip()
@@ -324,13 +329,16 @@ def group_view(form: dict | None) -> dict:
 COUNTER_CHOICES = (("laminate", "Laminate"), ("solid", "Solid surface"), ("none", "None"))
 
 # Short face labels for the style buttons on a cabinet tile (the full name is the tooltip).
-STYLE_SHORT = {"3drawer": "3 drawers", "base": "Drawer + doors", "sink": "Sink", "upper": "2 doors",
-               "upper1": "1 door", "open": "Open", "microwave": "Microwave"}
+STYLE_SHORT = {"3drawer": "3 drawers", "base1": "1 door", "base": "Drawer + doors", "sink": "Sink",
+               "upper": "2 doors", "upper1": "1 door", "open": "Open", "microwave": "Microwave"}
 _SVG = ('<svg class="ico" viewBox="0 0 24 30" aria-hidden="true" fill="none" '
         'stroke="currentColor" stroke-width="1.6" stroke-linecap="round">'
         '<rect x="1.5" y="1.5" width="21" height="27" rx="1.5"/>{}</svg>')
 STYLE_ICONS = {
     "3drawer": _SVG.format('<path d="M1.5 10.5h21M1.5 19.5h21M9 6h6M9 15h6M9 24h6"/>'),
+    # drawn handle RIGHT, same as upper1. The tile flips it (CSS) when Handle is L.
+    "base1": _SVG.format('<path d="M1.5 24.5h21"/><path d="M18.5 15v6" stroke-width="2.6"/>'
+                         '<path d="M20 5L4 14.5l16 9.5" stroke-dasharray="2 1.6" stroke-width="1"/>'),
     "base": _SVG.format('<path d="M1.5 9h21M12 9v19.5M9 5.2h6M10 13v5M14 13v5"/>'),
     # sink: the same face with no pull on the false front
     "sink": _SVG.format('<path d="M1.5 9h21M12 9v19.5M10 13v5M14 13v5"/>'),
@@ -457,7 +465,7 @@ def _card(style_name, width_name, row, choices, noun, data_name, i, on, num=None
         f'aria-label="{html.escape(f"{noun} {n} width, inches")}" '
         f'value="{html.escape(row["widths"][i - 1])}"{off}><span>in wide</span></div>'
         f'{_drawer_pick(style_name, i, row, not on, n)}'
-        f'{_handle_pick(style_name, i, row, not on, n) if data_name == "u" else ""}'
+        f'{_handle_pick(style_name, i, row, not on, n)}'
         f'</div>'
     )
 
@@ -556,7 +564,8 @@ RUN_CSS = """
   .card .seg.many .segbtn:nth-last-child(-n+2) { border-bottom: 0; }
   .handle-pick { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; max-width: 100%; }
   .ico { transition: transform .15s; }
-  .card[data-handle="left"] .segbtn[data-v="upper1"] .ico { transform: scaleX(-1); }
+  .card[data-handle="left"] .segbtn[data-v="upper1"] .ico,
+  .card[data-handle="left"] .segbtn[data-v="base1"] .ico { transform: scaleX(-1); }
   .handle-pick .optlabel { font-size: .75rem; }
   .card .handle-pick .seg { width: auto; }
   .card .handle-pick .segbtn { padding: .15rem .55rem; }
@@ -711,7 +720,7 @@ function wfRow(kind) {
     const i = el.dataset[kind];
     out.push({ tag: (kind === 'u' ? 'U' : 'B') + i, style: wfVal(kind + 's' + i),
                w: parseFloat(wfVal(kind + 'w' + i)) || 0, drawer: wfVal(kind + 'd' + i),
-               handle: wfVal('uh' + i) === 'left' ? 'left' : 'right' });
+               handle: wfVal((kind === 'u' ? 'uh' : 'bh') + i) === 'left' ? 'left' : 'right' });
   });
   return out;
 }
@@ -803,6 +812,13 @@ function drawWire() {
             const xh = handleRight ? dx + dw : dx, xg = handleRight ? dx : dx + dw;
             el('polyline', { points: `${xh},${Y(zBase + d1)} ${xg},${Y(zBase + (d0 + d1) / 2)} ${xh},${Y(zBase + d0)}`, class: 'wf-swing' }, g);
           }
+        } else if (n === 1) {
+          // Same side as a 1-door upper. The pull stays the base height, down from the top.
+          const handleRight = c.handle === 'right';
+          const px = handleRight ? dx + dw - WIRE.upper_pull.inset : dx + WIRE.upper_pull.inset;
+          pull(px, zBase + d1 - WIRE.base_pull.from_top - WIRE.base_pull.span, WIRE.base_pull.span, true);
+          const xh = handleRight ? dx + dw : dx, xg = handleRight ? dx : dx + dw;
+          el('polyline', { points: `${xh},${Y(zBase + d1)} ${xg},${Y(zBase + (d0 + d1) / 2)} ${xh},${Y(zBase + d0)}`, class: 'wf-swing' }, g);
         } else {
           const px = n === 2 ? c.x + c.w / 2 + (k === 0 ? -1 : 1) * WIRE.base_pull.off_center : dx + dw / 2;
           pull(px, zBase + d1 - WIRE.base_pull.from_top - WIRE.base_pull.span, WIRE.base_pull.span, true);
@@ -1040,8 +1056,8 @@ function addCabinet(kind, styleId, widthId, styleValue) {
   const width = document.getElementById(widthId + next);
   if (style) style.value = styleValue;
   if (width) width.value = DEFAULT_W[styleValue] || '';   // stock width for the style
-  const handle = document.getElementById('uh' + next);
-  if (kind === 'u' && handle) handle.value = 'right';   // a new tile starts with the handle right
+  const handle = document.getElementById((kind === 'u' ? 'uh' : 'bh') + next);
+  if (handle) handle.value = 'right';   // a new tile starts with the handle right
   setRow(kind, next);
   if (width) { width.focus(); width.select(); }
 }
@@ -1066,8 +1082,8 @@ function syncDrawers() {
   document.querySelectorAll('.handle-pick').forEach((box) => {
     const style = document.getElementById(box.dataset.styleFor);
     const card = box.closest('.card');
-    let show = !!style && style.value === 'upper1';
-    if (show && typeof singleDoorUpperTooWide === 'function' && singleDoorUpperTooWide(style)) show = false;
+    let show = !!style && (style.value === 'upper1' || style.value === 'base1');
+    if (show && style.value === 'upper1' && typeof singleDoorUpperTooWide === 'function' && singleDoorUpperTooWide(style)) show = false;
     box.hidden = !show;
     const inp = box.querySelector('input');
     if (card) card.dataset.handle = (inp && inp.value === 'left') ? 'left' : 'right';
@@ -1075,7 +1091,7 @@ function syncDrawers() {
   });
   if (typeof syncSegs === 'function') syncSegs();
 }
-const FIELDS = { u: ['us', 'uw', 'ud', 'uh'], b: ['bs', 'bw', 'bd'] };
+const FIELDS = { u: ['us', 'uw', 'ud', 'uh'], b: ['bs', 'bw', 'bd', 'bh'] };
 function deleteCabinet(kind, index) {
   let n = 0;
   document.querySelectorAll('[data-' + kind + ']').forEach((el) => { if (!el.hidden) n += 1; });
@@ -1806,31 +1822,33 @@ def _upper_door_form_warnings(view: dict) -> list[str]:
 
 
 def _handle_pick(style_name: str, i: int, row: dict, card_off: bool, num=None) -> str:
-    """1-door upper: which side the handle goes on. The hinges go on the other side."""
+    """1-door upper or base: which side the handle goes on. The hinges go on the other side."""
     n = i if num is None else num
-    field = f"uh{n}"
+    upper = str(style_name).startswith("u")
+    field = f"{'uh' if upper else 'bh'}{n}"
+    noun = "Upper" if upper else "Base"
     shown = row["styles"][i - 1] in HANDLE_STYLES
-    if shown:
+    if shown and upper:
         raw_w = _at(row.get("widths"), i, "")
         try:
             if float(raw_w) > UPPER_1DOOR_MAX_WIDTH:
-                shown = False   # over 24" it is a pair; the handle side does not apply
+                shown = False   # over 24" an upper is a pair; the handle side does not apply
         except (TypeError, ValueError):
             pass
     hidden = "" if shown else " hidden"
     current = _at(row.get("handles"), i, "right") or "right"
+    if current not in ("left", "right"):
+        current = "right"
     return (
         f'<div class="handle-pick" data-style-for="{style_name}{n}"{hidden}>'
         f'<span class="optlabel">Handle</span>'
-        f'{_seg(field, current, (("left", "L"), ("right", "R")), card_off or not shown, label=f"Upper {n} handle side")}'
+        f'{_seg(field, current, (("left", "L"), ("right", "R")), card_off or not shown, label=f"{noun} {n} handle side")}'
         f'</div>'
     )
 
 
 def _handle_attr(row: dict, i: int, data_name: str) -> str:
-    """data-handle on an upper tile, so the 1-door icon shows the handle on that side."""
-    if data_name != "u":
-        return ""
+    """data-handle on a tile, so the 1-door icon shows the handle on that side."""
     side = _at(row.get("handles"), i, "right") or "right"
     return f' data-handle="{"left" if side == "left" else "right"}"'
 

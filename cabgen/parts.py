@@ -779,7 +779,18 @@ def door_name(p: Params, i: int) -> str:
 def single_door_note(p: Params) -> str:
     hinge = p.hinge_side
     handle = p.handle_side
-    pull = upper_pull_note(p, f"the {handle} edge") + " " if p.has_pulls else ""
+    if p.has_pulls and str(p.style).startswith("upper"):
+        pull = upper_pull_note(p, f"the {handle} edge") + " "
+    elif p.has_pulls:
+        # Same side as an upper 1-door. The holes stay the base-door distance down
+        # from the top, so the pull is not down by the toe kick.
+        pull = (
+            f"4\" wire pull, vertical, holes {fmt(p.pull_from_top)} and "
+            f"{fmt(p.pull_from_top + p.pull_span)} down from the top of the door, "
+            f"{fmt(UPPER_PULL_EDGE_INSET)} in from the {handle} edge. "
+        )
+    else:
+        pull = ""
     return (
         f"Covers {fmt(p.door_overhang)} of each gable ({fmt(p.edge_reveal)} reveal). "
         f"Handle {handle.upper()}, hinged {hinge.upper()}. " + pull
