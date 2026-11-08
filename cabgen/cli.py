@@ -263,6 +263,31 @@ def cmd_ar(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_front(args: argparse.Namespace) -> int:
+    """Standalone front elevation: SVG, PDF and an HTML page for the CE pipeline."""
+    from .client_sheet import load_job
+    from .front_view import write_front_view
+    from .kitchen import KitchenError
+
+    sheet = Path(args.sheet)
+    stem = args.stem or f"{sheet.stem}-front"
+    try:
+        res = write_front_view(load_job(sheet, args.name), Path(args.out), stem)
+    except KitchenError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  {res['html']}")
+    print(f"  {res['svg']}")
+    if res["pdf"]:
+        print(f"  {res['pdf']}")
+    for name in res["files"].values():
+        print(f"  {Path(args.out) / name}")
+    if res["placeholders"]:
+        missing = ", ".join(sorted(res["placeholders"]))
+        print(f"  placeholder links (not produced): {missing}")
+    return 0
+
+
 def cmd_web(args: argparse.Namespace) -> int:
     from .web import serve
 
@@ -339,6 +364,13 @@ def build_parser() -> argparse.ArgumentParser:
     ar.add_argument("--name", default=None, help="file name stem (default: the CSV name)")
     ar.add_argument("--title", default=None, help="job name in the model (default: file name)")
     ar.set_defaults(func=cmd_ar)
+
+    fr = sub.add_parser("front", help="standalone front elevation (SVG, PDF, HTML) for the CE pipeline")
+    fr.add_argument("sheet", help="kitchen CSV")
+    fr.add_argument("--out", default="out/front")
+    fr.add_argument("--name", default=None, help="job name on the sheet (default: file name)")
+    fr.add_argument("--stem", default=None, help="output file name stem")
+    fr.set_defaults(func=cmd_front)
 
     w = sub.add_parser("web", help="local web form for styles and dimensions")
     w.add_argument("--host", default="127.0.0.1")

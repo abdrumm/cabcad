@@ -1315,6 +1315,7 @@ def _run_fields(view: dict) -> str:
 <div class="actions">
 <button type="submit">Show in Omacad</button>
 <button type="submit" class="ghost" formaction="/client-sheet" formtarget="_blank">Client sheet (PDF)</button>
+<button type="submit" class="ghost" formaction="/front-view" formtarget="_blank" title="Front elevation of the whole run, as its own page for the CE pipeline, with links to the render and the AR files">Front view</button>
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 <button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
 <button type="submit" class="ghost" formaction="/client-email" title="Collect the client PDF, a render and the AR file with a ready email text. Test mode: nothing is sent.">Draft client email</button>
@@ -1447,16 +1448,20 @@ def _job_card(out_dir: Path, stem: str, form_id: str = "runform") -> str:
         return (f'<a class="jitem" href="/files/{html.escape(name)}" target="_blank">'
                 f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></a>')
 
-    def button(action: str, title: str, note: str) -> str:
+    def button(action: str, title: str, note: str, target: str = "") -> str:
         if not form_id:
             return ""
-        return (f'<button class="jitem" type="submit" form="{form_id}" formaction="{action}">'
+        tgt = f' formtarget="{html.escape(target)}"' if target else ""
+        return (f'<button class="jitem" type="submit" form="{form_id}" formaction="{action}"{tgt}>'
                 f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></button>')
 
     groups = [
         ("Shop floor", "".join(link(*item) for item in NEST_LINKS)),
         ("Client", button("/client-sheet", "Client sheet (PDF)",
                           "One page: colours, notes and the iso view") +
+                   button("/front-view", "Front view",
+                          "Standalone elevation for the CE pipeline, with the render and AR",
+                          target="_blank") +
                    button("/client-email", "Draft client email",
                           "PDF + render + AR in a draft. Nothing is sent")),
         ("Model", button("/run", "Show in Omacad", "Builds the model and opens it") +
@@ -1534,6 +1539,28 @@ def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
     except (KitchenError, RuntimeError, OSError) as exc:
         return None, _run_page(view, error=f"client sheet: {exc}")
     return files["pdf"].read_bytes(), ""
+
+
+def _handle_front_view(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """Standalone front elevation. The HTML links the render and the AR files."""
+    from .client_sheet import load_job
+    from .front_view import write_front_view
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "front-view.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        files = write_front_view(job, out_dir, "front-view")
+    except (KitchenError, RuntimeError, OSError, ValueError) as exc:
+        return None, _run_page(view, error=f"front view: {exc}")
+    return files["html"].read_bytes(), ""
 
 
 def _handle_ar(form: dict, out_dir: Path, host: str, port: int) -> str:
@@ -1761,10 +1788,14 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 ctype = {
                     ".svg": "image/svg+xml",
                     ".pdf": "application/pdf",
+                    ".html": "text/html; charset=utf-8",
+                    ".png": "image/png",
                     ".csv": "text/csv; charset=utf-8",
                     ".md": "text/markdown; charset=utf-8",
                     ".txt": "text/plain; charset=utf-8",
                     ".json": "application/json",
+                    ".glb": "model/gltf-binary",
+                    ".usdz": "model/vnd.usdz+zip",
                 }.get(target.suffix, "application/octet-stream")
                 self._send(target.read_bytes(), ctype)
                 return
@@ -1806,6 +1837,18 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                     self._page(page)
                 else:
                     self._send(pdf, "application/pdf")
+                return
+            if path == "/front-view":
+                body, page = _handle_front_view(form, out_dir)
+                if body is None:
+                    self._page(page)
+                else:
+                    # The saved page is what the links are relative to.
+                    self.send_response(303)
+                    self.send_header("Location", "/files/front-view.html")
+                    self.send_header("Content-Length", "0")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
                 return
             if path != "/generate":
                 self._html("<h1>Not found</h1>", 404)
