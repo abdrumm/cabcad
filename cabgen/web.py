@@ -27,7 +27,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CabCad - cabinet shop drawings</title>
+<title>CabCad v{version} - cabinet shop drawings</title>
 <style>
   :root {{ color-scheme: light dark; }}
   *, *::before, *::after {{ box-sizing: border-box; }}
@@ -40,6 +40,7 @@ PAGE = """<!doctype html>
        overflow-wrap: break-word; }}
   h2 {{ font-size: clamp(1.05rem, 0.5vw + 0.95rem, 1.35rem); overflow-wrap: break-word; }}
   p.sub {{ margin: 0 0 1.4rem; opacity: .7; max-width: 68rem; }}
+  footer.version p {{ margin: 1.8rem 0 .2rem; font-size: .78rem; opacity: .55; }}
   fieldset {{ border: 1px solid #8884; border-radius: 8px; margin: 0 0 1.2rem;
               padding: clamp(.6rem, 1.5vw, .9rem) clamp(.7rem, 2vw, 1rem) clamp(.7rem, 1.6vw, 1.1rem);
               min-width: 0; max-width: 100%; }}
@@ -121,6 +122,7 @@ PAGE = """<!doctype html>
 </head>
 <body>
 {body}
+<footer class="version"><p class="sub">CabCad v{version}</p></footer>
 <script>
 const PRESETS = {presets};
 const STYLE_KEYS = {style_keys};
@@ -1681,6 +1683,7 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             self._send(body.encode("utf-8"), "text/html; charset=utf-8", status)
 
         def _page(self, body: str) -> None:
+            from . import __version__
             presets = {
                 k: {
                     "has_counter": v["has_counter"],
@@ -1690,7 +1693,8 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 for k, v in STYLE_PRESETS.items()
             }
             self._html(PAGE.format(body=body, presets=json.dumps(presets),
-                                   style_keys=json.dumps(list(STYLE_PRESETS))))
+                                   style_keys=json.dumps(list(STYLE_PRESETS)),
+                                   version=__version__))
 
         def _local(self) -> bool:
             """Only this laptop may use the form. A phone on the LAN (--lan) gets /ar/ only."""

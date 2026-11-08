@@ -7,4 +7,4 @@ suggestion for 4x8 sheet stock with a 3/16" kerf.
 Shop rules live in ~/Work/cabinet-shop-standards.md.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.15"

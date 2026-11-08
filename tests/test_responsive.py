@@ -6,7 +6,8 @@ from cabgen.web import PAGE, _layout_table, _result_html, _run_page, group_view
 
 
 def _full(body: str) -> str:
-    return PAGE.format(body=body, presets="{}", style_keys="[]")
+    from cabgen import __version__
+    return PAGE.format(body=body, presets="{}", style_keys="[]", version=__version__)
 
 
 def test_viewport_meta_and_responsive_css_are_present():
