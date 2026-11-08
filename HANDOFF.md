@@ -72,3 +72,5 @@ tests pass here; no pre-existing failures to report.
 3. Ask Brook: does a non-4" toe kick keep 33-1/2" finished (current) or change it?
 4. Check `base_2doors` against a real shop cabinet (shelf position, pull height)
    before the first job.
+
+Future revisions and Brook's notes: see docs/PLANS.md.
