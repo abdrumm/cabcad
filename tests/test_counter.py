@@ -155,11 +155,22 @@ def test_nest_includes_ply_not_solid():
 
 def test_client_sheet_counter_page(tmp_dir=None):
     from cabgen.client_sheet import job_from, load_job, render_pages
+    from cabgen.finishes import get
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample")
     pages = render_pages(job, "Oct 24, 2026")
     text = pages[1].to_string()
-    assert "COUNTERTOP - LAMINATE" in text and "TYPICAL LAMINATE SEAM" in text
+    for words in ("COUNTERTOP - LAMINATE", "FRONT VIEW", "TOP VIEW", "SIDE VIEW", "DETAILS",
+                  "TYPICAL LAMINATE SEAM", "BUILD-UP, FROM BELOW", "overhang",
+                  "match the countertop", "Coppinger Exhibits"):
+        assert words in text, words
+    assert 'width="17.0in" height="11.0in"' in text
+    maple = get("lam-maple")["color"]
+    picked = job_from(job.cabs, {**job.settings, "finish_counter": "lam-maple"}, "Sample")
+    picked_page = render_pages(picked, "Oct 24, 2026")[1].to_string()
+    assert maple in picked_page          # top and splashes use the countertop colour
     solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample")
     solid_page = render_pages(solid, "Oct 24, 2026")[1].to_string()
+    assert "COUNTERTOP - SOLID SURFACE" in solid_page
     assert "perimeter only" in solid_page
+    assert "Not across the seams" in solid_page
     assert "centred where cabinets meet" not in solid_page

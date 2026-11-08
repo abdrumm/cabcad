@@ -893,186 +893,199 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     return svg
 
 
-def _section(svg: Svg, ct, boxes, X, Z, xs: float) -> None:
-    """Counter boxes cut by the plane x = xs, seen from the left end (front on the left)."""
-    for b in sorted(boxes, key=lambda b: b.pos[0]):
+def _counter_color(ct) -> str:
+    """The countertop colour. Splashes are the same piece of material, so they use it too."""
+    return pal()["solid_top"] if ct.kind == "solid" else pal()["laminate_top"]
+
+
+def _show_fill(ct, box) -> str:
+    """Finished faces, including the splashes, are the countertop colour.
+    Build-up is a step darker so the strip reads against the top."""
+    color = _counter_color(ct)
+    if "Build-up" in box.name:
+        return _shade(color, 0.84)
+    return color
+
+
+def _case_span(job: Job) -> tuple[float, float]:
+    bases = job.bases
+    return min(c.x for c in bases), max(c.x + c.params.width for c in bases)
+
+
+def _counter_front(svg: Svg, job: Job, ct, box) -> None:
+    """Front elevation of the countertop alone: the edge, the splash, the length."""
+    from .counter import SPLASH_H
+    bx, by, bw, bh = box
+    top = ct.top_z + SPLASH_H
+    height = top - ct.z0
+    s, words = _scale(ct.length, height, bw - 1.6, bh - 1.05)
+    _heading(svg, bx, by + 0.16, "FRONT VIEW", words)
+    ox = bx + 0.1 + max(0.0, (bw - 1.6 - ct.length * s) / 2)
+    top_y = by + 0.40
+    X = lambda x: ox + (x - ct.x0) * s
+    Z = lambda z: top_y + (top - z) * s
+    for b in sorted(ct.boxes, key=lambda b: -b.pos[1]):
+        x, z, dx, dz = b.pos[0], b.pos[2], b.size[0], b.size[2]
+        svg.rect(X(x), Z(z + dz), max(dx * s, 0.004), max(dz * s, 0.004),
+                 fill=_show_fill(ct, b), stroke=INK, sw=0.006)
+    _hdim(svg, X(ct.x0), X(ct.x1), Z(ct.z0) + 0.22, ft_in(ct.length), size=0.11)
+    xr = X(ct.x1) + 0.28
+    _vdim(svg, xr, Z(ct.z0), Z(ct.top_z), fmt_in(EDGE_T), size=0.1)
+    _vdim(svg, xr + 0.46, Z(ct.top_z), Z(top), '4" splash', size=0.1)
+    case0, case1 = _case_span(job)
+    y_oh = Z(ct.z0) + 0.48
+    if case0 - ct.x0 > 0.2:
+        _hdim(svg, X(ct.x0), X(case0), y_oh, fmt_in(case0 - ct.x0) + " past case", size=0.09)
+    if ct.x1 - case1 > 0.2:
+        _hdim(svg, X(case1), X(ct.x1), y_oh, fmt_in(ct.x1 - case1) + " past case", size=0.09)
+    svg.text(X(ct.x0), Z(top) - 0.08, "backsplash and side splash match the countertop",
+             size=0.1, fill=DIM)
+
+
+def _counter_plan(svg: Svg, job: Job, ct, box) -> None:
+    """Top view: the deck, the splashes in the counter colour, the overhangs."""
+    bx, by, bw, bh = box
+    s, words = _scale(ct.length, ct.depth, bw - 1.4, bh - 1.2)
+    _heading(svg, bx, by + 0.16, "TOP VIEW", words)
+    ox = bx + 0.58 + max(0.0, (bw - 1.4 - ct.length * s) / 2)
+    oy = by + 0.42
+    X = lambda x: ox + (x - ct.x0) * s
+    Y = lambda y: oy + (ct.y_back - y) * s          # wall at the top of the view
+    color = _counter_color(ct)
+    svg.rect(X(ct.x0), Y(ct.y_back), ct.length * s, ct.depth * s, fill=color, stroke=INK, sw=0.012)
+    _wall_band(svg, X(ct.x0) - 0.1, Y(ct.y_back) - 0.12, ct.length * s + 0.2, 0.12)
+    svg.line(X(ct.x0) - 0.1, Y(ct.y_back), X(ct.x1) + 0.1, Y(ct.y_back), stroke=INK, sw=0.01)
+    st = ct.splash_thk
+    svg.rect(X(ct.x0), Y(ct.y_back), ct.length * s, max(st * s, 0.05), fill=color, stroke=INK, sw=0.008)
+    mid = (ct.x0 + ct.x1) / 2
+    svg.text(X(mid), Y(ct.y_back - ct.depth * 0.58), "countertop", size=0.11, anchor="middle", fill=DIM)
+    svg.text(X(mid), Y(ct.y_back - 1.6), "backsplash", size=0.09, anchor="middle", fill=DIM)
+    for on, x in ((ct.splash_left, ct.x0), (ct.splash_right, ct.x1 - st)):
+        if on:
+            svg.rect(X(x), Y(ct.y_back), max(st * s, 0.045), ct.depth * s, fill=color, stroke=INK, sw=0.008)
+            svg.text(X(x + st / 2), Y(ct.y_front + ct.depth * 0.35), "side splash", size=0.08,
+                     anchor="middle", fill=DIM, rotate=-90)
+    for cab in job.bases[1:]:
+        svg.line(X(cab.x), Y(ct.y_back), X(cab.x), Y(ct.y_front), stroke=SOFT, sw=0.005, dash="0.04,0.03")
+    _hdim(svg, X(ct.x0), X(ct.x1), Y(ct.y_front) + 0.26, ft_in(ct.length), size=0.11,
+          ext_to=Y(ct.y_front) + 0.02)
+    _vdim(svg, X(ct.x0) - 0.28, Y(ct.y_back), Y(ct.y_front), fmt_in(ct.depth), size=0.1)
+    oh = -ct.y_front
+    if oh > 0.05:
+        _vdim(svg, X(ct.x1) + 0.3, Y(0.0), Y(ct.y_front), fmt_in(oh) + " overhang", size=0.09)
+    svg.text(bx, by + bh - 0.04, "Dashed lines are the cabinet joints.", size=0.095, fill=SOFT)
+
+
+def _counter_side(svg: Svg, ct, box) -> None:
+    """Section at mid-length, front on the left. Build-up strips are hatched."""
+    from .counter import SPLASH_H
+    bx, by, bw, bh = box
+    height = (ct.top_z + SPLASH_H) - ct.z0
+    s, words = _scale(ct.depth + 0.4, height, bw - 1.5, bh - 1.35)
+    _heading(svg, bx, by + 0.16, "SIDE VIEW", words)
+    ox = bx + 0.62
+    top_y = by + 0.42
+    X = lambda y: ox + (y - ct.y_front) * s
+    Z = lambda z: top_y + ((ct.top_z + SPLASH_H) - z) * s
+    xs = (ct.x0 + ct.x1) / 2
+    for b in sorted(ct.boxes, key=lambda b: b.pos[0]):
         if not (b.pos[0] - 1e-6 <= xs <= b.pos[0] + b.size[0] + 1e-6):
             continue
         y, z, dy, dz = b.pos[1], b.pos[2], b.size[1], b.size[2]
-        svg.rect(X(y), Z(z + dz), dy * abs(X(1) - X(0)), dz * abs(Z(0) - Z(1)), fill=_color(b),
-                 stroke=INK, sw=0.01)
+        svg.rect(X(y), Z(z + dz), dy * s, dz * s, fill=_show_fill(ct, b), stroke=INK, sw=0.01)
+        if "Build-up" in b.name:
+            hatch(svg, X(y), Z(z + dz), dy * s, dz * s, spacing=0.05, sw=0.004, stroke=SOFT)
+    wall_x = X(ct.y_back)
+    svg.line(wall_x, Z(ct.z0) + 0.15, wall_x, Z(ct.top_z + SPLASH_H), stroke=INK, sw=0.012)
+    _wall_band(svg, wall_x, Z(ct.top_z + SPLASH_H), 0.12, (height * s) + 0.15)
+    _hdim(svg, X(ct.y_front), X(ct.y_back), Z(ct.z0) + 0.26, fmt_in(ct.depth) + " deep", size=0.1)
+    oh = -ct.y_front
+    if oh > 0.05:
+        _hdim(svg, X(ct.y_front), X(0.0), Z(ct.z0) + 0.52, fmt_in(oh) + " overhang", size=0.09)
+    _vdim(svg, X(ct.y_front) - 0.28, Z(ct.z0), Z(ct.top_z), fmt_in(EDGE_T), size=0.09)
+    _vdim(svg, X(ct.y_back) + 0.34, Z(ct.top_z), Z(ct.top_z + SPLASH_H), '4" splash', size=0.09)
+    front = next((b for b in ct.boxes if "Build-up, front" in b.name), None)
+    if front:
+        y0 = front.pos[1]
+        _hdim(svg, X(y0), X(y0 + front.size[1]), Z(ct.z0) + 0.78, '4" build-up', size=0.09)
+    svg.text(bx, by + bh - 0.04, "Hatched strips are the build-up, directly under the top.",
+             size=0.095, fill=SOFT)
 
 
-def _dogbone(svg: Svg, cx: float, cy: float, s: float) -> None:
-    """A dogbone pocket across a seam, seen from below. s = paper inches per inch."""
-    r, neck = 0.5 * s, 0.35 * s
-    for side in (-1, 1):
-        svg.circle(cx + side * 1.0 * s, cy, r, fill="#ffffff", stroke=INK, sw=0.01)
-    svg.rect(cx - 1.0 * s, cy - neck / 2, 2.0 * s, neck, fill="#ffffff", stroke="none")
-    svg.line(cx - 1.0 * s + r * 0.7, cy - neck / 2, cx + 1.0 * s - r * 0.7, cy - neck / 2, stroke=INK, sw=0.01)
-    svg.line(cx - 1.0 * s + r * 0.7, cy + neck / 2, cx + 1.0 * s - r * 0.7, cy + neck / 2, stroke=INK, sw=0.01)
+def _underside(svg: Svg, job: Job, ct, x: float, y: float, w: float, h: float) -> None:
+    """Where the build-up strips sit, seen from below. Cabinet joints are marked."""
+    svg.text(x, y, "BUILD-UP, FROM BELOW", size=0.13, weight="bold", fill=INK)
+    sp = min((w - 0.1) / max(ct.length, 1.0), (h - 0.48) / max(ct.depth, 1.0))
+    PX = lambda px: x + (px - ct.x0) * sp
+    PY = lambda py: y + 0.2 + (py - ct.y_front) * sp
+    svg.rect(PX(ct.x0), PY(ct.y_front), ct.length * sp, ct.depth * sp,
+             fill="#ffffff", stroke=INK, sw=0.01)
+    tone = _shade(_counter_color(ct), 0.86)
+    for b in ct.boxes:
+        if "Build-up" not in b.name:
+            continue
+        svg.rect(PX(b.pos[0]), PY(b.pos[1]), max(b.size[0] * sp, 0.01), max(b.size[1] * sp, 0.01),
+                 fill=tone, stroke=INK, sw=0.006)
+    for cab in job.bases[1:]:
+        svg.line(PX(cab.x), PY(ct.y_front), PX(cab.x), PY(ct.y_back), stroke="#b03a2e",
+                 sw=0.008, dash="0.04,0.03")
+    svg.text(x, y + h - 0.06, "Front at the top. Red dashes: cabinet joints.", size=0.09, fill=SOFT)
 
 
-def _seam_detail(svg: Svg, x: float, y: float) -> None:
-    """Typical laminate seam from below: 6" strip on the seam, dogbones across it."""
-    s = 0.05
-    svg.text(x, y, "TYPICAL LAMINATE SEAM, FROM BELOW", size=0.14, weight="bold", fill=INK)
-    top, h, w = y + 0.15, 25 * s, 30 * s
-    cx = x + w / 2
-    svg.rect(x, top, w, h, fill=_shade(LAMTOP, 0.97), stroke=INK, sw=0.01)
-    svg.rect(cx - 3 * s, top + 1.5 * s, 6 * s, h - 3 * s, fill=_shade(LAMTOP, 0.85), stroke=SOFT, sw=0.008)
-    svg.line(cx, top - 0.05, cx, top + h + 0.05, stroke="#b03a2e", sw=0.014, dash="0.06,0.04")
-    for k in range(2):
-        _dogbone(svg, cx, top + 1.5 * s + (h - 3 * s) * (k + 0.5) / 2, s * 1.5)
-    tx = x + w + 0.3
-    for i, line in enumerate([
-        '6" strip of 3/4" plywood centred on the seam',
-        '(3" glued and stapled to each piece).',
-        'Dogbone pockets routed 1/2" deep across the seam.',
-        'At install: adhesive in the seam, dogbone clamps',
-        'pull the two pieces into one countertop.',
-    ]):
-        svg.text(tx, top + 0.2 + i * 0.2, line, size=0.12, fill=INK)
+def _counter_details(svg: Svg, job: Job, ct, box) -> None:
+    bx, by, bw, bh = box
+    _heading(svg, bx, by + 0.16, "DETAILS")
+    _underside(svg, job, ct, bx, by + 0.36, bw * 0.46, bh - 0.5)
+    tx = bx + bw * 0.50
+    if ct.kind == "laminate":
+        lines = [
+            'Build-up: 4" strips, 3/4" plywood, glued and',
+            "stapled under the front edge and at each end,",
+            "and centred where two cabinets meet.",
+            "No strip along the back wall.",
+            "Backsplash and side splash match the countertop",
+            "(laminate, the same colour as the top).",
+            f"Front overhang {fmt_in(-ct.y_front)}. Open ends overhang 1\".",
+            "Wall ends are flush, with a side splash when asked.",
+            "TYPICAL LAMINATE SEAM",
+            "No seam is placed on its own. When one is needed,",
+            'a 6" strip is centred on it, dogbones 1/2" deep.',
+        ]
+    else:
+        lines = [
+            'Build-up: 4" strips of 1" plywood, directly',
+            "under the top, around the perimeter only",
+            "(front, back and both ends).",
+            "Not across the seams between cabinets.",
+            "Backsplash and side splash match the countertop",
+            "(solid surface, the same colour as the top).",
+            f"Front overhang {fmt_in(-ct.y_front)}. Open ends overhang 1\".",
+            "Wall ends are flush, with a side splash when asked.",
+            "The 1/2\" top plus the 1\" strips make the",
+            "1-1/2\" edge. Screw up into the strips.",
+        ]
+    for i, line in enumerate(lines):
+        svg.text(tx, by + 0.42 + i * 0.2, line, size=0.105, fill=INK,
+                 weight="bold" if line.isupper() else "normal")
 
 
 def counter_page(job: Job, date: str, page: str) -> Svg:
-    """Countertop detail: section, front-edge profile, how it is built."""
+    """Countertop sheet: front, top and side views, plus build-up and splash details."""
     ct = job.counter
     lam = ct.kind == "laminate"
     svg = Svg(PAGE_W, PAGE_H)
     svg.rect(M / 2, M / 2, PAGE_W - M, PAGE_H - M, fill="none", stroke=INK, sw=0.014)
-    svg.text(M + 0.1, M + 0.32, ("COUNTERTOP - LAMINATE" if lam else "COUNTERTOP - SOLID SURFACE"),
-             size=0.28, weight="bold", fill=INK)
-    svg.text(M + 0.1, M + 0.58, f"{job.name}  -  {ct.description}. {fmt_in(ct.length)} long x "
-             f"{fmt_in(ct.depth)} deep, top {fmt_in(ct.top_z)} off the floor.", size=0.14, fill=SOFT)
-    boxes = ct.boxes
-    # cut through the middle of the first cabinet, away from the strips
-    first = min((c for c in job.bases), key=lambda c: c.x)
-    xs = first.x + first.params.width / 2 + 0.01
-    # 1) section at 3" = 1'-0"
-    s = 0.25
-    ox, base = M + 0.9, M + 3.6
-    X = lambda y: ox + (y - ct.y_front) * s
-    Z = lambda z: base - (z - ct.z0) * s
-    _heading(svg, M + 0.1, M + 1.0, "SECTION THROUGH THE COUNTER", '3" = 1\'-0"')
-    # cabinet top under it, dashed
-    svg.rect(X(0), Z(ct.z0), (ct.y_back) * s, 1.6, fill="none", stroke=SOFT, sw=0.008, dash="0.05,0.04")
-    svg.text(X(ct.y_back / 2), Z(ct.z0) + 0.45, "cabinet (case top)", size=0.11, anchor="middle", fill=SOFT)
-    _section(svg, ct, boxes, X, Z, xs)
-    svg.line(X(ct.y_back), Z(ct.z0) + 1.7, X(ct.y_back), Z(ct.top_z + 6), stroke=INK, sw=0.014)
-    _wall_band(svg, X(ct.y_back), Z(ct.top_z + 6), 0.15, (ct.top_z + 6 - ct.z0) * s + 1.7)
-    _hdim(svg, X(ct.y_front), X(ct.y_back), Z(ct.top_z + 4) - 0.25, f"{fmt_in(ct.depth)} deep", size=0.12)
-    _vdim(svg, X(ct.y_front) - 0.3, Z(ct.z0), Z(ct.top_z), fmt_in(ct.top_z - ct.z0), size=0.11)
-    _vdim(svg, X(ct.y_back) + 0.5, Z(ct.top_z), Z(ct.top_z + 4), '4" splash', size=0.11)
-    _hdim(svg, X(ct.y_front), X(0), Z(ct.z0) + 0.35, fmt_in(-ct.y_front), size=0.1)
-    svg.text(X(-ct.y_front * 0.5) + 0.05, Z(ct.z0) + 0.6, "overhang past the case", size=0.09, fill=SOFT)
-
-    # 2) front edge, full size: the first 3" of the counter
-    s2, reach = 1.0, 3.0
-    ex, eb = M + 9.0, M + 3.4
-    X2 = lambda y: ex + (y - ct.y_front) * s2
-    Z2 = lambda z: eb - (z - ct.z0) * s2
-    _heading(svg, M + 8.4, M + 1.0, "FRONT EDGE", "full size")
-    for b in sorted(boxes, key=lambda b: b.pos[0]):
-        if not (b.pos[0] <= xs <= b.pos[0] + b.size[0]):
-            continue
-        y0, z0, dy, dz = b.pos[1], b.pos[2], b.size[1], b.size[2]
-        if y0 > ct.y_front + reach:
-            continue
-        dy = min(dy, ct.y_front + reach - y0)
-        svg.rect(X2(y0), Z2(z0 + dz), dy * s2, dz * s2, fill=_color(b), stroke=INK, sw=0.012)
-    svg.line(X2(ct.y_front + reach), Z2(ct.z0 - 0.2), X2(ct.y_front + reach), Z2(ct.top_z + 0.2),
-             stroke=SOFT, sw=0.008, dash="0.05,0.04")
-    _vdim(svg, X2(ct.y_front) - 0.35, Z2(ct.z0), Z2(ct.top_z), '1 1/2" edge', size=0.12)
-    tx = X2(ct.y_front + reach) + 0.35
-    if lam:
-        brown = "#8a5a2b"
-        svg.line(X2(ct.y_front), Z2(ct.top_z) - 0.03, X2(ct.y_front + reach), Z2(ct.top_z) - 0.03,
-                 stroke=brown, sw=0.05)
-        svg.line(X2(ct.y_front) - 0.03, Z2(ct.top_z), X2(ct.y_front) - 0.03, Z2(ct.z0),
-                 stroke=brown, sw=0.05)
-        callouts = [
-            (X2(ct.y_front + 1.8), ct.top_z, "Laminate, step 3: the top (goes on last)"),
-            (X2(ct.y_front + 2.4), ct.z0 + 1.1, '3/4" plywood top'),
-            (X2(ct.y_front + 2.0), ct.z0 + 0.4, '3/4" plywood build-up, glued and stapled'),
-        ]
-        svg.text(X2(ct.y_front) - 0.1, Z2(ct.z0) + 0.35, "Laminate, step 2: the front edge.",
-                 size=0.12, fill=INK)
-        svg.text(X2(ct.y_front) - 0.1, Z2(ct.z0) + 0.55, "Step 1 is the side edges, when needed.",
-                 size=0.12, fill=INK)
-    else:
-        callouts = [
-            (X2(ct.y_front + 2.0), ct.z0 + 1.25, '1/2" solid surface top'),
-            (X2(ct.y_front + 0.25), ct.z0 + 1.4, '1/4" lip left over the rabbet'),
-            (X2(ct.y_front + 0.25), ct.z0 + 0.6, '1 1/4" solid surface edge strip, epoxied'),
-            (X2(ct.y_front + 2.0), ct.z0 + 0.5, '4" build-up, directly under the top'),
-        ]
-    rows = sorted(callouts, key=lambda c: -c[1])
-    for k, (px_, z, text) in enumerate(rows):
-        ty = Z2(ct.top_z) - 0.15 + k * 0.42
-        svg.circle(px_, Z2(z), 0.025, fill=INK)
-        svg.line(px_, Z2(z), tx - 0.05, ty - 0.04, stroke=SOFT, sw=0.006)
-        svg.text(tx, ty, text, size=0.12, fill=INK)
-
-    # 3) how it is built, and the seams
-    bx, by = M + 0.1, M + 6.1
-    svg.text(bx, by, "HOW IT IS BUILT", size=0.16, weight="bold", fill=INK)
-    if lam:
-        lines = [
-            '3/4" plywood top, laminated.',
-            '3/4" plywood build-up strips, 4" wide, glued and stapled under the front edge, at each end,',
-            "  and centred on every place two cabinets meet. That makes the 1-1/2\" front edge, and the",
-            "  installers screw up through the cabinets into the strips.",
-            "Laminate goes on in this order: side edges (when needed), front edge, then the top.",
-            '4" backsplash on the wall; 4" side splash at a wall end. Every exposed splash edge is laminated.',
-            'Open ends: 1" overhang with a laminated (finished) edge. Wall ends: flush.',
-        ]
-    else:
-        lines = [
-            '1/2" solid surface top, with a 1/2" wide x 1/4" deep rabbet under the front and finished edges.',
-            "1-1/4\" solid surface edge strip epoxied into the rabbet: 1/4\" + 1-1/4\" = 1-1/2\" reveal.",
-            '4" build-up strips of 1" plywood directly under the top, around the perimeter only',
-            '  (front, back and both ends). Not across the seams between cabinets. With the',
-            '  1/2" top they make the 1-1/2" build, and the installers screw up into the strips.',
-            '4" solid surface backsplash; 4" side splash at a wall end.',
-            'Open ends: 1" overhang with a finished edge. Wall ends: flush.',
-        ]
-    for i, line in enumerate(lines):
-        svg.text(bx + 0.1, by + 0.3 + i * 0.22, line, size=0.13, fill=INK)
-    y = by + 0.45 + len(lines) * 0.22
-    import textwrap
-    seam_lines = []
-    for n in (ct.notes or [f"One piece: {fmt_in(ct.length)} long, no seam."]):
-        seam_lines += textwrap.wrap(n, 100)
-    svg.text(bx, y, "SEAMS", size=0.16, weight="bold", fill=INK)
-    for i, n in enumerate(seam_lines[:6]):
-        svg.text(bx + 0.1, y + 0.28 + i * 0.22, n, size=0.13, fill=INK)
-    if lam:
-        _seam_detail(svg, M + 9.9, M + 6.95)
-
-    # small underside plan showing the strips
-    px, py, pw = M + 9.9, M + 5.0, 6.2
-    sp = min(pw / ct.length, 1.2 / ct.depth)
-    svg.text(px, py, "UNDERSIDE - WHERE THE STRIPS GO", size=0.14, weight="bold", fill=INK)
-    PX = lambda x: px + (x - ct.x0) * sp
-    PY = lambda y: py + 0.25 + (y - ct.y_front) * sp     # front at the top of this little plan
-    svg.rect(PX(ct.x0), PY(ct.y_front), ct.length * sp, ct.depth * sp, fill="#ffffff", stroke=INK, sw=0.01)
-    for b in boxes:
-        if "plywood" not in b.material or b.pos[2] > ct.z0 + 0.5 or "Top" in b.name.split("/")[-1]:
-            continue
-        svg.rect(PX(b.pos[0]), PY(b.pos[1]), b.size[0] * sp, b.size[1] * sp, fill=_shade(LAMTOP, 0.9),
-                 stroke=SOFT, sw=0.005)
-    for c in job.bases:
-        svg.line(PX(c.x), PY(ct.y_front) - 0.06, PX(c.x), PY(ct.y_front) - 0.02, stroke=INK, sw=0.01)
-    for sx in ct.seams:
-        svg.line(PX(sx), PY(ct.y_front) - 0.1, PX(sx), PY(ct.y_back) + 0.1, stroke="#b03a2e", sw=0.014,
-                 dash="0.06,0.04")
-    for dx, dy in ct.dogbones:
-        svg.rect(PX(dx) - 0.09, PY(dy) - 0.025, 0.18, 0.05, fill=INK, stroke="none")
-    svg.text(px, PY(ct.y_back) + 0.3, "front edge at the top; red dashes = seams", size=0.1, fill=SOFT)
-
-    title_block(svg, job, (M + 9.9, M + 8.45, 6.3, 1.75), date, drawing="Countertop detail",
-                page=page)
+    svg.text(M + 0.1, M + 0.26, ("COUNTERTOP - LAMINATE" if lam else "COUNTERTOP - SOLID SURFACE"),
+             size=0.24, weight="bold", fill=INK)
+    svg.text(M + 0.1, M + 0.48,
+             f"{job.name}  -  {ct.description}. {fmt_in(ct.length)} long x "
+             f"{fmt_in(ct.depth)} deep, top {fmt_in(ct.top_z)} off the floor.",
+             size=0.12, fill=SOFT)
+    _counter_front(svg, job, ct, (M + 0.05, M + 0.55, PAGE_W - 2 * M - 0.15, 2.35))
+    _counter_plan(svg, job, ct, (M + 0.05, M + 2.95, 9.35, 3.2))
+    _counter_side(svg, ct, (M + 9.55, M + 2.95, 6.6, 5.05))
+    _counter_details(svg, job, ct, (M + 0.05, M + 6.25, 9.35, 4.05))
+    title_block(svg, job, (M + 9.55, M + 8.15, 6.6, 2.0), date, drawing="Countertop", page=page)
     return svg
 
 
