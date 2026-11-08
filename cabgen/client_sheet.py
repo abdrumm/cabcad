@@ -1005,7 +1005,7 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
             (X2(ct.y_front + 2.0), ct.z0 + 1.25, '1/2" solid surface top'),
             (X2(ct.y_front + 0.25), ct.z0 + 1.4, '1/4" lip left over the rabbet'),
             (X2(ct.y_front + 0.25), ct.z0 + 0.6, '1 1/4" solid surface edge strip, epoxied'),
-            (X2(ct.y_front + 2.0), ct.z0 + 0.5, '1" plywood stiffener'),
+            (X2(ct.y_front + 2.0), ct.z0 + 0.5, '4" build-up, directly under the top'),
         ]
     rows = sorted(callouts, key=lambda c: -c[1])
     for k, (px_, z, text) in enumerate(rows):
@@ -1031,8 +1031,9 @@ def counter_page(job: Job, date: str, page: str) -> Svg:
         lines = [
             '1/2" solid surface top, with a 1/2" wide x 1/4" deep rabbet under the front and finished edges.',
             "1-1/4\" solid surface edge strip epoxied into the rabbet: 1/4\" + 1-1/4\" = 1-1/2\" reveal.",
-            '1" plywood stiffener strips under the top (front, back, ends, and centred where cabinets meet)',
-            '  bring it to 1-1/2" overall, and give the installers plywood to screw into.',
+            '4" build-up strips of 1" plywood directly under the top, around the perimeter only',
+            '  (front, back and both ends). Not across the seams between cabinets. With the',
+            '  1/2" top they make the 1-1/2" build, and the installers screw up into the strips.',
             '4" solid surface backsplash; 4" side splash at a wall end.',
             'Open ends: 1" overhang with a finished edge. Wall ends: flush.',
         ]

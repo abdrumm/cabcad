@@ -43,6 +43,60 @@ def test_solid_build():
     assert not ct.laminate and not ct.dogbones
 
 
+def _buildup(ct):
+    return [p for p in ct.pieces if "Build-up" in p.name]
+
+
+def _on_perimeter(ct, box) -> bool:
+    """A strip touches the front, the back, or either end of the underside."""
+    x, y, _z = box.pos
+    dx, dy, _dz = box.size
+    front_y = ct.y_front + (0.5 if ct.kind == "solid" else 0.0)
+    on_front = abs(y - front_y) < 1e-6 and dy <= 4.01
+    on_back = abs((y + dy) - ct.y_back) < 1e-6 and dy <= 4.01
+    on_left = min(abs(x - ct.x0), abs(x - (ct.x0 + 0.5))) < 1e-6 and dx <= 6.01
+    on_right = min(abs((x + dx) - ct.x1), abs((x + dx) - (ct.x1 - 0.5))) < 1e-6 and dx <= 6.01
+    return on_front or on_back or on_left or on_right
+
+
+def test_solid_buildup_is_a_perimeter_only():
+    """Brook, Nov 7: 4" strips directly under the top, not across cabinet seams."""
+    from cabgen.kitchen import scene_of
+    from cabgen.omacad_export import scene_payload
+
+    cabs = _cabs([30, 24, 18])
+    ct = build_counter(cabs, {"counter": "solid"})
+    strips = _buildup(ct)
+    assert [p.name for p in strips] == [
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
+    ]
+    assert ct.joints, "the run has interior seams to stay clear of"
+    for p in strips:
+        assert p.width == 4.0 and p.thk == 1.0 and p.material == '1" plywood'
+        assert "joint" not in p.name.lower()
+        for b in p.boxes:
+            assert abs(b.pos[2] - ct.z0) < 1e-6
+            assert abs((b.pos[2] + b.size[2]) - (ct.z0 + 1.0)) < 1e-6  # directly under the 1/2" top
+            assert _on_perimeter(ct, b), p.name
+    text = counter_text(ct)
+    assert "perimeter only" in text
+    assert "do not run across the seams" in text
+
+    boxes, _holes, parts = scene_of(cabs, {"counter": "solid"})
+    names = [p.name for p in parts if p.name.startswith("Countertop")]
+    assert any(n.endswith("Build-up, front") for n in names)
+    assert not any("joint" in n.lower() for n in names)
+    model = [b.name for b in boxes if "Build-up" in b.name]
+    assert len(model) == 4 and not any("joint" in n.lower() for n in model)
+    payload = scene_payload("Solid", boxes, _holes)
+    omacad = [b["name"] for b in payload["boxes"] if "Build-up" in b["name"]]
+    assert len(omacad) == 4
+
+    # laminate still screws up at the joints (Brook, Oct 24). Not this change.
+    lam = build_counter(cabs, {"counter": "laminate"})
+    assert any("cabinet joint" in p.name for p in _buildup(lam))
+
+
 def test_long_laminate_top_is_one_piece_flagged_not_seamed():
     """Brook, Oct 27: no automatic seams. A 181" run is one 181" top, flagged."""
     from cabgen.counter import OVERSIZE_FLAG
@@ -100,8 +154,12 @@ def test_nest_includes_ply_not_solid():
 
 
 def test_client_sheet_counter_page(tmp_dir=None):
-    from cabgen.client_sheet import load_job, render_pages
+    from cabgen.client_sheet import job_from, load_job, render_pages
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample")
     pages = render_pages(job, "Oct 24, 2026")
     text = pages[1].to_string()
     assert "COUNTERTOP - LAMINATE" in text and "TYPICAL LAMINATE SEAM" in text
+    solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample")
+    solid_page = render_pages(solid, "Oct 24, 2026")[1].to_string()
+    assert "perimeter only" in solid_page
+    assert "centred where cabinets meet" not in solid_page

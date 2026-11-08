@@ -78,7 +78,8 @@ CODE_MEANING = {
     "DR": "door right", "D": "door (1-door upper)", "OS": "open shelf", "MD": "microwave divider", "MS": "microwave shelf (projects, 2\" R front corners)", "DBS": "drawer box side", "DBF": "drawer box front/back",
     "DBB": "drawer box bottom", "SH": "shelf", "SP": "spacer board (filler)",
     "CT1-TOP": "countertop top", "CT1-BU": "counter build-up strip (F front, L/R ends, J joints)",
-    "CT1-ST": "counter stiffener strip", "CT1-BS": "backsplash", "CT1-SS": "side splash",
+    "CT1-ST": "solid-surface build-up (4\" strip under the top; F front, B back, L/R ends; perimeter only)",
+    "CT1-BS": "backsplash", "CT1-SS": "side splash",
 }
 
 

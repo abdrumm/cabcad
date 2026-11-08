@@ -153,8 +153,9 @@ Rules and assumptions: `~/Work/cabinet-shop-standards.md` section 3. Code: `cabg
 
 - Laminate: 3/4" ply top + 4" ply build-up strips (glued and stapled) at the front, ends and
   every cabinet joint; laminate takeoff in sq ft, in order (sides, front, top).
-- Solid surface: 1/2" top, 1-1/4" edge strip in a rabbet, 1" ply stiffeners. Solid surface is
-  listed, not nested; the plywood is nested with the rest of the project.
+- Solid surface: 1/2" top, 1-1/4" edge strip in a rabbet, 4" build-up strips of 1" plywood
+  directly under the top around the perimeter only (front, back, ends — not across cabinet
+  joints). Solid surface is listed, not nested; the plywood is nested with the rest of the project.
 - Seams: only when the run is longer than 96" (plywood) / 144" (solid surface), always on a
   cabinet joint, pieces about equal. Laminate seams use Brook's method: 6" strip centred on the
   seam (3" per piece), dogbone pockets 1/2" deep, adhesive, dogbone clamps at install.
