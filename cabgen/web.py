@@ -329,7 +329,8 @@ def group_view(form: dict | None) -> dict:
 COUNTER_CHOICES = (("laminate", "Laminate"), ("solid", "Solid surface"), ("none", "None"))
 
 # Short face labels for the style buttons on a cabinet tile (the full name is the tooltip).
-STYLE_SHORT = {"3drawer": "3 drawers", "base1": "1 door", "base": "Drawer + doors", "sink": "Sink",
+STYLE_SHORT = {"3drawer": "3 drawers", "base1": "1 door", "base2": "2 doors",
+               "base": "Drawer + doors", "sink": "Sink",
                "upper": "2 doors", "upper1": "1 door", "open": "Open", "microwave": "Microwave"}
 _SVG = ('<svg class="ico" viewBox="0 0 24 30" aria-hidden="true" fill="none" '
         'stroke="currentColor" stroke-width="1.6" stroke-linecap="round">'
@@ -340,6 +341,8 @@ STYLE_ICONS = {
     "base1": _SVG.format('<path d="M1.5 24.5h21"/><path d="M18.5 15v6" stroke-width="2.6"/>'
                          '<path d="M20 5L4 14.5l16 9.5" stroke-dasharray="2 1.6" stroke-width="1"/>'),
     "base": _SVG.format('<path d="M1.5 9h21M12 9v19.5M9 5.2h6M10 13v5M14 13v5"/>'),
+    # 2 doors, no drawer: the pair runs the case, pulls near the top, kick at the bottom
+    "base2": _SVG.format('<path d="M1.5 23.5h21M12 1.5v22M10 5.5v5M14 5.5v5"/>'),
     # sink: the same face with no pull on the false front
     "sink": _SVG.format('<path d="M1.5 9h21M12 9v19.5M10 13v5M14 13v5"/>'),
     "upper": _SVG.format('<path d="M12 1.5v27M10 21v4M14 21v4"/>'),

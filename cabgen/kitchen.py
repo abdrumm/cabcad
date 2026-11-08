@@ -38,6 +38,10 @@ STYLES = {
     "1drawer": "base_1drawer_2doors",
     "base1": "base_1door",
     "base_1door": "base_1door",
+    "base2": "base_2doors",
+    "base2door": "base_2doors",
+    "base_2doors": "base_2doors",
+    "2doorbase": "base_2doors",
     "3drawer": "base_3drawers",
     "3drawers": "base_3drawers",
     "base_3drawers": "base_3drawers",
@@ -314,6 +318,7 @@ OPEN_OVERHANG = 1.0
 BASE_CHOICES = (
     ("3drawer", "3 drawers"),
     ("base1", "1 door"),
+    ("base2", "2 doors"),
     ("base", "1 drawer over 2 doors"),
     ("sink", "Sink: false drawer front over 2 doors"),
 )

@@ -32,7 +32,8 @@ def test_wire_data_is_injected_and_comes_from_params():
     assert data["upper_pull"] == {"cc": UPPER_PULL_CC, "from_bottom": UPPER_PULL_FROM_BOTTOM,
                                   "inset": UPPER_PULL_EDGE_INSET}
     s = data["styles"]
-    assert set(s) >= {"3drawer", "base", "sink", "upper", "upper1", "open", "microwave"}
+    assert set(s) >= {"3drawer", "base1", "base2", "base", "sink", "upper", "upper1", "open",
+                      "microwave"}
     assert s["sink"]["false_front"] and not s["base"]["false_front"]
     assert s["3drawer"]["height"] == Params().height and len(s["3drawer"]["drawers"]) == 3
     assert s["base"]["toe"] == Params().toe_kick_h
@@ -94,7 +95,7 @@ def test_every_style_has_a_stock_default_width_in_the_form():
     assert set(DEFAULT_WIDTHS) == keys
     assert all(w % 3 == 0 for w in DEFAULT_WIDTHS.values())
     assert DEFAULT_WIDTHS == {"upper": 30, "upper1": 18, "open": 24, "microwave": 30,
-                              "3drawer": 18, "base1": 18, "base": 30, "sink": 30}
+                              "3drawer": 18, "base1": 18, "base2": 30, "base": 30, "sink": 30}
     page = _page()
     m = re.search(r"const DEFAULT_W = (\{.*?\});", page)
     assert m and json.loads(m.group(1)) == DEFAULT_WIDTHS

@@ -14,6 +14,7 @@ from typing import Any
 
 STYLE_BASE_1D2D = "base_1drawer_2doors"
 STYLE_BASE_1D = "base_1door"
+STYLE_BASE_2D = "base_2doors"
 STYLE_BASE_3D = "base_3drawers"
 STYLE_BASE_SINK = "base_sink"
 STYLE_UPPER_2D = "upper_2doors"
@@ -79,6 +80,18 @@ def base_case_height(counter_kind: str = "laminate") -> float:
 
 BASE_CASE_H = base_case_height("laminate")   # 32": the preset, a countertop goes on top
 
+# --- base case depth and toe kick (Brook, 2026-11-02) -----------------------
+# Case depth is the back face of the case (on the wall) to the front face of the
+# case. The door overlays the case, so the door is not in this number.
+BASE_DEPTH = 23.5
+# The toe kick has two called-out sizes:
+#   toe_kick_h       floor to the bottom of the case (the height of the kick)
+#   toe_kick_recess  the case front, measured back to the face of the toe kick
+# The recess is measured from the CASE front, not the face of the door, so it
+# stays the same whatever the door thickness.
+TOE_KICK_H = 4.0
+TOE_KICK_RECESS = 3.0
+
 STYLE_PRESETS: dict[str, dict[str, Any]] = {
     STYLE_BASE_1D2D: {
         "label": "Base — 1 drawer over 2 doors",
@@ -89,7 +102,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "drawer_front_h": 6.0,
         "width": 27.0,
         "height": BASE_CASE_H,
-        "depth": 23.5,
+        "depth": BASE_DEPTH,
         "has_shelf": True,
     },
     STYLE_BASE_1D: {
@@ -101,7 +114,19 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "drawer_front_h": 6.0,
         "width": 18.0,
         "height": BASE_CASE_H,
-        "depth": 23.5,
+        "depth": BASE_DEPTH,
+        "has_shelf": True,
+    },
+    STYLE_BASE_2D: {
+        "label": "Base — 2 doors",
+        "has_counter": False,
+        "has_toe_kick": True,
+        "drawers": 0,
+        "doors": 2,
+        "drawer_front_h": 6.0,
+        "width": 30.0,
+        "height": BASE_CASE_H,
+        "depth": BASE_DEPTH,
         "has_shelf": True,
     },
     STYLE_BASE_SINK: {
@@ -113,7 +138,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "drawer_front_h": 6.0,
         "width": 30.0,
         "height": BASE_CASE_H,
-        "depth": 23.5,
+        "depth": BASE_DEPTH,
         "has_shelf": False,
         "sink": True,
     },
@@ -126,7 +151,7 @@ STYLE_PRESETS: dict[str, dict[str, Any]] = {
         "drawer_front_h": 6.0,
         "width": 27.0,
         "height": BASE_CASE_H,
-        "depth": 23.5,
+        "depth": BASE_DEPTH,
         "has_shelf": False,
     },
     STYLE_UPPER_2D: {
@@ -196,6 +221,7 @@ DEFAULT_WIDTH_UPPER_OPEN = 24.0
 DEFAULT_WIDTH_UPPER_MW = 30.0       # microwave shelf: 30" fits a countertop microwave + trim
 DEFAULT_WIDTH_BASE_3DRAWERS = 18.0  # drawer bases are stock 12"-24"; 18" is the usual one
 DEFAULT_WIDTH_BASE_1DOOR = 18.0     # one door, same stock width as a 1-door upper
+DEFAULT_WIDTH_BASE_2DOORS = 30.0    # 2 doors, no drawer: 2-door bases are stock 24"-36"
 DEFAULT_WIDTH_BASE_1D2D = 30.0      # always 2 doors here: 2-door bases are stock 24"-36"
 DEFAULT_WIDTHS = {
     "upper": DEFAULT_WIDTH_UPPER_2DOORS,
@@ -204,6 +230,7 @@ DEFAULT_WIDTHS = {
     "microwave": DEFAULT_WIDTH_UPPER_MW,
     "3drawer": DEFAULT_WIDTH_BASE_3DRAWERS,
     "base1": DEFAULT_WIDTH_BASE_1DOOR,
+    "base2": DEFAULT_WIDTH_BASE_2DOORS,
     "base": DEFAULT_WIDTH_BASE_1D2D,
     "sink": DEFAULT_WIDTH_BASE_1D2D,   # same as the 1 drawer over 2 doors base
 }
@@ -217,6 +244,7 @@ FORM_STYLE_KEYS = {
     "microwave": STYLE_UPPER_MW,
     "3drawer": STYLE_BASE_3D,
     "base1": STYLE_BASE_1D,
+    "base2": STYLE_BASE_2D,
     "base": STYLE_BASE_1D2D,
     "sink": STYLE_BASE_SINK,
 }
