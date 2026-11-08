@@ -34,6 +34,7 @@ def test_wire_data_is_injected_and_comes_from_params():
     s = data["styles"]
     assert set(s) >= {"3drawer", "base1", "base2", "base", "sink", "upper", "upper1", "open",
                       "microwave"}
+    assert data["case_height"] == {"laminate": 32.0, "solid": 32.0, "none": 33.5}
     assert s["sink"]["false_front"] and not s["base"]["false_front"]
     assert s["3drawer"]["height"] == Params().height and len(s["3drawer"]["drawers"]) == 3
     assert s["base"]["toe"] == Params().toe_kick_h

@@ -301,6 +301,13 @@ def _side_elevation(svg: Svg, p: Params, layout: Layout, box: tuple[float, float
     if p.has_counter:
         dim_h(svg, t.x(x_front), t.x(case_d), dim_y, f'COUNTER {fmt_in(p.counter_depth)}')
     dim_h(svg, t.x(0), t.x(case_d), dim_y + 0.3, f'CASE DEPTH {fmt_in(p.depth)}', size=0.075)
+    if p.has_toe_kick and p.toe_kick_recess > 0:
+        # The recess is the case front back to the face of the toe kick, door not
+        # included (Brook, 2026-11-02). Bases have no countertop, so it takes the
+        # first free row; a counter cabinet pushes it down one.
+        row = 0.9 if p.has_counter else 0.6
+        dim_h(svg, t.x(0), t.x(p.toe_kick_recess), dim_y + row,
+              f'TOE KICK {fmt_in(p.toe_kick_recess)}', size=0.075)
     if p.has_counter and front_ext > 0:
         dim_h(svg, t.x(x_front), t.x(0), dim_y + 0.6, f'{fmt_in(front_ext)}', size=0.075)
     dim_x = t.x(x_front) - 0.45

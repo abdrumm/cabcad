@@ -18,8 +18,8 @@ from .kitchen import (
     group_settings, parse_group, group_sheet, write_kitchen,
 )
 from .params import (
-    DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, UPPER_1DOOR_MAX_WIDTH, _coerce,
-    door_rule_warnings,
+    BASE_DEPTH, DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_RECESS,
+    UPPER_1DOOR_MAX_WIDTH, _coerce, base_case_height, door_rule_warnings,
 )
 
 PAGE = """<!doctype html>
@@ -303,6 +303,15 @@ def group_view(form: dict | None) -> dict:
         "counter": "laminate",
         "splash_left": "yes",
         "splash_right": "yes",
+        # Base case depth and the toe kick, called out once for the whole base run.
+        # The case height is shown but not typed: 33-1/2" finished minus the counter
+        # build rules it (Brook, Oct 30, kept in v0.15).
+        "base_height": f"{base_case_height('laminate'):g}",
+        "base_depth": f"{BASE_DEPTH:g}",
+        "toe_kick_h": f"{TOE_KICK_H:g}",
+        "toe_kick_recess": f"{TOE_KICK_RECESS:g}",
+        # Blank counter depth follows the case: the case depth plus the 1-1/2" front overhang.
+        "counter_depth": "",
     }
     view["uppers"]["handles"] = _posted_handles(form, "uh", len(view["uppers"]["widths"]))
     view["bases"]["handles"] = _posted_handles(form, "bh", len(view["bases"]["widths"]))
@@ -323,6 +332,12 @@ def group_view(form: dict | None) -> dict:
         for key in ("counter", "splash_left", "splash_right"):
             if form.get(key):
                 view[key] = str(form.get(key)).strip()
+        for key in ("depth", "toe_kick_h", "toe_kick_recess", "counter_depth"):
+            if form.get(key) is not None:
+                view[key] = str(form.get(key)).strip()
+        # The case height follows the countertop choice: 33-1/2" finished, minus the build.
+        kind = view["counter"] if view["counter"] in ("laminate", "solid", "none") else "laminate"
+        view["base_height"] = f"{base_case_height(kind):g}"
     return view
 
 
@@ -378,6 +393,57 @@ def _seg(name: str, current: str, choices, disabled: bool = False,
         f'<div class="seg{" many" if len(btns) > 3 else ""}" role="group" '
         f'aria-label="{html.escape(label or name)}" '
         f'data-for="{name}">{"".join(btns)}</div>'
+    )
+
+
+def _num_opt(name: str, label: str, value: str, unit: str, least: float, most: float,
+             hint: str = "", placeholder: str = "", readonly: bool = False) -> str:
+    """A labelled number box in the run's options strip."""
+    title = f' title="{html.escape(hint)}"' if hint else ""
+    extra = " readonly" if readonly else ""
+    if placeholder:
+        extra += f' placeholder="{html.escape(placeholder)}"'
+    return (
+        f'<div class="opt"><span class="optlabel">{html.escape(label)}</span>'
+        f'<div class="w"><input type="number" id="{name}" name="{name}" '
+        f'min="{least:g}" max="{most:g}" step="0.0625" '
+        f'aria-label="{html.escape(label)}" value="{html.escape(value)}"{title}{extra}>'
+        f'<span>{html.escape(unit)}</span></div></div>'
+    )
+
+
+def _base_size_fields(view: dict) -> str:
+    """Base case height and depth, the toe kick, and the countertop depth.
+
+    The case height is shown but not typed: 33-1/2" finished minus the countertop
+    build is the rule (Brook, Oct 30), kept in v0.15. Everything else is called out
+    once for the whole base run (Brook, 2026-11-02)."""
+    from .counter import OPEN_OVERHANG
+    auto = f"{float(view['base_depth'] or BASE_DEPTH) + OPEN_OVERHANG:g}"
+    return (
+        '<section class="opts" aria-label="Base sizes">'
+        + _num_opt("height", "Base case height", view["base_height"], "in, floor to case top",
+                   20, 48,
+                   "Fixed: 33-1/2 inches finished to the top of the countertop, minus the "
+                   "countertop build (32 with laminate or solid surface, 33-1/2 with none). "
+                   "The 4 inch toe kick is inside this case height.",
+                   readonly=True)
+        + _num_opt("depth", "Base case depth", view["base_depth"], "in, wall to case front",
+                   10, 36,
+                   "Back face of the case (on the wall) to the front face of the case. "
+                   "The door is not included.")
+        + _num_opt("toe_kick_h", "Toe kick height", view["toe_kick_h"], "in", 0, 12,
+                   "Floor to the bottom of the case. It comes out of the case, not off the "
+                   "33-1/2 inch finished height.")
+        + _num_opt("toe_kick_recess", "Toe kick depth", view["toe_kick_recess"],
+                   "in, case front to kick face", 0, 12,
+                   "Front face of the case, measured back to the face of the toe kick. "
+                   "The door is not included.")
+        + _num_opt("counter_depth", "Countertop depth", view["counter_depth"], "in, wall to edge",
+                   10, 48, "Back face of the top (on the wall) to the front edge. Blank "
+                   "follows the case: the base case depth plus the 1-1/2 inch front overhang.",
+                   placeholder=f"auto {auto}")
+        + '</section>'
     )
 
 
@@ -749,6 +815,13 @@ function drawWire() {
   const fillerLeft = both && wfVal('filler_side') === 'left';
   const counter = wfVal('counter') || 'laminate';
   const uoff = parseFloat(wfVal('uoff')) || 0;
+  // The toe kick height is called out on the form, so the front view follows it.
+  const toeRaw = parseFloat(wfVal('toe_kick_h'));
+  const toeH = Number.isFinite(toeRaw) ? toeRaw : null;
+  // Same for the base case height: floor to the top of the case, no countertop.
+  // It is fixed by the 33-1/2" finished rule, so this only mirrors the field.
+  const hRaw = parseFloat(wfVal('height'));
+  const baseH = Number.isFinite(hRaw) ? hRaw : null;
   const bases = wfRow('b'), uppers = wfRow('u');
 
   let x = fillerLeft ? filler : 0;
@@ -757,7 +830,11 @@ function drawWire() {
   x = uoff;
   uppers.forEach((c) => { c.x = x; x += c.w; });
   const upperEnd = x;
-  const baseTop = Math.max(0, ...bases.map((c) => { const s = S[c.style] || {}; return (counter === 'none' && s.none ? s.none.height : s.height) || 0; }));
+  const baseTop = Math.max(0, ...bases.map((c) => {
+    const s = S[c.style] || {};
+    if (baseH !== null) return baseH;
+    return (counter === 'none' && s.none ? s.none.height : s.height) || 0;
+  }));
   const upperTop = Math.max(0, ...uppers.map((c) => WIRE.upper_bottom + ((S[c.style] || {}).height || 0)));
   const runR = Math.max(baseEnd, upperEnd, 12);
   const top = Math.max(upperTop, baseTop + 20) + 14;
@@ -780,8 +857,15 @@ function drawWire() {
     if (!s || c.w <= 0) return;
     const g = el('g', { class: 'wf-cab' });
     const r = s.reveal, fw = c.w - 2 * r;
-    rect(c.x, zBase + s.toe, c.w, s.height - s.toe, 'wf-case', g);
-    if (s.toe) rect(c.x + s.t, zBase, c.w - 2 * s.t, s.toe, 'wf-kick', g);
+    const toe = isUpper ? 0 : (toeH === null ? s.toe : toeH);
+    // The case height and the toe kick can both be changed on the form. The fronts
+    // hang from the case top and the doors sit on the case bottom, so a change in
+    // either moves a front by exactly that delta (Brook, 2026-11-02).
+    const h = (isUpper || baseH === null) ? s.height : baseH;
+    const dh = h - s.height;             // how far the case top moved
+    const dtoe = toe - s.toe;            // how far the case bottom moved
+    rect(c.x, zBase + toe, c.w, h - toe, 'wf-case', g);
+    if (toe > 0) rect(c.x + s.t, zBase, c.w - 2 * s.t, toe, 'wf-kick', g);
     const f = (s.by_drawer && s.by_drawer[c.drawer]) || s;
     if (s.open) {
       rect(c.x + s.t, zBase + s.t, c.w - 2 * s.t, s.height - 2 * s.t, 'wf-inside', g);
@@ -795,11 +879,13 @@ function drawWire() {
       rect(c.x + s.t, zBase + s.mw[1], c.w - 2 * s.t, s.t, 'wf-shelf', g);
     }
     (f.drawers || []).forEach(([z0, z1]) => {
-      rect(c.x + r, zBase + z0, fw, z1 - z0, 'wf-front', g);
-      if (!s.false_front) pull(c.x + c.w / 2, zBase + (z0 + z1) / 2, WIRE.base_pull.span, false);
+      rect(c.x + r, zBase + z0 + dh, fw, z1 - z0, 'wf-front', g);
+      if (!s.false_front) pull(c.x + c.w / 2, zBase + (z0 + z1) / 2 + dh, WIRE.base_pull.span, false);
     });
     if (f.doors) {
-      const [d0, d1] = f.doors;
+      const [raw0, raw1] = f.doors;
+      // The door bottom rides the case bottom, its top the case top.
+      const d0 = raw0 + dtoe, d1 = raw1 + dh;
       // Brook, 2026-10-30: a single-door upper wider than upper_1door_max is a pair.
       let n = s.ndoors;
       if (isUpper && n === 1 && c.w > WIRE.upper_1door_max) n = 2;
@@ -955,6 +1041,16 @@ function syncFinishes() {
 }
 RUN_FORM.addEventListener('change', syncFinishes);
 RUN_FORM.addEventListener('input', syncFinishes);
+/* ---- the base case height follows the countertop build (33-1/2" finished rule) ---- */
+function syncCaseHeight() {
+  const el = document.getElementById('height');
+  if (!el || !WIRE.case_height) return;
+  const c = wfVal('counter') || 'laminate';
+  if (WIRE.case_height[c] != null) el.value = WIRE.case_height[c];
+}
+const _counterSel = document.getElementById('counter');
+if (_counterSel) _counterSel.addEventListener('change', () => { syncCaseHeight(); drawWire(); });
+syncCaseHeight();
 const _drawWire0 = drawWire;
 drawWire = function () { _drawWire0(); syncFinishes(); };
 drawWire();
@@ -1229,7 +1325,9 @@ def _run_fields(view: dict) -> str:
 <label class="sm">Rev<input type="text" name="rev" id="rev" value="{html.escape(view.get("rev", "A"))}"></label>
 </section>
 <p class="lead">Each row builds left to right. The + adds a cabinet on the right end of that row.
-Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and depth stay with the style.</p>
+Drag a cabinet by its label (U1, B1 ...) to move it along its row. Width, height and depth stay with the style.
+The base run has one case depth, toe kick and countertop depth; the case height stays on the
+33-1/2" finished rule (33-1/2" to the countertop, minus the countertop build).</p>
 <div class="stage">
 <div class="stage-main">
 <section class="row" aria-label="Uppers">
@@ -1260,6 +1358,7 @@ Drag a cabinet by its label (U1, B1 ...) to move it along its row. Height and de
 <div class="opt" id="filler-box"{filler_hidden}><span class="optlabel">Filler width</span>{filler_seg}<span class="optlabel">on the</span>{side_seg}</div>
 {_counter_fields(view)}
 </section>
+{_base_size_fields(view)}
 {_finish_fields(view)}
 </div>
 <section class="wire" aria-label="Front view">
@@ -1904,6 +2003,8 @@ def _wire_data() -> dict:
     return {
         "styles": styles,
         "upper_bottom": UPPER_BOTTOM,
+        # The finished height rule: the base case is 33-1/2" minus the counter build.
+        "case_height": {kind: base_case_height(kind) for kind in ("laminate", "solid", "none")},
         "upper_1door_max": UPPER_1DOOR_MAX_WIDTH,
         "counter_edge": EDGE,
         "splash_h": SPLASH_H,

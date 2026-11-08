@@ -3,7 +3,8 @@
 Each row is one cabinet. Width is the size you type. Height and depth stay at
 the style unless that cell is filled in. A base finishes at 33.5 with its countertop
 (the case is 33.5 minus the countertop build, 32 for laminate or solid surface; 33.5
-with no countertop), 23.5 deep; a wall upper is 30 by 12.
+with no countertop), 23.5 deep; a wall upper is 30 by 12. The base run can call out
+its own case depth and toe kick (height and recess), and a countertop depth.
 
 Rows in the same run sit side by side, left to right. A `base` run stands on
 the floor. An `upper` run hangs with its bottom at `upper_bottom` (54 inches
@@ -22,7 +23,10 @@ from pathlib import Path
 
 from .cutlist import to_csv
 from .model3d import Box, HoleSpec, build_model
-from .params import STYLE_PRESETS, Params, door_rule_warnings, enforce_upper_door_limit, min_width
+from .params import (
+    BASE_DEPTH, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_RECESS, Params, base_case_height,
+    door_rule_warnings, enforce_upper_door_limit, min_width,
+)
 from .parts import build_parts
 from .units import fmt_in
 
@@ -102,7 +106,8 @@ def load_kitchen(path: Path) -> tuple[dict, list[dict]]:
                 key = key.strip()
                 value = value.strip()
                 if key in ("upper_bottom", "upper_offset", "base_offset", "filler",
-                           "sheet_w", "sheet_l", "kerf"):
+                           "sheet_w", "sheet_l", "kerf",
+                           "base_depth", "toe_kick_h", "toe_kick_recess", "counter_depth"):
                     settings[key] = _float(value, f"{path.name} {key}")
                 elif key in ("base_walls", "filler_side", "counter", "splash_left", "splash_right",
                              "job", "client", "job_no", "rev",
@@ -145,6 +150,9 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
             raise KitchenError(f"{source} line {number}: handle is left or right, not {handle!r}")
         height = _optional(row.get("height"), f"{source} line {number} height")
         depth = _optional(row.get("depth"), f"{source} line {number} depth")
+        if run == "base" and depth is None and settings.get("base_depth") is not None:
+            # The run's case depth (wall to case front) fills in when the row is blank.
+            depth = float(settings["base_depth"])
         z = _optional(row.get("z"), f"{source} line {number} z")
         x = _optional(row.get("x"), f"{source} line {number} x")
         gap = _optional(row.get("gap_after"), f"{source} line {number} gap_after") or 0.0
@@ -154,13 +162,24 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
         if height is None and run == "base":
             # 33-1/2" finished, counter included: the case is that minus this countertop
             from .counter import kind_of
-            from .params import base_case_height
             try:
                 height = base_case_height(kind_of(settings))
             except ValueError:
                 height = None
         params = Params(style=style, name=name, width=width, height=height, depth=depth,
                         drawer_front_h=drawer_h, handle_side=handle)
+        if run == "base":
+            # The toe kick and the counter depth are called out once for the whole
+            # base run, so every base in the run gets the same sizes.
+            if settings.get("toe_kick_h") is not None:
+                params.toe_kick_h = float(settings["toe_kick_h"])
+            if settings.get("toe_kick_recess") is not None:
+                params.toe_kick_recess = float(settings["toe_kick_recess"])
+            if settings.get("counter_depth") is not None and params.depth:
+                # An explicit top depth: the front overhang takes up the difference,
+                # so the back of the top stays on the wall (never a negative overhang).
+                params.counter_front_overhang = max(
+                    0.0, float(settings["counter_depth"]) - params.depth)
         draft.append({
             "name": name, "params": params, "run": run,
             "x": x, "z": z, "gap_after": gap,
@@ -282,6 +301,18 @@ def layout_text(cabs: list[Cab], settings: dict) -> str:
         reach = _counter_reach(cabs, facts)
         if reach:
             lines.append(reach)
+        sizes = []
+        if settings.get("base_depth") is not None:
+            sizes.append(f"case depth {fmt_in(settings['base_depth'])}")
+        if settings.get("toe_kick_h") is not None:
+            sizes.append(f"toe kick {fmt_in(settings['toe_kick_h'])} high")
+        if settings.get("toe_kick_recess") is not None:
+            sizes.append(f"recessed {fmt_in(settings['toe_kick_recess'])}")
+        if settings.get("counter_depth") is not None:
+            sizes.append(f"counter {fmt_in(settings['counter_depth'])} deep")
+        if sizes:
+            lines.append("Base run: " + ", ".join(sizes) + ". "
+                         "The case height is 33-1/2\" finished minus the countertop build.")
         lines.append("")
     lines += [
         "| Name | Run | Style | Width | Height | Depth | X | Y | Z |",
@@ -450,6 +481,17 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
         if settings["base_walls"] == "both":
             lines.append(f"# filler_side={settings['filler_side']}")
             lines.append(f"# filler={settings['filler']:g}")
+        # Base case depth and the toe kick, called out once for the run. The case
+        # height is NOT here: 33-1/2" finished minus the countertop build rules it
+        # (Brook, Oct 30, kept in v0.15).
+        if settings.get("base_depth") is not None:
+            lines.append(f"# base_depth={settings['base_depth']:g}")
+        if settings.get("toe_kick_h") is not None:
+            lines.append(f"# toe_kick_h={settings['toe_kick_h']:g}")
+        if settings.get("toe_kick_recess") is not None:
+            lines.append(f"# toe_kick_recess={settings['toe_kick_recess']:g}")
+        if settings.get("counter_depth") is not None:
+            lines.append(f"# counter_depth={settings['counter_depth']:g}")
         if settings.get("counter"):
             lines.append(f"# counter={settings['counter']}")
             lines.append(f"# splash_left={settings.get('splash_left', 'yes')}")
@@ -471,7 +513,7 @@ def group_sheet(cabinets: list[dict], settings: dict | None = None) -> str:
 
 
 def group_settings(form: dict) -> dict:
-    """Offset of each row, and how the base run meets the walls."""
+    """Offset of each row, how the base run meets the walls, and the base sizes."""
     walls = str(form.get("walls") or "left").strip()
     if walls not in {key for key, _label in WALL_CHOICES}:
         raise KitchenError(f"wall choice {walls!r} is not one of the run ends")
@@ -500,6 +542,13 @@ def group_settings(form: dict) -> dict:
         raw = " ".join(str(form.get(key) or "").split())[:80]   # one line, no newlines
         if raw:
             text[key] = raw
+    base_depth = _base_size(form.get("depth"), "base case depth", 10.0, 36.0) or BASE_DEPTH
+    counter_depth = _base_size(form.get("counter_depth"),
+                               "countertop depth from the wall", 10.0, 48.0)
+    if counter_depth is not None and counter_depth < base_depth:
+        raise KitchenError(
+            f"countertop depth {counter_depth:g} is less than the base case depth "
+            f"{base_depth:g}; a top cannot be shallower than the case it sits on")
     return {
         **text,
         "counter": counter,
@@ -509,7 +558,24 @@ def group_settings(form: dict) -> dict:
         "base_walls": walls,
         "filler_side": filler_side,
         "filler": filler,
+        # Case height is not a setting: the 33-1/2" finished rule sets it from the
+        # countertop (Brook, Oct 30). Blank sizes keep the style's own numbers.
+        "base_depth": base_depth,
+        "toe_kick_h": _base_size(form.get("toe_kick_h"), "toe kick height", 0.0, 12.0),
+        "toe_kick_recess": _base_size(
+            form.get("toe_kick_recess"), "toe kick depth from the case front", 0.0, 12.0),
+        "counter_depth": counter_depth,
     }
+
+
+def _base_size(cell, label: str, least: float, most: float) -> float | None:
+    """A base-run size from the form. Blank keeps the style's size."""
+    if cell is None or str(cell).strip() == "":
+        return None
+    value = _float(cell, label)
+    if not least <= value <= most:
+        raise KitchenError(f"{label} {value:g} is outside {least:g} to {most:g} inches")
+    return value
 
 
 def parse_group(form: dict) -> list[dict]:

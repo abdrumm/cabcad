@@ -287,7 +287,10 @@ class Params:
     # --- outer dimensions ---------------------------------------------------
     # None means "take it from the style preset" (see __post_init__).
     width: float | None = None       # case outer width
-    height: float | None = None      # overall height, floor to top of countertop
+    # Floor to the top of the case. A base case is FINISHED_COUNTER_TOP minus the
+    # countertop build (32" for laminate or solid surface), so the finished top is
+    # still 33-1/2" (Brook, Oct 30).
+    height: float | None = None
     depth: float | None = None       # finished case depth: front of the sides to the back face of the back
 
     # --- style-driven -------------------------------------------------------
@@ -311,7 +314,10 @@ class Params:
 
     # --- counter ------------------------------------------------------------
     has_counter: bool = False        # countertop removed for now
-    counter_depth: float = 25.0      # front edge of the counter to the back face
+    # Back face to front edge. None means "follow the case" (case depth plus the
+    # front overhang), so the back of the counter stays on the wall when the base
+    # case depth changes (Brook, 2026-11-02). A number here is an explicit call-out.
+    counter_depth: float | None = None
     counter_thk: float = 0.5         # Corian top piece
     counter_backer_thk: float = 1.0  # edge build-up below the Corian, before the rabbet
     counter_overhang_left: float = 1.0
@@ -333,8 +339,8 @@ class Params:
 
     # --- casework anatomy ---------------------------------------------------
     stretcher_w: float = 4.0          # flat stretchers, front to back
-    toe_kick_h: float = 4.0
-    toe_kick_recess: float = 3.0      # set back from the case front
+    toe_kick_h: float = TOE_KICK_H
+    toe_kick_recess: float = TOE_KICK_RECESS  # case front back to the face of the kick
     back_style: str = "applied"       # "applied" (behind the sides) | "dado"
 
     # --- drawer box ---------------------------------------------------------
@@ -386,6 +392,10 @@ class Params:
             if getattr(self, key) is None and key in preset:
                 setattr(self, key, preset[key])
         self.apply_style(self.style, only_missing=True)
+        # The countertop's back face sits on the wall, so its depth follows the case
+        # unless a depth was called out on its own (Brook, 2026-11-02).
+        if self.counter_depth is None:
+            self.counter_depth = self.auto_counter_depth
 
     # --- style --------------------------------------------------------------
     def apply_style(self, style: str, only_missing: bool = False) -> None:
@@ -396,10 +406,25 @@ class Params:
             elif key in ("open_shelves", "finished_interior", "mw_opening_h", "sink"):
                 setattr(self, key, type(getattr(self, key))(0))
         if not only_missing:
-            for key in ("drawer_front_h", "width", "height", "depth"):
+            for key in ("drawer_front_h", "width", "height"):
                 if key in preset:
                     setattr(self, key, preset[key])
+            if "depth" in preset:
+                self.set_case_depth(preset["depth"])
         enforce_upper_door_limit(self)
+
+    # --- case depth and toe kick (Brook, 2026-11-02) -------------------------
+    def set_case_depth(self, depth: float) -> None:
+        """Case depth: the back face (on the wall) to the front face of the case.
+
+        The countertop follows, so its back face stays on the wall. Set
+        ``counter_depth`` yourself first if the top has its own called-out depth.
+        """
+        was_following = (self.counter_depth is None
+                        or abs(self.counter_depth - self.auto_counter_depth) < 1e-9)
+        self.depth = depth
+        if was_following:
+            self.counter_depth = self.auto_counter_depth
 
     # --- derived ------------------------------------------------------------
     @property
@@ -471,6 +496,12 @@ class Params:
         if which == "left":
             return self.left_side == "wall"
         return self.left_side != "wall"
+
+    @property
+    def auto_counter_depth(self) -> float:
+        """Counter depth that keeps its back face on the wall: case depth plus the
+        front overhang. Used when no depth is called out on the counter itself."""
+        return (self.depth or 0.0) + self.counter_front_overhang
 
     @property
     def counter_width(self) -> float:
@@ -605,10 +636,11 @@ FORM_FIELDS: list[dict[str, Any]] = [
     {"name": "name", "label": "Job / cabinet name", "type": "text"},
     {"name": "width", "label": 'Case width (outer, in)', "type": "number"},
     {"name": "height", "label": 'Overall height (in)', "type": "number"},
-    {"name": "depth", "label": 'Case depth (in)', "type": "number"},
-    {"name": "counter_depth", "label": 'Countertop depth (in)', "type": "number"},
+    {"name": "depth", "label": 'Case depth, wall to case front (in)', "type": "number"},
+    {"name": "counter_depth", "label": 'Countertop depth, wall to front edge (in)', "type": "number"},
     {"name": "drawer_front_h", "label": 'Drawer front height (in)', "type": "number"},
     {"name": "toe_kick_h", "label": 'Toe kick height (in)', "type": "number"},
+    {"name": "toe_kick_recess", "label": 'Toe kick depth from the case front (in)', "type": "number"},
     {"name": "door_overhang", "label": 'Overlay onto the gable (in)', "type": "number"},
     {"name": "door_gap", "label": 'Gap between doors (in)', "type": "number"},
     {"name": "drawer_gap", "label": 'Reveal, drawer to doors (in)', "type": "number"},
@@ -618,7 +650,6 @@ FORM_FIELDS: list[dict[str, Any]] = [
     {"name": "counter_front_overhang", "label": 'Counter overhang front (in)', "type": "number"},
     {"name": "backsplash_h", "label": 'Backsplash height (in)', "type": "number"},
     {"name": "spacer_gap", "label": 'Filler to wall, bases only (in)', "type": "number"},
-    {"name": "toe_kick_recess", "label": 'Toe kick recess (in)', "type": "number"},
     {"name": "left_side", "label": "Left side", "type": "select",
      "options": [{"value": "wall", "label": "Wall"},
                  {"value": "open", "label": "Open"},

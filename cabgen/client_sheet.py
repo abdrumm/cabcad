@@ -786,7 +786,8 @@ def _features(p, has_counter: bool = False) -> list[str]:
     if p.has_shelf:
         out.append("adjustable shelf behind the doors")
     if p.has_toe_kick:
-        out.append(f"recessed toe kick, {fmt_in(p.toe_kick_h)} high")
+        out.append(f"recessed toe kick, {fmt_in(p.toe_kick_h)} high, "
+                   f"{fmt_in(p.toe_kick_recess)} back from the case front")
     out.append("fronts overlay the case; wire pulls" if p.doors or p.drawers
                else "case edges banded; no fronts")
     if str(p.style).startswith("upper"):
@@ -840,6 +841,10 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     SY = lambda y: sx0 + (y + 0.75) * s
     _ortho(svg, boxes, "side", SY, Z)
     _hdim(svg, SY(-0.75), SY(p.depth), Z(0) + 0.35, f"D = {fmt_in(D)}", size=0.13, ext_to=Z(0) + 0.03)
+    if p.has_toe_kick and p.toe_kick_recess > 0:
+        # The recess: the case front back to the face of the toe kick (no door).
+        _hdim(svg, SY(-p.toe_kick_recess), SY(0), Z(0) + 0.62,
+              f"kick {fmt_in(p.toe_kick_recess)}", size=0.11, ext_to=Z(0) + 0.03)
     _vdim(svg, SY(p.depth) + 0.35, Z(0), Z(H), fmt_in(H), size=0.12, ext_to=SY(p.depth) + 0.03)
     svg.text(SY(p.depth / 2), Z(H) - 0.1, "front left, wall right", size=0.1, anchor="middle", fill=SOFT)
 

@@ -60,7 +60,7 @@ ASSUMPTIONS = [
     "Laminate counter: backsplash and side splash are 3/4\" plywood, laminated.",
     "Solid surface counter: backsplash and side splash are 1/2\" solid surface.",
     "Front overhang is 1-1/2\" past the cabinet case (the code's existing value; 3/4\" past the doors), which makes the counter 25\" deep. A Lowe's laminate guide gives 1-1/4\" as standard.",
-    "The counter sits on top of the 33-1/2\" case, so the finished top is 35\" off the floor.",
+    "The counter sits on top of the 32\" base case, so the finished top is 33-1/2\" off the floor (Brook, Oct 30).",
     "A filler end gets one end strip at least 4\" wide (filler + 1-1/2\" when wider) instead of an end strip plus a joint strip.",
     "Laminate counters: no build-up strip along the back wall (Brook named front, edges and joints; JLC suggests front and rear strips).",
     "Solid surface: 1\" plywood stiffeners at the front (behind the edge strip), along the back wall, at the ends and on cabinet joints.",
