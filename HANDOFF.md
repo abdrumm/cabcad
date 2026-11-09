@@ -73,10 +73,10 @@ added since then pass. AR export does not need Omacad and passes here.
   break the ADA 34" rule).
 - `generate --with-omacad` and `kitchen` without `--no-show` need Omacad on the
   machine; they open workspace 3 full screen.
-- Laminate build-up is unchanged from Oct 24: 4" strips under the front edge, at
-  each end, and centred on every cabinet joint, and no strip along the back wall.
-  The Nov 7 perimeter rule was applied to solid surface only. Ask Brook whether
-  laminate should drop the joint strips too.
+- Laminate build-up matches solid surface on the seams (Brook, Nov 9): 4" strips
+  under the front edge and at each end, and no strip across a cabinet joint.
+  There is still no strip along the back wall (Brook, Oct 24). That was already
+  the rule; it was not changed.
 - On a solid-surface top the 4" is the strip width. The strips are still 1"
   plywood, directly under the 1/2" top, so the edge stays 1-1/2" and the base
   case stays 32" (finished height 33-1/2"). That reading matches the laminate
@@ -93,11 +93,12 @@ added since then pass. AR export does not need Omacad and passes here.
 Done 2026-11-08, from docs/PLANS.md items 3, 4 and 5. Items 1 and 2 were left
 alone. The finished height is still 33-1/2".
 
-- Solid-surface build-up is 4" strips of 1" plywood directly under the top,
-  around the perimeter only (front, behind the edge strip; back wall; both
-  ends). No strip runs across the seams between cabinets. The cut list, the
-  nest, the counter takeoff, the drawings and the Omacad boxes all use those
-  strips. Laminate build-up is unchanged.
+- Build-up does not cross a cabinet joint on any countertop (Brook, Nov 9).
+  Solid surface: 4" strips of 1" plywood directly under the top, at the front
+  (behind the edge strip), the back wall, and both ends. Laminate: 4" strips
+  of 3/4" plywood at the front and at each end only. No laminate strip along
+  the back wall (Brook, Oct 24; left as it was). The cut list, the nest, the
+  counter takeoff, the drawings and the Omacad boxes follow those strips.
 - The client-sheet countertop page (page 2) has a front view, a top view, a
   side view and a details block: build-up strips, splashes in the countertop
   colour, overhangs and dimensions. Same border and title block as the other
@@ -115,7 +116,5 @@ Still to do:
 3. Ask Brook: does a non-4" toe kick keep 33-1/2" finished (current) or change it?
 4. Check `base_2doors` against a real shop cabinet (shelf position, pull height)
    before the first job.
-5. Ask Brook whether laminate build-up should also stay off the cabinet joints.
-   It still has a strip on every joint, and none along the back wall.
 
 Future revisions and Brook's notes: see docs/PLANS.md.

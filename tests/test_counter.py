@@ -29,8 +29,10 @@ def test_laminate_build():
     assert "CT1-TOP" in p or "CT1-TOP1" in p
     assert all(x.material == '3/4" plywood' for x in ct.pieces)
     bu = [x for x in ct.pieces if x.label.startswith("CT1-BU")]
-    assert bu and all("glued and stapled" in x.notes.lower() for x in bu)
-    assert p["CT1-BUJ1"].width == 4.0
+    assert [x.name for x in bu] == ["Build-up, front", "Build-up, left end", "Build-up, right end"]
+    assert all("glued and stapled" in x.notes.lower() for x in bu)
+    assert all(x.width == 4.0 for x in bu)
+    assert not any("joint" in x.name.lower() or "back" in x.name.lower() for x in bu)
     orders = [lp.order for lp in ct.laminate]
     assert min(orders) <= 2 and 3 in orders
     assert "Laminate takeoff" in counter_text(ct)
@@ -92,9 +94,11 @@ def test_solid_buildup_is_a_perimeter_only():
     omacad = [b["name"] for b in payload["boxes"] if "Build-up" in b["name"]]
     assert len(omacad) == 4
 
-    # laminate still screws up at the joints (Brook, Oct 24). Not this change.
+    # laminate matches: front and ends only, nothing across a cabinet joint, no back strip
     lam = build_counter(cabs, {"counter": "laminate"})
-    assert any("cabinet joint" in p.name for p in _buildup(lam))
+    assert [p.name for p in _buildup(lam)] == [
+        "Build-up, front", "Build-up, left end", "Build-up, right end",
+    ]
 
 
 def test_long_laminate_top_is_one_piece_flagged_not_seamed():

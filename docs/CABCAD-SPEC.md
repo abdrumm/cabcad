@@ -378,7 +378,7 @@ Bases are under a countertop (32" case, Oct 30).
   - Open end: 1" overhang with a finished edge. Wall end: flush.
 - **Laminate (default):**
   - **3/4" plywood top**.
-  - **3/4" plywood build-up strips, 4" wide**, glued and stapled underneath: at the front (full length), at each end, and **centred on every cabinet joint** so installers screw up into them. Front edge = 3/4 + 3/4 = 1-1/2.
+  - **3/4" plywood build-up strips, 4" wide**, glued and stapled underneath: at the front (full length) and at each end. **No strip across a cabinet joint** (Brook, Nov 9; this used to be centred on every joint). **No strip along the back wall** (Brook, Oct 24). Front edge = 3/4 + 3/4 = 1-1/2.
   - A filler end gets one end strip at least 4" wide (filler + 1-1/2 when wider).
   - **No strip along the back wall** and **no backer (balance) sheet** (both to confirm).
   - **Laminate order:** side edges, front edge, top, then the splash's exposed edges, then the splash faces. Every exposed splash edge gets laminate.
@@ -394,7 +394,7 @@ Bases are under a countertop (32" case, Oct 30).
   - A piece longer than its stock sheet (96" plywood; 144" solid surface or laminate) is flagged **"LONGER THAN STOCK SHEET - seam TBD"** in its note. It's listed under "Not nested" in the nested cut list and on the nest summary page, in red, and isn't drawn on any sheet. Brook decides the seam.
 - **Seam rules, kept for later (code exists but is off):**
   - Seam only when the run is too long. Put the seam on a cabinet joint, with pieces about equal.
-  - **Brook's laminate seam:** a 6" strip of 3/4" ply centred on the seam (3" per piece, labels `CT1-BUJnA/B`), dogbone pockets **1/2" deep** across the seam (one per ~12", at least 2), adhesive, and dogbone clamps at install. Laminate itself seams only past 144", at least 6" from the ply seam.
+  - **Laminate seam:** no build-up strip is added across it (Brook, Nov 9). The older 6" strip and dogbone pockets are not built. Laminate itself is still one piece; a piece longer than 144" is flagged for Brook.
   - **Solid surface:** a hard seam with the maker's adhesive. No build-up strip across the cabinet joint (Nov 7); no dogbones.
   - Keep seams off sink, cooktop and dishwasher openings (2" to 3" from a cutout) and away from inside corners (1-1/2"). Sources: WOODWEB, Customcraft, Corian K-25288 and K-25705.
 - **Output:** `<job>-counter.md` (parts table, laminate takeoff by order, assumptions list), counter parts in the cut list and the nest (labels `CT1-TOP`, `CT1-BUF`, `CT1-BUL/R/Jn`, `CT1-STF/STB/STL/STR` for the solid-surface perimeter build-up — no `STJ`), `CT1-EF/EL/ER`, `CT1-BS`, `CT1-SSL/SSR`, laminate `CT1-LSL/LSR/LF/LT/LBT/LBEL/LBER/LSxT/LSxE/LBF/LSxF`), and the countertop page in the client sheet.

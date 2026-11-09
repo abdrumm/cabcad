@@ -151,8 +151,9 @@ Pick it on the group form or in the CSV: `# counter=laminate` (default), `solid`
 `# splash_left=yes|no`, `# splash_right=yes|no` (side splashes are on by default at wall ends).
 Rules and assumptions: `~/Work/cabinet-shop-standards.md` section 3. Code: `cabgen/counter.py`.
 
-- Laminate: 3/4" ply top + 4" ply build-up strips (glued and stapled) at the front, ends and
-  every cabinet joint; laminate takeoff in sq ft, in order (sides, front, top).
+- Laminate: 3/4" ply top + 4" ply build-up strips (glued and stapled) at the front and the
+  ends. No strip across cabinet joints, and none along the back wall. Laminate takeoff in
+  sq ft, in order (sides, front, top).
 - Solid surface: 1/2" top, 1-1/4" edge strip in a rabbet, 4" build-up strips of 1" plywood
   directly under the top around the perimeter only (front, back, ends — not across cabinet
   joints). Solid surface is listed, not nested; the plywood is nested with the rest of the project.
