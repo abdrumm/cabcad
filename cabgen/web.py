@@ -18,7 +18,8 @@ from .kitchen import (
     group_settings, parse_group, group_sheet, write_kitchen,
 )
 from .params import (
-    BASE_DEPTH, DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_RECESS,
+    BASE_DEPTH, DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_MAX,
+    TOE_KICK_RECESS,
     UPPER_1DOOR_MAX_WIDTH, _coerce, base_case_height, door_rule_warnings,
 )
 
@@ -169,9 +170,14 @@ def _field_html(field: dict, values: dict) -> str:
         return (f'<div class="check"><input type="checkbox" id="f-{name}" '
                 f'name="{name}"{checked}><label for="f-{name}">{html.escape(label)}</label></div>')
     step = ' step="0.0625"'
+    bounds = ""
+    if field.get("min") is not None:
+        bounds += f' min="{field["min"]:g}"'
+    if field.get("max") is not None:
+        bounds += f' max="{field["max"]:g}"'
     return (f'<div><label for="f-{name}">{html.escape(label)}</label>'
             f'<input type="number" id="f-{name}" name="{name}" '
-            f'value="{html.escape(str(val))}"{step}></div>')
+            f'value="{html.escape(str(val))}"{bounds}{step}></div>')
 
 
 def _form_html(values: dict) -> str:
@@ -434,9 +440,9 @@ def _base_size_fields(view: dict) -> str:
                    10, 36,
                    "Back face of the case (on the wall) to the front face of the case. "
                    "The door is not included.")
-        + _num_opt("toe_kick_h", "Toe kick height", view["toe_kick_h"], "in", 0, 12,
-                   "Floor to the bottom of the case. It comes out of the case, not off the "
-                   "33-1/2 inch finished height.")
+        + _num_opt("toe_kick_h", "Toe kick height", view["toe_kick_h"], "in", 0, TOE_KICK_MAX,
+                   "Floor to the bottom of the case, 4 inches at most. It comes out of the "
+                   "case, not off the 33-1/2 inch finished height.")
         + _num_opt("toe_kick_recess", "Toe kick depth", view["toe_kick_recess"],
                    "in, case front to kick face", 0, 12,
                    "Front face of the case, measured back to the face of the toe kick. "
@@ -819,7 +825,9 @@ function drawWire() {
   const uoff = parseFloat(wfVal('uoff')) || 0;
   // The toe kick height is called out on the form, so the front view follows it.
   const toeRaw = parseFloat(wfVal('toe_kick_h'));
-  const toeH = Number.isFinite(toeRaw) ? toeRaw : null;
+  // Brook, Nov 9: the kick is never taller than 4". The live view follows the field
+  // but will not draw a taller kick.
+  const toeH = Number.isFinite(toeRaw) ? Math.min(4, Math.max(0, toeRaw)) : null;
   // Same for the base case height: floor to the top of the case, no countertop.
   // It is fixed by the 33-1/2" finished rule, so this only mirrors the field.
   const hRaw = parseFloat(wfVal('height'));
@@ -1854,6 +1862,10 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 self._html("<h1>Not found</h1>", 404)
                 return
             p = params_from_form(form)
+            if p.toe_kick_h > TOE_KICK_MAX + 1e-9:
+                self._page(_form_html(form) + '<p class="warn">Toe kick height is 4 inches '
+                           "at most. The finished height stays 33-1/2 inches.</p>")
+                return
             result = generate(p, out_dir, with_omacad=True)
             warnings = [str(u) for u in result["uncuttable"]]
             warnings += list(result.get("warnings", []))

@@ -51,15 +51,15 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-145 passed, 2 failed (pytest, Python 3.12, 2026-11-08, this checkout). The two
+146 passed, 2 failed (pytest, Python 3.12, 2026-11-09, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
 - `tests/test_uppers.py::test_labels_nest_and_cut_list`
 
 Both call `write_kitchen`, which shells out to Omacad to write the model. On
-the iMac (2026-11-07) the same suite was 140 passed, 0 failed. The seven tests
-added since then pass. AR export does not need Omacad and passes here.
+the iMac (2026-11-07) the same suite was 140 passed, 0 failed. The tests added
+since then pass. AR export does not need Omacad and passes here.
 
 ## Known gaps / open questions
 - `docs/CABCAD-SPEC.md` still describes the Oct 30 build, except the solid-surface
@@ -68,9 +68,9 @@ added since then pass. AR export does not need Omacad and passes here.
 - README says `cd ~/Work/cabinet-gen`; master is `~/Work/cabcad`.
 - Counter depth is one number per run; mixed case depths use the deepest case for
   the counter's back face.
-- A toe kick taller than 4" keeps the case top at 32" and shortens the box.
-  Confirm Brook wants that rather than a taller finished height (which would
-  break the ADA 34" rule).
+- Toe kick height is 4" at most (Brook, Nov 9). The form and a sheet both
+  refuse a taller kick. The kick still comes out of the case, and the finished
+  height stays 33-1/2".
 - `generate --with-omacad` and `kitchen` without `--no-show` need Omacad on the
   machine; they open workspace 3 full screen.
 - Laminate build-up matches solid surface on the seams (Brook, Nov 9): 4" strips
@@ -107,14 +107,17 @@ alone. The finished height is still 33-1/2".
   <dir>` writes SVG, PDF and an HTML page for the CE pipeline. The HTML links
   the render PNG and the AR files written next to it. The kitchen form has a
   Front view button beside the client sheet (it also lives on the job card).
+- Toe kick height is at most 4" (Brook, Nov 9). The kitchen form, the single
+  cabinet form, and a `# toe_kick_h=` line all refuse a taller kick. The live
+  front view will not draw one. The kick still comes out of the case. Finished
+  height stays 33-1/2".
 
 Still to do:
 1. Cut over: put this tree at `~/Work/cabcad`, keep the `v0.15` tag, push to
    GitHub as the backup.
 2. Update `docs/CABCAD-SPEC.md` and `README.md` for v0.15 (the solid-surface
    build-up lines are already current).
-3. Ask Brook: does a non-4" toe kick keep 33-1/2" finished (current) or change it?
-4. Check `base_2doors` against a real shop cabinet (shelf position, pull height)
+3. Check `base_2doors` against a real shop cabinet (shelf position, pull height)
    before the first job.
 
 Future revisions and Brook's notes: see docs/PLANS.md.

@@ -85,11 +85,14 @@ BASE_CASE_H = base_case_height("laminate")   # 32": the preset, a countertop goe
 # case. The door overlays the case, so the door is not in this number.
 BASE_DEPTH = 23.5
 # The toe kick has two called-out sizes:
-#   toe_kick_h       floor to the bottom of the case (the height of the kick)
+#   toe_kick_h       floor to the bottom of the case (the height of the kick).
+#                    Never over 4" (Brook, Nov 9). It comes out of the case;
+#                    the finished height stays 33-1/2".
 #   toe_kick_recess  the case front, measured back to the face of the toe kick
 # The recess is measured from the CASE front, not the face of the door, so it
 # stays the same whatever the door thickness.
 TOE_KICK_H = 4.0
+TOE_KICK_MAX = 4.0          # Brook, Nov 9: the kick is never taller than 4"
 TOE_KICK_RECESS = 3.0
 
 STYLE_PRESETS: dict[str, dict[str, Any]] = {
@@ -639,7 +642,8 @@ FORM_FIELDS: list[dict[str, Any]] = [
     {"name": "depth", "label": 'Case depth, wall to case front (in)', "type": "number"},
     {"name": "counter_depth", "label": 'Countertop depth, wall to front edge (in)', "type": "number"},
     {"name": "drawer_front_h", "label": 'Drawer front height (in)', "type": "number"},
-    {"name": "toe_kick_h", "label": 'Toe kick height (in)', "type": "number"},
+    {"name": "toe_kick_h", "label": 'Toe kick height (in)', "type": "number",
+     "min": 0, "max": TOE_KICK_MAX},
     {"name": "toe_kick_recess", "label": 'Toe kick depth from the case front (in)', "type": "number"},
     {"name": "door_overhang", "label": 'Overlay onto the gable (in)', "type": "number"},
     {"name": "door_gap", "label": 'Gap between doors (in)', "type": "number"},

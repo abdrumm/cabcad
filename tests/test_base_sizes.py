@@ -61,18 +61,18 @@ def test_case_height_field_follows_the_countertop_choice():
 
 def test_base_sizes_round_trip_and_keep_the_33_and_a_half_rule(tmp_path: Path):
     form = {"bw1": "30", "bs1": "base2", "walls": "left",
-            "depth": "24", "toe_kick_h": "5", "toe_kick_recess": "2.5",
+            "depth": "24", "toe_kick_h": "3.5", "toe_kick_recess": "2.5",
             "counter_depth": "26", "counter": "laminate"}
     cabs, settings = _run(form, tmp_path)
     p = cabs[0].params
-    assert p.depth == 24 and p.toe_kick_h == 5 and p.toe_kick_recess == 2.5
+    assert p.depth == 24 and p.toe_kick_h == 3.5 and p.toe_kick_recess == 2.5
     assert settings["base_depth"] == 24 and settings["counter_depth"] == 26
     # the rule holds: the case is 33-1/2" minus the countertop build
     assert p.height == 32.0
     counter = build_counter(cabs, settings)
     assert counter.depth == 26 and counter.top_z == FINISHED_COUNTER_TOP == 33.5
     text = layout_text(cabs, settings)
-    assert "case depth 24" in text and "toe kick 5" in text and "counter 26" in text
+    assert "case depth 24" in text and "toe kick 3 1/2" in text and "counter 26" in text
 
 
 def test_a_posted_case_height_cannot_break_the_rule(tmp_path: Path):
@@ -92,16 +92,37 @@ def test_counter_depth_follows_the_case_when_it_is_left_blank(tmp_path: Path):
 
 def test_the_toe_kick_comes_out_of_the_case_not_the_finished_height(tmp_path: Path):
     cabs, settings = _run({"bw1": "30", "bs1": "3drawer", "walls": "left",
-                           "toe_kick_h": "6"}, tmp_path)
+                           "toe_kick_h": "3"}, tmp_path)
     p = cabs[0].params
-    assert p.height == 32.0 and p.toe_kick_h == 6.0
-    assert p.case_bottom_z == 6.0 and p.case_h == 26.0
+    assert p.height == 32.0 and p.toe_kick_h == 3.0
+    assert p.case_bottom_z == 3.0 and p.case_h == 29.0
     assert build_counter(cabs, settings).top_z == 33.5
+
+
+def test_toe_kick_height_is_capped_at_4_inches(tmp_path: Path):
+    """Brook, Nov 9: the kick is never taller than 4". Finished height stays 33-1/2"."""
+    page = _run_page(group_view(None))
+    assert 'id="toe_kick_h" name="toe_kick_h" min="0" max="4"' in page
+    assert "Math.min(4, Math.max(0, toeRaw))" in page
+    from cabgen.web import _form_html
+    single = _form_html({"style": "base_3drawers", "toe_kick_h": 4})
+    assert 'name="toe_kick_h"' in single and 'max="4"' in single
+    with pytest.raises(KitchenError, match="4"):
+        group_settings({"bw1": "30", "bs1": "3drawer", "walls": "left", "toe_kick_h": "5"})
+    cabs, settings = _run({"bw1": "30", "bs1": "3drawer", "walls": "left",
+                           "toe_kick_h": "4"}, tmp_path)
+    assert cabs[0].params.toe_kick_h == 4.0 and cabs[0].params.height == 32.0
+    assert build_counter(cabs, settings).top_z == 33.5
+    sheet = tmp_path / "tall.csv"
+    sheet.write_text("# toe_kick_h=6\nname,style,width,run\nA,3drawer,30,base\n", encoding="utf-8")
+    loaded, rows = load_kitchen(sheet)
+    with pytest.raises(KitchenError, match="4"):
+        place_kitchen(rows, loaded, sheet.name)
 
 
 def test_sizes_out_of_range_are_refused():
     base = {"bw1": "30", "bs1": "3drawer", "walls": "left"}
-    for key, value in (("depth", "40"), ("toe_kick_h", "13"), ("toe_kick_recess", "13"),
+    for key, value in (("depth", "40"), ("toe_kick_h", "5"), ("toe_kick_recess", "13"),
                        ("counter_depth", "50")):
         with pytest.raises(KitchenError):
             group_settings({**base, key: value})
