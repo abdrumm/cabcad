@@ -29,10 +29,12 @@ def test_laminate_build():
     assert "CT1-TOP" in p or "CT1-TOP1" in p
     assert all(x.material == '3/4" plywood' for x in ct.pieces)
     bu = [x for x in ct.pieces if x.label.startswith("CT1-BU")]
-    assert [x.name for x in bu] == ["Build-up, front", "Build-up, left end", "Build-up, right end"]
+    assert [x.name for x in bu] == [
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
+    ]
     assert all("glued and stapled" in x.notes.lower() for x in bu)
     assert all(x.width == 4.0 for x in bu)
-    assert not any("joint" in x.name.lower() or "back" in x.name.lower() for x in bu)
+    assert not any("joint" in x.name.lower() for x in bu)
     orders = [lp.order for lp in ct.laminate]
     assert min(orders) <= 2 and 3 in orders
     assert "Laminate takeoff" in counter_text(ct)
@@ -94,11 +96,45 @@ def test_solid_buildup_is_a_perimeter_only():
     omacad = [b["name"] for b in payload["boxes"] if "Build-up" in b["name"]]
     assert len(omacad) == 4
 
-    # laminate matches: front and ends only, nothing across a cabinet joint, no back strip
+    # laminate matches: full perimeter, including the back edge, nothing across a joint
     lam = build_counter(cabs, {"counter": "laminate"})
     assert [p.name for p in _buildup(lam)] == [
-        "Build-up, front", "Build-up, left end", "Build-up, right end",
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
     ]
+
+
+def _overlap(a, b) -> bool:
+    ax, ay, az = a.pos
+    adx, ady, adz = a.size
+    bx, by, bz = b.pos
+    bdx, bdy, bdz = b.size
+    return (ax < bx + bdx - 1e-6 and bx < ax + adx - 1e-6
+            and ay < by + bdy - 1e-6 and by < ay + ady - 1e-6
+            and az < bz + bdz - 1e-6 and bz < az + adz - 1e-6)
+
+
+def test_buildup_is_a_full_perimeter_with_butted_corners():
+    """Brook, Nov 11: 4\" strips under the top, all the way around, including the back.
+    Corners meet. They are not stacked, and nothing crosses a cabinet seam."""
+    for kind in ("laminate", "solid"):
+        ct = build_counter(_cabs([30, 24, 18]), {"counter": kind})
+        strips = _buildup(ct)
+        assert ct.joints
+        assert not any("joint" in p.name.lower() for p in strips)
+        boxes = [b for p in strips for b in p.boxes]
+        assert boxes
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                assert not _overlap(a, b), (kind, a.name, b.name)
+        back = [b for b in boxes if "back" in b.name.lower()]
+        assert len(back) == 1
+        b = back[0]
+        assert abs(b.size[1] - 4.0) < 1e-6
+        assert abs((b.pos[1] + b.size[1]) - ct.y_back) < 1e-6
+        assert abs(b.size[0] - ct.length) < 1e-6
+        assert abs(b.pos[2] - ct.z0) < 1e-6
+        # directly under the top, not down at the cabinet bottom
+        assert b.pos[2] > 20.0
 
 
 def test_long_laminate_top_is_one_piece_flagged_not_seamed():

@@ -2,10 +2,11 @@
 
 Two builds, both 1-1/2" thick at the front edge:
 
-Laminate (default): 3/4" plywood top. Under it, 3/4" plywood build-up strips at
-the front and at each counter end, so installers screw up into plywood. No
-strip across the seams between cabinets, and none along the back wall
-(Brook, Nov 9; the back wall was already out, Oct 24).
+Laminate (default): 3/4" plywood top. Under it, 3/4" plywood build-up strips
+4" wide around the whole perimeter: front, back edge (full length), and both
+ends. They sit under the countertop, not under the cabinet box. No strip
+across the seams between cabinets (Brook, Nov 11; the old "no back strip"
+note is superseded).
 Laminate goes on in this order: side edges (when needed), front edge, then the
 top. Every exposed backsplash edge gets laminate. 4" backsplash on the wall;
 a side splash at a wall end when asked for.
@@ -61,8 +62,8 @@ ASSUMPTIONS = [
     "Front overhang is 1-1/2\" past the cabinet case (the code's existing value; 3/4\" past the doors), which makes the counter 25\" deep. A Lowe's laminate guide gives 1-1/4\" as standard.",
     "The counter sits on top of the 32\" base case, so the finished top is 33-1/2\" off the floor (Brook, Oct 30).",
     "A filler end gets one end strip at least 4\" wide (filler + 1-1/2\" when wider).",
-    "Laminate counters: build-up at the front and at each end only. No strip across cabinet joints (Brook, Nov 9). No strip along the back wall (Brook, Oct 24).",
-    "Solid surface: 4\" build-up strips of 1\" plywood directly under the top, at the front (behind the edge strip), along the back wall and at both ends. Not across the seams between cabinets.",
+    "Every countertop with build-up gets 4\" strips around the whole perimeter, including a continuous strip along the back edge (Brook, Nov 11). The Oct 24 note that laminate had no back strip is superseded. No strip crosses a cabinet joint. Corners are butted, not stacked.",
+    "Solid surface: those strips are 1\" plywood directly under the top, front (behind the edge strip), back, and both ends.",
     "Solid surface rabbet: Brook said 1/2\" x 1/2\", but a 1/4\" lip plus a 1-1/4\" strip = 1-1/2\" means the rabbet is 1/2\" wide x 1/4\" deep in the 1/2\" top. Modelled that way.",
     "Solid surface corners: the front edge strip runs the full length and the side strips butt behind it.",
     "Laminate is listed as a square-foot takeoff (+10% allowance), not nested on sheets.",
@@ -275,6 +276,9 @@ def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: s
     No strip on a cabinet joint, on any countertop (Brook, Nov 9).
     """
     length = y1 - y0
+    if length < 0.25:
+        # The front and back bands already meet. Don't stack an end strip on them.
+        return
     wl = max(STRIP_W, fl + 1.5) if fl else STRIP_W
     wr = max(STRIP_W, fr + 1.5) if fr else STRIP_W
     lx = c.x0 + (inset_open if c.left_open else 0.0)
@@ -319,10 +323,17 @@ def _laminate(c: Counter, fl: float, fr: float) -> None:
         _add(c, f"BUF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, t, STRIP_W, b - a,
              [((a, c.y_front, c.z0), (b - a, STRIP_W, t))],
              "Glued and stapled under the front edge; with the top makes the 1-1/2\" edge.")
-    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back, ply, fl, fr, "BU", 0.0, "Build-up")
+        _add(c, f"BUB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, t, STRIP_W, b - a,
+             [((a, c.y_back - STRIP_W, c.z0), (b - a, STRIP_W, t))],
+             '4" wide, glued and stapled under the top along the full back edge. '
+             "Not across cabinet joints.")
+    # Ends fill the gap between the front and back strips so the corners are not doubled.
+    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "BU", 0.0,
+                  "Build-up")
     c.notes.append(
-        '4" build-up strips under the front edge and at each end. No strip across the seams '
-        "between cabinets, and none along the back wall."
+        '4" build-up strips under the countertop around the whole perimeter: front, the full '
+        "back edge, and both ends. No strip across the seams between cabinets. "
+        "The strips meet at the corners; they are not stacked."
     )
     _splashes(c, ply, t)
 

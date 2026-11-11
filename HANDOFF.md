@@ -73,10 +73,12 @@ since then pass. AR export does not need Omacad and passes here.
   height stays 33-1/2".
 - `generate --with-omacad` and `kitchen` without `--no-show` need Omacad on the
   machine; they open workspace 3 full screen.
-- Laminate build-up matches solid surface on the seams (Brook, Nov 9): 4" strips
-  under the front edge and at each end, and no strip across a cabinet joint.
-  There is still no strip along the back wall (Brook, Oct 24). That was already
-  the rule; it was not changed.
+- Build-up on every countertop (laminate and solid surface) is 4" strips under
+  the countertop around the whole perimeter, including a continuous strip along
+  the full back edge (Brook, Nov 11). The Oct 24 "no back strip on laminate"
+  note is superseded. No strip crosses a cabinet joint. Corners are butted, not
+  stacked. The strips are in the cut list, the nest, the drawings and the
+  Omacad boxes.
 - On a solid-surface top the 4" is the strip width. The strips are still 1"
   plywood, directly under the 1/2" top, so the edge stays 1-1/2" and the base
   case stays 32" (finished height 33-1/2"). That reading matches the laminate
@@ -96,9 +98,9 @@ alone. The finished height is still 33-1/2".
 - Build-up does not cross a cabinet joint on any countertop (Brook, Nov 9).
   Solid surface: 4" strips of 1" plywood directly under the top, at the front
   (behind the edge strip), the back wall, and both ends. Laminate: 4" strips
-  of 3/4" plywood at the front and at each end only. No laminate strip along
-  the back wall (Brook, Oct 24; left as it was). The cut list, the nest, the
-  counter takeoff, the drawings and the Omacad boxes follow those strips.
+  of 3/4" plywood under the top on that same perimeter, including the back
+  edge (Brook, Nov 11). The cut list, the nest, the counter takeoff, the
+  drawings and the Omacad boxes follow those strips.
 - The client-sheet countertop page (page 2) has a front view, a top view, a
   side view and a details block: build-up strips, splashes in the countertop
   colour, overhangs and dimensions. Same border and title block as the other

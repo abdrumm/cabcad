@@ -378,7 +378,7 @@ Bases are under a countertop (32" case, Oct 30).
   - Open end: 1" overhang with a finished edge. Wall end: flush.
 - **Laminate (default):**
   - **3/4" plywood top**.
-  - **3/4" plywood build-up strips, 4" wide**, glued and stapled underneath: at the front (full length) and at each end. **No strip across a cabinet joint** (Brook, Nov 9; this used to be centred on every joint). **No strip along the back wall** (Brook, Oct 24). Front edge = 3/4 + 3/4 = 1-1/2.
+  - **3/4" plywood build-up strips, 4" wide**, glued and stapled under the countertop around the whole perimeter: front (full length), a continuous strip along the full back edge, and both ends. Corners are butted, not stacked. **No strip across a cabinet joint.** Brook, Nov 11: the Oct 24 "no back strip on laminate" note is superseded. Front edge = 3/4 + 3/4 = 1-1/2.
   - A filler end gets one end strip at least 4" wide (filler + 1-1/2 when wider).
   - **No strip along the back wall** and **no backer (balance) sheet** (both to confirm).
   - **Laminate order:** side edges, front edge, top, then the splash's exposed edges, then the splash faces. Every exposed splash edge gets laminate.

@@ -1040,9 +1040,9 @@ def _counter_details(svg: Svg, job: Job, ct, box) -> None:
     if ct.kind == "laminate":
         lines = [
             'Build-up: 4" strips, 3/4" plywood, glued and',
-            "stapled under the front edge and at each end.",
+            "stapled under the countertop all the way around:",
+            "front, full back edge, and both ends.",
             "No strip across the seams between cabinets.",
-            "No strip along the back wall.",
             "Backsplash and side splash match the countertop",
             "(laminate, the same colour as the top).",
             f"Front overhang {fmt_in(-ct.y_front)}. Open ends overhang 1\".",

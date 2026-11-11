@@ -83,8 +83,8 @@ NOTES: list[Note] = [
          lambda f: f"{_in(f.filler)} filler at the {f.filler_side or 'wall'} end only; never on uppers.",
          lambda f: f.filler > 0),
     Note("counter-lam", "shop", "COUNTERTOP",
-         '3/4" ply top on 4" build-up strips (front and ends only). '
-         "Laminate side edges, front edge, then top.",
+         '3/4" ply top on 4" build-up around the perimeter, including the back edge. '
+         "No strip on cabinet joints.",
          lambda f: f.counter == "laminate"),
     Note("counter-solid", "shop", "COUNTERTOP",
          '1/2" solid surface, 1-1/4" edge; 4" build-up under the top, perimeter only.',

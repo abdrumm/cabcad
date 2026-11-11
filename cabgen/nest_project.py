@@ -77,7 +77,8 @@ CODE_MEANING = {
     "TKB": "toe kick stile, back", "DF": "drawer front", "DL": "door left",
     "DR": "door right", "D": "door (1-door upper)", "OS": "open shelf", "MD": "microwave divider", "MS": "microwave shelf (projects, 2\" R front corners)", "DBS": "drawer box side", "DBF": "drawer box front/back",
     "DBB": "drawer box bottom", "SH": "shelf", "SP": "spacer board (filler)",
-    "CT1-TOP": "countertop top", "CT1-BU": "laminate build-up (F front, L/R ends; no strip on a cabinet joint)",
+    "CT1-TOP": "countertop top",
+    "CT1-BU": "laminate build-up (F front, B back, L/R ends; 4\" perimeter, no joint strip)",
     "CT1-ST": "solid-surface build-up (4\" strip under the top; F front, B back, L/R ends; perimeter only)",
     "CT1-BS": "backsplash", "CT1-SS": "side splash",
 }
