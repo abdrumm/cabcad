@@ -1,4 +1,4 @@
-"""Procedural kitchen still for CabCAD. Script version 7.
+"""Procedural kitchen still for CabCAD. Script version 8.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 7
+SCRIPT_VERSION = 8
 INCH = 0.0254
 SAMPLES = 80
 WIDTH = 1920
@@ -24,9 +24,12 @@ HEIGHT = 1080
 WALL_COLOR = (0.76, 0.69, 0.60)
 SIDE_WALL_COLOR = (0.52, 0.46, 0.39)
 FLOOR_COLOR = (0.36, 0.24, 0.15)
-# Degrees off a straight-on view, toward the finished end. 75 puts the
-# camera on the right-front, looking back along the run at the left wall.
-OPEN_ANGLE = 75.0
+# Degrees off a straight-on view, toward the finished end. 35 still shows
+# the right end, and the cabinets stay large in the frame.
+OPEN_ANGLE = 35.0
+# Tighter than 1.12 so the run fills the picture and the left edge is the
+# wall, not the dark background beside it.
+FRAME_MARGIN = 1.03
 
 
 def _norm(v):
@@ -177,7 +180,7 @@ def in_frame(point, cam, target, lens_mm=32.0, aspect=WIDTH / HEIGHT, sensor_mm=
 
 def camera_for_run(bounds_min, bounds_max, walls, lens_mm=32.0,
                    aspect=WIDTH / HEIGHT, margin=1.12, degrees=OPEN_ANGLE):
-    """Camera about 75 degrees off square, toward the finished end.
+    """Camera about 35 degrees off square, toward the finished end.
 
     A left wall means the right end is finished, so the camera sits to the
     right and that end panel faces the lens. A right wall is the mirror.
@@ -519,10 +522,10 @@ def main():
     # mesh itself is built after the camera, and runs past it.
     fit_minx = min(minx, left_span[0]) if left_span else minx
     fit_maxx = max(maxx, right_span[1]) if right_span else maxx
-    fit_maxy = maxy + (0.65 if (left_span or right_span) else 0.0)
+    fit_maxy = maxy + (0.22 if (left_span or right_span) else 0.0)
     cam_loc, target, _dist, _view = camera_for_run(
         (fit_minx, miny, minz), (fit_maxx, fit_maxy, maxz), walls,
-        lens_mm=32.0, aspect=width / float(height), margin=1.12)
+        lens_mm=32.0, aspect=width / float(height), margin=FRAME_MARGIN)
     side_y0, side_y1 = side_wall_forward(wall_y0, cam_loc[1])
     cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, side_y1 + 0.4, 0.0, floor)
     cube_m(minx - pad, wall_y0, 0.0, maxx + pad, wall_y1, wall_top, wall)

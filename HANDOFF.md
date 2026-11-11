@@ -96,7 +96,7 @@ since then pass. AR export does not need Omacad and passes here.
 - Photorealistic view is the last button on the kitchen form. It does not run
   when the form is only opened. The original `.blend` was not found. The still
   is a new generic room around the current boxes, including the perimeter
-  build-up (`cabgen/blender/render_kitchen.py`, version 7). No `.blend` file
+  build-up (`cabgen/blender/render_kitchen.py`, version 8). No `.blend` file
   is required and none is in git. Blender is not vendored.
   Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
   the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
@@ -125,9 +125,10 @@ since then pass. AR export does not need Omacad and passes here.
   stopped half a metre past the cabinet front, so the frame looked past it
   into a black void, and it was the same colour as the back wall. Version 7
   runs that wall from the back wall to past the camera and makes it darker
-  than the back wall. The camera is 75 degrees off square, on the right,
-  looking back at the left wall. The light is one stop under version 6, a
-  low amber sun. 80 samples, more bounces, OIDN on the ACCURATE prefilter.
+  than the back wall. The light is one stop under version 6, a low amber sun.
+  Version 8 brings the camera back to 35 degrees off the front, still on the
+  right so the finished end shows, and frames the run tighter. Same low amber
+  sun, 80 samples, bounces, and OIDN on the ACCURATE prefilter.
   Estimate about 240 seconds, four times the 55.7 second frame. Not measured.
   One render at a time, in the background, cached by design. A repeat of the same
   design on that machine was 0.015 seconds, and an ordinary page was 0.044

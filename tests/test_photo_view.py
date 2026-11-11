@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 7
+    assert SCRIPT_VERSION == 8
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,7 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 7 and payload["samples"] == 80
+    assert payload["version"] == 8 and payload["samples"] == 80
     assert payload["walls"] == "0"
     assert payload["denoise"] is True
 
@@ -134,17 +134,18 @@ def test_side_wall_sits_on_the_end_the_job_names():
 
 
 def test_camera_shows_the_finished_end_and_keeps_the_stack():
-    """A left wall's finished end is the right one. The view is 75 degrees
+    """A left wall's finished end is the right one. The view is 35 degrees
     off square, the left wall's face is inside the frame, and the wall runs
     past the camera so the picture cannot see around it."""
     from cabgen.blender.render_kitchen import (
-        camera_for_run, in_frame, side_wall_forward, view_angle,
+        FRAME_MARGIN, camera_for_run, in_frame, side_wall_forward, view_angle,
     )
-    # The renderer frames the cabinets plus a strip of wall in front of them.
-    bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05 + 0.65, 2.2)
-    cam, target, dist, _view = camera_for_run(bmin, bmax, "left", aspect=16 / 9, margin=1.12)
+    # The renderer frames the cabinets plus a short strip of wall in front.
+    bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05 + 0.22, 2.2)
+    cam, target, dist, _view = camera_for_run(
+        bmin, bmax, "left", aspect=16 / 9, margin=FRAME_MARGIN)
     assert dist > 1.0
-    assert 70.0 <= view_angle(cam, target) <= 80.0
+    assert abs(view_angle(cam, target) - 35.0) < 1.0
     assert cam[0] > bmax[0]
     assert cam[1] > bmax[1]
     for x in (bmin[0], bmax[0]):
@@ -152,13 +153,13 @@ def test_camera_shows_the_finished_end_and_keeps_the_stack():
             for z in (bmin[2], bmax[2]):
                 assert in_frame((x, y, z), cam, target, aspect=16 / 9)
     # The left wall face beside the run, from the floor to above the uppers.
-    for point in ((0.0, -0.7, 0.05), (0.0, -0.7, 2.1), (0.0, 0.5, 0.05), (0.0, 0.5, 2.1)):
+    for point in ((0.0, -0.7, 0.05), (0.0, -0.7, 2.1), (0.0, 0.2, 0.05), (0.0, 0.2, 2.1)):
         assert in_frame(point, cam, target, aspect=16 / 9)
     _back, forward = side_wall_forward(-0.76, cam[1])
     assert forward > cam[1]
     other, _t, _d, _v = camera_for_run(bmin, bmax, "right", aspect=16 / 9)
     assert other[0] < bmin[0]
-    assert 70.0 <= view_angle(other, _t) <= 80.0
+    assert abs(view_angle(other, _t) - 35.0) < 1.0
 
 
 def test_back_wall_sits_on_the_cabinet_backs():
