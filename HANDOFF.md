@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-168 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
+170 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -96,7 +96,7 @@ since then pass. AR export does not need Omacad and passes here.
 - Photorealistic view is the last button on the kitchen form. It does not run
   when the form is only opened. The original `.blend` was not found. The still
   is a new generic room around the current boxes, including the perimeter
-  build-up (`cabgen/blender/render_kitchen.py`, version 5). No `.blend` file
+  build-up (`cabgen/blender/render_kitchen.py`, version 6). No `.blend` file
   is required and none is in git. Blender is not vendored.
   Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
   the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
@@ -117,8 +117,13 @@ since then pass. AR export does not need Omacad and passes here.
   `acb6c2c`: version 4, 1920×1080, 36 samples, OIDN on, 120.4 seconds. The
   orientation, the wall, and the grain were right, and the picture was blown
   out. Version 5 keeps that camera and that denoiser, drops the light power,
-  rakes the sun from the upper front-left, and renders 20 samples. Estimate
-  from the 120.4 second frame: about 70 seconds. Not measured.
+  rakes the sun from the upper front-left, and renders 20 samples. Measured
+  on the iMac at `391c369`: version 5, 1920×1080, 20 samples, OIDN FAST,
+  58.0 seconds. Brook called it much better, and still too bright and flat,
+  with no left wall and the finished right end hidden. Version 6 is 0.4 stops
+  darker, builds the side wall the job names (left, right, or both) tight to
+  that end, and moves the camera just past the finished end. Same 20 samples.
+  Estimate about 58 seconds, from that measurement. Not measured.
   One render at a time, in the background, cached by design. A repeat of the same
   design on that machine was 0.015 seconds, and an ordinary page was 0.044
   seconds. `GET /photo-status` only checks; it does not start a render.

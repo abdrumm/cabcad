@@ -1,4 +1,4 @@
-"""Procedural kitchen still for CabCAD. Script version 5.
+"""Procedural kitchen still for CabCAD. Script version 6.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 5
+SCRIPT_VERSION = 6
 INCH = 0.0254
 SAMPLES = 20
 WIDTH = 1920
@@ -23,9 +23,6 @@ HEIGHT = 1080
 # Warm greige, clearly not the cabinet white. Floor is a mid oak.
 WALL_COLOR = (0.76, 0.69, 0.60)
 FLOOR_COLOR = (0.36, 0.24, 0.15)
-# From the subject toward the camera: in front of the run, a little to the
-# left, slightly above. Image-right is then +X, matching the drawings.
-FRONT_VIEW = (-0.16, 1.0, 0.20)
 
 
 def _norm(v):
@@ -109,6 +106,57 @@ def image_x(point, cam, target):
 def back_wall_interval(cabinet_back_y, thickness=0.06):
     """Wall just behind the cabinets. The room-facing face is ``cabinet_back_y``."""
     return cabinet_back_y - thickness, cabinet_back_y
+
+
+def normalize_walls(walls) -> str:
+    """Job end choice: ``left``, ``right``, ``both``, or ``0`` (no side wall)."""
+    key = str(walls or "0").strip().lower()
+    if key in ("none", "no", ""):
+        return "0"
+    if key not in ("0", "left", "right", "both"):
+        return "0"
+    return key
+
+
+def side_wall_spans(walls, minx, maxx, thickness=0.06):
+    """Side walls tight to the cabinet ends. The room-facing face is the end.
+
+    A left wall's inner face is ``minx``, which is the left face of the run
+    (the side splash, when the job has one). ``None`` means that end is open.
+    """
+    key = normalize_walls(walls)
+    left = (minx - thickness, minx) if key in ("left", "both") else None
+    right = (maxx, maxx + thickness) if key in ("right", "both") else None
+    return left, right
+
+
+def camera_for_run(bounds_min, bounds_max, walls, lens_mm=32.0,
+                   aspect=WIDTH / HEIGHT, margin=1.12):
+    """Camera in front of the run, just past the finished end.
+
+    A left wall means the right end is the finished one, so the camera sits
+    to the right of that end and the right side panels face the lens. A right
+    wall is the mirror of that. Both walls stay nearly straight on. The whole
+    stack still fits.
+    """
+    key = normalize_walls(walls)
+    if key == "both":
+        view = (0.10, 1.0, 0.22)
+        cam, target, dist = camera_fit(
+            bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
+        return cam, target, dist, view
+    sign = -1.0 if key == "right" else 1.0
+    end = bounds_max[0] if sign > 0 else bounds_min[0]
+    lateral = 0.22
+    cam = target = dist = view = None
+    for _ in range(18):
+        view = (sign * lateral, 1.0, 0.22)
+        cam, target, dist = camera_fit(
+            bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
+        if (cam[0] - end) * sign >= 0.40:
+            break
+        lateral += 0.07
+    return cam, target, dist, view
 
 
 def denoise_should_try(requested, has_attr, enum_ids):
@@ -361,7 +409,8 @@ def main():
             if name in looks:
                 scene.view_settings.look = name
                 break
-        scene.view_settings.exposure = -0.20
+        # 0.4 stops under version 5. 2^-0.4 is about 76% of that brightness.
+        scene.view_settings.exposure = -0.60
     except Exception:
         pass
     if hasattr(scene.cycles, "use_light_tree"):
@@ -436,8 +485,20 @@ def main():
     wall_y0, wall_y1 = back_wall_interval(miny)
     cube_m(minx - pad, wall_y0, 0.0, maxx + pad, wall_y1, wall_top, wall)
 
-    cam_loc, target, _dist = camera_fit(
-        (minx, miny, minz), (maxx, maxy, maxz), FRONT_VIEW,
+    walls = job.get("walls") or "0"
+    side_y0, _side_back = back_wall_interval(miny)
+    side_y1 = maxy + 0.50
+    left_span, right_span = side_wall_spans(walls, minx, maxx)
+    if left_span:
+        cube_m(left_span[0], side_y0, 0.0, left_span[1], side_y1, wall_top, wall)
+    if right_span:
+        cube_m(right_span[0], side_y0, 0.0, right_span[1], side_y1, wall_top, wall)
+
+    fit_minx = left_span[0] if left_span else minx
+    fit_maxx = right_span[1] if right_span else maxx
+    fit_maxy = side_y1 if (left_span or right_span) else maxy
+    cam_loc, target, _dist, _view = camera_for_run(
+        (fit_minx, miny, minz), (fit_maxx, fit_maxy, maxz), walls,
         lens_mm=32.0, aspect=width / float(height), margin=1.12)
     bpy.ops.object.camera_add(location=cam_loc)
     cam = bpy.context.active_object
@@ -458,7 +519,7 @@ def main():
     aim = bpy.context.active_object
     bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
-    sun.data.energy = 2.2
+    sun.data.energy = 2.0
     sun.data.color = (1.0, 0.78, 0.48)
     if hasattr(sun.data, "angle"):
         sun.data.angle = 0.045
@@ -467,7 +528,7 @@ def main():
     bpy.ops.object.light_add(type="AREA", location=(minx + (maxx - minx) * 0.28,
                                                     maxy + 2.2, maxz + 0.55))
     window = bpy.context.active_object
-    window.data.energy = 28
+    window.data.energy = 18
     window.data.size = max(0.9, (maxx - minx) * 0.45)
     window.data.color = (1.0, 0.82, 0.58)
     if hasattr(window.data, "shape"):
@@ -478,7 +539,7 @@ def main():
     bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.8,
                                                     minz + (maxz - minz) * 0.2))
     fill = bpy.context.active_object
-    fill.data.energy = 6
+    fill.data.energy = 4
     fill.data.size = max(1.6, (maxx - minx) * 0.7)
     fill.data.color = (1.0, 0.94, 0.86)
     _track(fill, aim)
@@ -489,7 +550,7 @@ def main():
     bg = world.node_tree.nodes.get("Background")
     if bg:
         bg.inputs[0].default_value = (0.95, 0.88, 0.76, 1.0)
-        bg.inputs[1].default_value = 0.035
+        bg.inputs[1].default_value = 0.024
     if hasattr(scene.cycles, "use_fast_gi"):
         scene.cycles.use_fast_gi = True
         if hasattr(scene.cycles, "fast_gi_method"):

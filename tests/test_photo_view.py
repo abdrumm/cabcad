@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 5
+    assert SCRIPT_VERSION == 6
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,8 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 5 and payload["samples"] == 20
+    assert payload["version"] == 6 and payload["samples"] == 20
+    assert payload["walls"] == "0"
     assert payload["denoise"] is True
 
 
@@ -106,17 +107,53 @@ def test_counter_laminate_stays_a_surface_and_the_sun_rakes():
 
 def test_the_right_hand_cabinet_stays_on_the_right():
     """U4, the microwave, is the rightmost upper. The picture must not mirror it."""
-    from cabgen.blender.render_kitchen import (
-        FRONT_VIEW, box_center_m, camera_fit, image_x,
-    )
+    from cabgen.blender.render_kitchen import box_center_m, camera_for_run, image_x
     left = box_center_m((0.0, 0.0, 54.0), (24.0, 12.0, 30.0))
     micro = box_center_m((72.0, 0.0, 54.0), (30.0, 12.0, 30.0))
     assert micro[0] > left[0]
     bmin = (left[0] - 0.3, min(left[1], micro[1]) - 0.4, 0.0)
     bmax = (micro[0] + 0.3, max(left[1], micro[1]) + 0.2, 2.2)
-    cam, target, _dist = camera_fit(bmin, bmax, FRONT_VIEW, lens_mm=32.0,
-                                    aspect=16 / 9, margin=1.12)
+    cam, target, _dist, _view = camera_for_run(bmin, bmax, "left", aspect=16 / 9)
     assert image_x(micro, cam, target) > image_x(left, cam, target)
+
+
+def test_side_wall_sits_on_the_end_the_job_names():
+    from cabgen.blender.render_kitchen import side_wall_spans
+    left, right = side_wall_spans("left", 0.0, 3.2)
+    assert left is not None and right is None
+    assert abs(left[1] - 0.0) < 1e-9 and left[0] < left[1]
+    left, right = side_wall_spans("right", 0.0, 3.2)
+    assert left is None and right is not None and abs(right[0] - 3.2) < 1e-9
+    left, right = side_wall_spans("both", 0.0, 3.2)
+    assert left is not None and right is not None
+    assert side_wall_spans("0", 0.0, 3.2) == (None, None)
+
+
+def test_camera_shows_the_finished_end_and_keeps_the_stack():
+    """A left wall's finished end is the right one. The camera sits just past
+    it, the right end stays on the right of the picture, and every corner fits."""
+    from cabgen.blender.render_kitchen import _cross, _dot, _norm, camera_for_run
+    bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05, 2.2)
+    cam, _target, dist, _view = camera_for_run(bmin, bmax, "left", aspect=16 / 9, margin=1.12)
+    assert dist > 1.0
+    assert cam[0] > bmax[0] + 0.3
+    assert cam[1] > bmax[1]
+    tan_h = (36.0 / 2.0) / 32.0
+    tan_v = (36.0 / (16 / 9) / 2.0) / 32.0
+    back = _norm(_view)
+    look = (-back[0], -back[1], -back[2])
+    right = _norm(_cross((0.0, 0.0, 1.0), look))
+    up = _norm(_cross(look, right))
+    for x in (bmin[0], bmax[0]):
+        for y in (bmin[1], bmax[1]):
+            for z in (bmin[2], bmax[2]):
+                p = (x - cam[0], y - cam[1], z - cam[2])
+                depth = _dot(p, look)
+                assert depth > 0.2
+                assert abs(_dot(p, right)) / depth <= tan_h / 1.12 + 1e-6
+                assert abs(_dot(p, up)) / depth <= tan_v / 1.12 + 1e-6
+    other, _t, _d, _v = camera_for_run(bmin, bmax, "right", aspect=16 / 9)
+    assert other[0] < bmin[0] - 0.3
 
 
 def test_back_wall_sits_on_the_cabinet_backs():

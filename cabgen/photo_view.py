@@ -54,6 +54,7 @@ def fingerprint(job) -> str:
         "name": job.name,
         "counter": settings.get("counter"),
         "splash": [settings.get("splash_left"), settings.get("splash_right")],
+        "walls": settings.get("base_walls") or "0",
         "finishes": {k: settings.get(k) for k in
                      ("finish_fronts", "finish_box", "finish_counter")},
         "cabs": cabs,
@@ -97,6 +98,7 @@ def job_payload(job) -> dict:
         "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "1920")),
         "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "1080")),
         "denoise": denoise,
+        "walls": str((job.settings or {}).get("base_walls") or "0"),
         "boxes": export_boxes(job),
     }
 
@@ -181,11 +183,10 @@ OpenImageDenoise on the CPU. If that denoiser cannot be set, the picture is
 rendered without it. <code>CABCAD_BLENDER_DENOISE=0</code> skips it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>Measured on that machine: version 4 at 1920×1080, 36 samples, OIDN on,
-120.4 seconds, and the picture was blown out. The current frame is still
-1920×1080, with 20 samples and the same CPU denoiser. Estimate from that
-120.4 second frame: about 70 seconds. Not measured. One render at a time.
-Opening this form does not start it.</p>
+<p>Measured on that machine: version 5 at 1920×1080, 20 samples, OIDN on,
+58.0 seconds. The current frame is the same size and sample count, a little
+darker, with the job's side wall. Estimate about 58 seconds. Not measured.
+One render at a time. Opening this form does not start it.</p>
 """)
 
 
