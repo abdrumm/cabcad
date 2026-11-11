@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 4
+    assert SCRIPT_VERSION == 5
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,7 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 4 and payload["samples"] == 36
+    assert payload["version"] == 5 and payload["samples"] == 20
     assert payload["denoise"] is True
 
 
@@ -89,6 +89,19 @@ def test_camera_fits_the_whole_stack_including_a_wide_run():
                     assert depth > 0.2
                     assert abs(_dot(p, right)) / depth <= tan_h / 1.16 + 1e-6
                     assert abs(_dot(p, up)) / depth <= tan_v / 1.16 + 1e-6
+
+
+def test_counter_laminate_stays_a_surface_and_the_sun_rakes():
+    from cabgen.blender.render_kitchen import WALL_COLOR, _look, raking_sun
+    top, rough, _metal = _look("Countertop / top", "laminate", "#d8cfbf")
+    door, door_rough, _metal = _look("door", "laminate", "#f7f4ee")
+    assert rough > door_rough and max(top) <= 0.78
+    assert max(top) < max(door)
+    # The wall is a warm grey, not the same white as a door.
+    assert max(WALL_COLOR) < 0.85 and WALL_COLOR[0] > WALL_COLOR[2]
+    origin, aim = raking_sun(0.0, 3.0, -0.6, 0.1, 0.0, 2.2)
+    assert origin[0] < aim[0]
+    assert origin[1] > 0.1 and origin[2] > 2.2
 
 
 def test_the_right_hand_cabinet_stays_on_the_right():

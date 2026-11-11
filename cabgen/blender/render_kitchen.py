@@ -1,4 +1,4 @@
-"""Procedural kitchen still for CabCAD. Script version 3.
+"""Procedural kitchen still for CabCAD. Script version 5.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
@@ -7,18 +7,7 @@ and the 4" perimeter build-up. Cabinet sizes are not scaled.
     blender -b --factory-startup -P cabgen/blender/render_kitchen.py -- job.json out.png
 
 CPU only. CUDA, OptiX, HIP and oneAPI are not selected. The still is
-1920x1080. OpenImageDenoise on the CPU is tried when the job asks for it.
-If that denoiser cannot be set, the still renders without it. No GPU
-denoiser is used.
-
-The iMac binary (parent, Nov 11) is official Blender 5.2.4 LTS:
-
-    /home/abdrumm/.local/opt/blender-5.2.4-linux-x64/blender
-
-It is -march=x86-64-v2 (SSE4.2). The i7-2600 has no AVX2 and no GPU.
-Measured there: 960x540 at 64 samples, no denoise, was 28.7 seconds for a
-4-base 4-upper kitchen and looked washed out. This version does not claim
-a new timing. Four times the pixels is the requested quality.
+1920x1080, 20 samples, OpenImageDenoise on the CPU when the job asks for it.
 """
 
 from __future__ import annotations
@@ -26,11 +15,14 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 4
+SCRIPT_VERSION = 5
 INCH = 0.0254
-SAMPLES = 36
+SAMPLES = 20
 WIDTH = 1920
 HEIGHT = 1080
+# Warm greige, clearly not the cabinet white. Floor is a mid oak.
+WALL_COLOR = (0.76, 0.69, 0.60)
+FLOOR_COLOR = (0.36, 0.24, 0.15)
 # From the subject toward the camera: in front of the run, a little to the
 # left, slightly above. Image-right is then +X, matching the drawings.
 FRONT_VIEW = (-0.16, 1.0, 0.20)
@@ -162,7 +154,7 @@ def _enable_cpu_denoise(scene, bpy, requested):
             notes.append("denoising_use_gpu=False")
         except Exception as exc:
             notes.append(f"denoising_use_gpu failed ({exc})")
-    for name, value in (("denoising_device", "CPU"), ("denoising_prefilter", "ACCURATE"),
+    for name, value in (("denoising_device", "CPU"), ("denoising_prefilter", "FAST"),
                         ("denoising_input_passes", "RGB_ALBEDO_NORMAL")):
         if hasattr(scene.cycles, name):
             try:
@@ -244,19 +236,38 @@ def _hex(color: str, fallback):
 
 
 def _look(name: str, material: str, color: str):
-    """Neutral materials. A finish colour wins; otherwise a role."""
+    """Neutral materials. A finish colour wins; otherwise a role.
+
+    A countertop is matte laminate. Its albedo is capped so a pale finish
+    cannot blow out to the same white as the doors.
+    """
     text = f"{name} {material}".lower()
     if "pull" in text or "hardware" in text or "hinge" in text:
         return (0.72, 0.72, 0.70), 0.25, 0.9
-    if "solid surface" in text or "corian" in text:
-        return _hex(color, (0.90, 0.89, 0.86)), 0.18, 0.0
     if "plywood" in text or "build-up" in text or "buildup" in text:
-        return _hex(color, (0.62, 0.48, 0.34)), 0.55, 0.0
+        return _hex(color, (0.55, 0.40, 0.28)), 0.62, 0.0
+    if "counter" in text or "solid surface" in text or "corian" in text:
+        rgb = _hex(color, (0.74, 0.68, 0.58))
+        rgb = tuple(min(0.78, channel) for channel in rgb)
+        rough = 0.45 if ("solid surface" in text or "corian" in text) else 0.62
+        return rgb, rough, 0.0
     if any(word in text for word in ("laminate", "door", "drawer", "front")):
-        return _hex(color, (0.93, 0.92, 0.88)), 0.32, 0.0
+        return _hex(color, (0.90, 0.89, 0.86)), 0.38, 0.0
     if "filler" in text:
-        return _hex(color, (0.90, 0.89, 0.86)), 0.4, 0.0
-    return _hex(color, (0.86, 0.85, 0.82)), 0.55, 0.0
+        return _hex(color, (0.88, 0.87, 0.84)), 0.45, 0.0
+    return _hex(color, (0.84, 0.83, 0.80)), 0.55, 0.0
+
+
+def raking_sun(minx, maxx, miny, maxy, minz, maxz):
+    """Warm morning sun from the upper front-left, aimed across the fronts.
+
+    Blender +Y is toward the camera. The sun sits left of centre, in front of
+    the run and above it, so shadows fall down and to the right: door reveals,
+    the wall under the uppers, and the toe kick.
+    """
+    origin = (minx + (maxx - minx) * 0.12, maxy + 2.6, maxz + 1.45)
+    aim = (minx + (maxx - minx) * 0.70, (miny + maxy) * 0.5, minz + (maxz - minz) * 0.28)
+    return origin, aim
 
 
 def _set_input(node, names, value):
@@ -321,7 +332,9 @@ def main():
     if hasattr(scene.cycles, "use_adaptive_sampling"):
         scene.cycles.use_adaptive_sampling = True
         if hasattr(scene.cycles, "adaptive_threshold"):
-            scene.cycles.adaptive_threshold = 0.04
+            scene.cycles.adaptive_threshold = 0.05
+        if hasattr(scene.cycles, "adaptive_min_samples"):
+            scene.cycles.adaptive_min_samples = 8
     scene.cycles.use_denoising = False
     denoise_log = _enable_cpu_denoise(scene, bpy, want_denoise)
     print(f"cabcad-denoise {denoise_log}", flush=True)
@@ -343,12 +356,12 @@ def main():
             scene.view_settings.view_transform = "Filmic"
         looks = {item.identifier for item in
                  scene.view_settings.bl_rna.properties["look"].enum_items}
-        for name in ("AgX - Medium Contrast", "Medium Contrast",
-                     "AgX - Base Contrast"):
+        for name in ("AgX - Medium High Contrast", "Medium High Contrast",
+                     "AgX - Medium Contrast", "Medium Contrast"):
             if name in looks:
                 scene.view_settings.look = name
                 break
-        scene.view_settings.exposure = 0.35
+        scene.view_settings.exposure = -0.20
     except Exception:
         pass
     if hasattr(scene.cycles, "use_light_tree"):
@@ -366,7 +379,7 @@ def main():
             _set_input(bsdf, ("Base Color", "Color"), (*rgba, 1.0))
             _set_input(bsdf, ("Roughness",), rough)
             _set_input(bsdf, ("Metallic", "Metalness"), metal)
-            spec = 0.45 if metal > 0.5 else 0.22
+            spec = 0.4 if metal > 0.5 else 0.12
             _set_input(bsdf, ("Specular IOR Level", "Specular"), spec)
         mats[key] = mat
         return mat
@@ -414,14 +427,14 @@ def main():
     miny, maxy = min(ys), max(ys)
     minz, maxz = min(zs), max(zs)
     span = max(maxx - minx, maxz - minz, 0.5)
-    floor = material("floor", (0.55, 0.40, 0.26), 0.55, 0.0)
-    wall = material("wall", (0.93, 0.90, 0.84), 0.9, 0.0)
-    pad = max(0.8, span * 0.55)
-    cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, maxy + pad * 1.6, 0.0, floor)
-    wall_top = max(maxz + 0.55, 2.6)
-    # Flush to the cabinet backs. No side wall and no blue window slab.
+    floor = material("floor", FLOOR_COLOR, 0.72, 0.0)
+    wall = material("wall", WALL_COLOR, 0.92, 0.0)
+    pad = max(1.4, span * 0.9)
+    cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, maxy + pad * 1.8, 0.0, floor)
+    wall_top = max(maxz + 1.2, 2.8)
+    # Flush to the cabinet backs. Wide enough that the frame is wall, not void.
     wall_y0, wall_y1 = back_wall_interval(miny)
-    cube_m(minx - pad * 0.4, wall_y0, 0.0, maxx + pad * 0.4, wall_y1, wall_top, wall)
+    cube_m(minx - pad, wall_y0, 0.0, maxx + pad, wall_y1, wall_top, wall)
 
     cam_loc, target, _dist = camera_fit(
         (minx, miny, minz), (maxx, maxy, maxz), FRONT_VIEW,
@@ -437,38 +450,37 @@ def main():
     _aim_camera(cam, cam_loc, target)
     scene.camera = cam
 
-    # Morning sun from in front of the run, behind the camera, so the whole
-    # front is lit. A wide warm area light does the window; a softer one
-    # keeps the shadows from going black.
-    aim_at = ((minx + maxx) / 2.0, (miny + maxy) / 2.0, minz + (maxz - minz) * 0.45)
+    # Raking morning sun from the upper front-left. A small warm window
+    # light keeps the fronts bright. The fill is only enough to open the
+    # shadows, not to erase them.
+    sun_from, aim_at = raking_sun(minx, maxx, miny, maxy, minz, maxz)
     bpy.ops.object.empty_add(type="PLAIN_AXES", location=aim_at)
     aim = bpy.context.active_object
-    sun_from = ((minx + maxx) / 2.0, maxy + 3.2, maxz + 1.6)
     bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
-    sun.data.energy = 5.0
-    sun.data.color = (1.0, 0.86, 0.62)
+    sun.data.energy = 2.2
+    sun.data.color = (1.0, 0.78, 0.48)
     if hasattr(sun.data, "angle"):
-        sun.data.angle = 0.10
+        sun.data.angle = 0.045
     _track(sun, aim)
 
-    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 2.4,
-                                                    minz + (maxz - minz) * 0.62))
+    bpy.ops.object.light_add(type="AREA", location=(minx + (maxx - minx) * 0.28,
+                                                    maxy + 2.2, maxz + 0.55))
     window = bpy.context.active_object
-    window.data.energy = 600
-    window.data.size = max(1.8, (maxx - minx) * 0.95)
-    window.data.color = (1.0, 0.78, 0.50)
+    window.data.energy = 28
+    window.data.size = max(0.9, (maxx - minx) * 0.45)
+    window.data.color = (1.0, 0.82, 0.58)
     if hasattr(window.data, "shape"):
         window.data.shape = "RECTANGLE"
-        window.data.size_y = max(1.2, (maxz - minz) * 0.85)
+        window.data.size_y = max(0.7, (maxz - minz) * 0.45)
     _track(window, aim)
 
-    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.6,
-                                                    minz + (maxz - minz) * 0.25))
+    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.8,
+                                                    minz + (maxz - minz) * 0.2))
     fill = bpy.context.active_object
-    fill.data.energy = 80
-    fill.data.size = max(2.2, (maxx - minx) * 1.1)
-    fill.data.color = (1.0, 0.93, 0.82)
+    fill.data.energy = 6
+    fill.data.size = max(1.6, (maxx - minx) * 0.7)
+    fill.data.color = (1.0, 0.94, 0.86)
     _track(fill, aim)
 
     world = bpy.data.worlds.new("Kitchen")
@@ -476,8 +488,18 @@ def main():
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (1.0, 0.94, 0.84, 1.0)
-        bg.inputs[1].default_value = 0.12
+        bg.inputs[0].default_value = (0.95, 0.88, 0.76, 1.0)
+        bg.inputs[1].default_value = 0.035
+    if hasattr(scene.cycles, "use_fast_gi"):
+        scene.cycles.use_fast_gi = True
+        if hasattr(scene.cycles, "fast_gi_method"):
+            try:
+                scene.cycles.fast_gi_method = "ADD"
+            except Exception:
+                pass
+        lighting = getattr(world, "light_settings", None)
+        if lighting is not None and hasattr(lighting, "distance"):
+            lighting.distance = 0.10
     if hasattr(scene.cycles, "sample_clamp_indirect"):
         scene.cycles.sample_clamp_indirect = 0.0
     if hasattr(scene.cycles, "blur_glossy"):

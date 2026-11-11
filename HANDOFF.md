@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-167 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
+168 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -96,7 +96,7 @@ since then pass. AR export does not need Omacad and passes here.
 - Photorealistic view is the last button on the kitchen form. It does not run
   when the form is only opened. The original `.blend` was not found. The still
   is a new generic room around the current boxes, including the perimeter
-  build-up (`cabgen/blender/render_kitchen.py`, version 4). No `.blend` file
+  build-up (`cabgen/blender/render_kitchen.py`, version 5). No `.blend` file
   is required and none is in git. Blender is not vendored.
   Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
   the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
@@ -112,10 +112,13 @@ since then pass. AR export does not need Omacad and passes here.
   sat in the corner, the cabinets stood off the wall, and the fronts were
   dark and grainy. Version 4 points the camera so world +X is picture-right,
   sets the back wall flush with the cabinet backs, removes that side window,
-  and lights the fronts with a warm sun and a wide warm area light from in
-  front. It asks for CPU OpenImageDenoise even when Blender's denoiser enum
-  comes back empty, and renders 36 samples. Estimate from the 89.8 second
-  measurement: about 50 seconds of samples plus denoiser time, not measured.
+  and lights the fronts from in front. It asks for CPU OpenImageDenoise even
+  when Blender's denoiser enum comes back empty. Measured on the iMac at
+  `acb6c2c`: version 4, 1920×1080, 36 samples, OIDN on, 120.4 seconds. The
+  orientation, the wall, and the grain were right, and the picture was blown
+  out. Version 5 keeps that camera and that denoiser, drops the light power,
+  rakes the sun from the upper front-left, and renders 20 samples. Estimate
+  from the 120.4 second frame: about 70 seconds. Not measured.
   One render at a time, in the background, cached by design. A repeat of the same
   design on that machine was 0.015 seconds, and an ordinary page was 0.044
   seconds. `GET /photo-status` only checks; it does not start a render.
