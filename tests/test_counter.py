@@ -29,8 +29,12 @@ def test_laminate_build():
     assert "CT1-TOP" in p or "CT1-TOP1" in p
     assert all(x.material == '3/4" plywood' for x in ct.pieces)
     bu = [x for x in ct.pieces if x.label.startswith("CT1-BU")]
-    assert bu and all("glued and stapled" in x.notes.lower() for x in bu)
-    assert p["CT1-BUJ1"].width == 4.0
+    assert [x.name for x in bu] == [
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
+    ]
+    assert all("glued and stapled" in x.notes.lower() for x in bu)
+    assert all(x.width == 4.0 for x in bu)
+    assert not any("joint" in x.name.lower() for x in bu)
     orders = [lp.order for lp in ct.laminate]
     assert min(orders) <= 2 and 3 in orders
     assert "Laminate takeoff" in counter_text(ct)
@@ -41,6 +45,96 @@ def test_solid_build():
     mats = {x.material for x in ct.pieces}
     assert '1/2" solid surface' in mats and '1" plywood' in mats
     assert not ct.laminate and not ct.dogbones
+
+
+def _buildup(ct):
+    return [p for p in ct.pieces if "Build-up" in p.name]
+
+
+def _on_perimeter(ct, box) -> bool:
+    """A strip touches the front, the back, or either end of the underside."""
+    x, y, _z = box.pos
+    dx, dy, _dz = box.size
+    front_y = ct.y_front + (0.5 if ct.kind == "solid" else 0.0)
+    on_front = abs(y - front_y) < 1e-6 and dy <= 4.01
+    on_back = abs((y + dy) - ct.y_back) < 1e-6 and dy <= 4.01
+    on_left = min(abs(x - ct.x0), abs(x - (ct.x0 + 0.5))) < 1e-6 and dx <= 6.01
+    on_right = min(abs((x + dx) - ct.x1), abs((x + dx) - (ct.x1 - 0.5))) < 1e-6 and dx <= 6.01
+    return on_front or on_back or on_left or on_right
+
+
+def test_solid_buildup_is_a_perimeter_only():
+    """Brook, Nov 7: 4" strips directly under the top, not across cabinet seams."""
+    from cabgen.kitchen import scene_of
+    from cabgen.omacad_export import scene_payload
+
+    cabs = _cabs([30, 24, 18])
+    ct = build_counter(cabs, {"counter": "solid"})
+    strips = _buildup(ct)
+    assert [p.name for p in strips] == [
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
+    ]
+    assert ct.joints, "the run has interior seams to stay clear of"
+    for p in strips:
+        assert p.width == 4.0 and p.thk == 1.0 and p.material == '1" plywood'
+        assert "joint" not in p.name.lower()
+        for b in p.boxes:
+            assert abs(b.pos[2] - ct.z0) < 1e-6
+            assert abs((b.pos[2] + b.size[2]) - (ct.z0 + 1.0)) < 1e-6  # directly under the 1/2" top
+            assert _on_perimeter(ct, b), p.name
+    text = counter_text(ct)
+    assert "perimeter only" in text
+    assert "do not run across the seams" in text
+
+    boxes, _holes, parts = scene_of(cabs, {"counter": "solid"})
+    names = [p.name for p in parts if p.name.startswith("Countertop")]
+    assert any(n.endswith("Build-up, front") for n in names)
+    assert not any("joint" in n.lower() for n in names)
+    model = [b.name for b in boxes if "Build-up" in b.name]
+    assert len(model) == 4 and not any("joint" in n.lower() for n in model)
+    payload = scene_payload("Solid", boxes, _holes)
+    omacad = [b["name"] for b in payload["boxes"] if "Build-up" in b["name"]]
+    assert len(omacad) == 4
+
+    # laminate matches: full perimeter, including the back edge, nothing across a joint
+    lam = build_counter(cabs, {"counter": "laminate"})
+    assert [p.name for p in _buildup(lam)] == [
+        "Build-up, front", "Build-up, back", "Build-up, left end", "Build-up, right end",
+    ]
+
+
+def _overlap(a, b) -> bool:
+    ax, ay, az = a.pos
+    adx, ady, adz = a.size
+    bx, by, bz = b.pos
+    bdx, bdy, bdz = b.size
+    return (ax < bx + bdx - 1e-6 and bx < ax + adx - 1e-6
+            and ay < by + bdy - 1e-6 and by < ay + ady - 1e-6
+            and az < bz + bdz - 1e-6 and bz < az + adz - 1e-6)
+
+
+def test_buildup_is_a_full_perimeter_with_butted_corners():
+    """Brook, Nov 11: 4\" strips under the top, all the way around, including the back.
+    Corners meet. They are not stacked, and nothing crosses a cabinet seam."""
+    for kind in ("laminate", "solid"):
+        ct = build_counter(_cabs([30, 24, 18]), {"counter": kind})
+        strips = _buildup(ct)
+        assert ct.joints
+        assert not any("joint" in p.name.lower() for p in strips)
+        boxes = [b for p in strips for b in p.boxes]
+        assert boxes
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                assert not _overlap(a, b), (kind, a.name, b.name)
+        back = [b for b in boxes if "back" in b.name.lower()]
+        assert len(back) == 1
+        b = back[0]
+        assert abs(b.size[1] - 4.0) < 1e-6
+        assert abs((b.pos[1] + b.size[1]) - ct.y_back) < 1e-6
+        assert abs(b.size[0] - ct.length) < 1e-6
+        assert abs(b.pos[2] - ct.z0) < 1e-6
+        # directly under the top, not down at the cabinet bottom
+        assert b.pos[2] > 20.0
 
 
 def test_long_laminate_top_is_one_piece_flagged_not_seamed():
@@ -100,8 +194,27 @@ def test_nest_includes_ply_not_solid():
 
 
 def test_client_sheet_counter_page(tmp_dir=None):
-    from cabgen.client_sheet import load_job, render_pages
+    from cabgen.client_sheet import job_from, load_job, render_pages
+    from cabgen.finishes import get
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample")
     pages = render_pages(job, "Oct 24, 2026")
     text = pages[1].to_string()
-    assert "COUNTERTOP - LAMINATE" in text and "TYPICAL LAMINATE SEAM" in text
+    for words in ("Countertop 2D", "FRONT VIEW", "TOP VIEW", "SIDE VIEW",
+                  "BUILD-UP, FROM BELOW", "overhang", "Coppinger Exhibits", "laminate",
+                  "4&quot; build-up", "4&quot; splash"):
+        assert words in text, words
+    for gone in ("TYPICAL LAMINATE SEAM", "match the countertop", "glued", "stapled",
+                 "COUNTERTOP - LAMINATE", "scale approx", "DETAILS"):
+        assert gone not in text, gone
+    assert 'width="17.0in" height="11.0in"' in text
+    maple = get("lam-maple")["color"]
+    picked = job_from(job.cabs, {**job.settings, "finish_counter": "lam-maple"}, "Sample")
+    picked_page = render_pages(picked, "Oct 24, 2026")[1].to_string()
+    assert maple in picked_page          # top and splashes use the countertop colour
+    solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample")
+    solid_page = render_pages(solid, "Oct 24, 2026")[1].to_string()
+    assert "Countertop 2D" in solid_page and ">solid surface<" in solid_page
+    assert "perimeter only" not in solid_page
+    assert "Not across the seams" not in solid_page
+    assert "centred where cabinets meet" not in solid_page
+    assert "4&quot; build-up" in solid_page

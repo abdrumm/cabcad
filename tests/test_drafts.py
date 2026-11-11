@@ -34,7 +34,8 @@ def test_config_has_brook_only_and_rick_disabled():
 def test_buttons_are_on_the_form():
     page = _run_page(group_view(None))
     assert 'formaction="/email-ar"' in page and ">Email AR to me<" in page
-    assert 'formaction="/client-email"' in page and ">Draft client email<" in page
+    assert "Draft client email" not in page and "/client-email" not in page
+    assert "test mode" not in page.lower()
 
 
 def test_email_ar_writes_a_draft_with_usdz_and_glb(tmp_path):

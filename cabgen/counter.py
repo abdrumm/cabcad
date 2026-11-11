@@ -2,18 +2,21 @@
 
 Two builds, both 1-1/2" thick at the front edge:
 
-Laminate (default): 3/4" plywood top. Under it, 3/4" plywood build-up strips at
-the front, at each finished (open) side edge, at each counter end, and centred
-on every joint where two cabinets meet, so installers screw up into plywood.
+Laminate (default): 3/4" plywood top. Under it, 3/4" plywood build-up strips
+4" wide around the whole perimeter: front, back edge (full length), and both
+ends. They sit under the countertop, not under the cabinet box. No strip
+across the seams between cabinets (Brook, Nov 11; the old "no back strip"
+note is superseded).
 Laminate goes on in this order: side edges (when needed), front edge, then the
 top. Every exposed backsplash edge gets laminate. 4" backsplash on the wall;
 a side splash at a wall end when asked for.
 
 Solid surface (Corian): 1/2" top. A rabbet on the underside at the front and at
 finished side edges takes a 1-1/4" solid-surface edge strip, epoxied in; the
-1/4" lip that is left plus the 1-1/4" strip gives a 1-1/2" reveal. 1" plywood
-stiffener strips under the top (at the front, the back, the counter ends and
-centred on cabinet joints) bring it to 1-1/2" overall.
+1/4" lip that is left plus the 1-1/4" strip gives a 1-1/2" reveal. 4" build-up
+strips of 1" plywood sit directly under the top, around the perimeter only
+(front, back and both ends). They do not run across the seams between cabinets.
+The strips bring the build to 1-1/2" overall (Brook, Nov 7).
 
 Anything Brook did not say is marked TO CONFIRM in ASSUMPTIONS and in
 cabinet-shop-standards.md section 3.
@@ -29,7 +32,7 @@ from .units import fmt_in
 
 KINDS = {"laminate": "Laminate", "solid": "Solid surface", "none": "None"}
 OPEN_OVERHANG = 1.0       # same as kitchen.OPEN_OVERHANG
-STRIP_W = 4.0             # build-up strips are 4" (Brook); solid-surface stiffeners the same (TO CONFIRM)
+STRIP_W = 4.0             # build-up strips are 4" wide (Brook). Solid surface too (confirmed Nov 7).
 SPLASH_H = 4.0            # backsplash and side splash height (Brook: both 4")
 # Side splash: automatic at every wall end (Brook). The form can still turn one off.
 EDGE = 1.5                # finished front / side edge
@@ -38,9 +41,6 @@ LAM_SHEET = 144.0         # longest laminate sheet (5x12)
 # Brook, Oct 27: no automatic seams. The top is one piece the length of the run; a
 # piece longer than its stock sheet is flagged and Brook decides the seam later.
 OVERSIZE_FLAG = "LONGER THAN STOCK SHEET - seam TBD"
-SEAM_W = 6.0              # laminate seam strip, 6" centred on the seam (Brook)
-DOGBONE_DEPTH = 0.5       # dogbone pockets routed 1/2" deep across the seam (Brook)
-DOGBONE_EVERY = 12.0      # one dogbone per ~12" of strip, at least 2 (TO CONFIRM)
 LAM_WASTE = 0.10          # laminate takeoff allowance (TO CONFIRM)
 
 MAT = {
@@ -50,20 +50,20 @@ MAT = {
 }
 
 ASSUMPTIONS = [
-    "Solid surface stiffener strips are 4\" wide, like the laminate build-up strips (Brook confirmed 4\" for laminate).",
+    "Solid surface build-up strips are 4\" wide and 1\" thick, directly under the top, around the perimeter only (Brook, Nov 7). The 4\" is the width, same as the laminate strips.",
     "No laminate backer (balance) sheet on the underside: the top is screwed to the cabinets and the overhang is only 1-1/2\". Guides suggest one for bars, peninsulas and big overhangs.",
     "No automatic seams (Brook, Oct 27): the top, build-up and splash are each one piece the length of the run. A piece longer than its stock sheet (96\" plywood, 144\" solid surface or laminate) is flagged \"longer than stock sheet - seam TBD\".",
-    "Laminate seam strip: Brook's 6\" strip is modelled as one 6\" band centred on the seam, cut at the seam so each piece carries 3\" (not a 6\" strip on each side).",
+    "No build-up strip across a seam on any countertop (Brook, Nov 9). The older laminate seam strip (6\" centred on the seam, dogbones) is not added.",
     "Dogbones: one per ~12\" of strip, at least 2 (2 on a 25\" counter).",
-    "Solid surface seam: hard seam with the maker's joint adhesive, over the joint stiffener; no dogbones or 6\" strip.",
+    "Solid surface seam, when Brook places one: hard seam with the maker's joint adhesive. No build-up strip is added across a cabinet joint; no dogbones or 6\" strip.",
     "Side splash runs from the front of the counter back to the backsplash (butts it).",
     "Laminate counter: backsplash and side splash are 3/4\" plywood, laminated.",
     "Solid surface counter: backsplash and side splash are 1/2\" solid surface.",
     "Front overhang is 1-1/2\" past the cabinet case (the code's existing value; 3/4\" past the doors), which makes the counter 25\" deep. A Lowe's laminate guide gives 1-1/4\" as standard.",
     "The counter sits on top of the 32\" base case, so the finished top is 33-1/2\" off the floor (Brook, Oct 30).",
-    "A filler end gets one end strip at least 4\" wide (filler + 1-1/2\" when wider) instead of an end strip plus a joint strip.",
-    "Laminate counters: no build-up strip along the back wall (Brook named front, edges and joints; JLC suggests front and rear strips).",
-    "Solid surface: 1\" plywood stiffeners at the front (behind the edge strip), along the back wall, at the ends and on cabinet joints.",
+    "A filler end gets one end strip at least 4\" wide (filler + 1-1/2\" when wider).",
+    "Every countertop with build-up gets 4\" strips around the whole perimeter, including a continuous strip along the back edge (Brook, Nov 11). The Oct 24 note that laminate had no back strip is superseded. No strip crosses a cabinet joint. Corners are butted, not stacked.",
+    "Solid surface: those strips are 1\" plywood directly under the top, front (behind the edge strip), back, and both ends.",
     "Solid surface rabbet: Brook said 1/2\" x 1/2\", but a 1/4\" lip plus a 1-1/4\" strip = 1-1/2\" means the rabbet is 1/2\" wide x 1/4\" deep in the 1/2\" top. Modelled that way.",
     "Solid surface corners: the front edge strip runs the full length and the side strips butt behind it.",
     "Laminate is listed as a square-foot takeoff (+10% allowance), not nested on sheets.",
@@ -230,9 +230,8 @@ def _flag_oversize(c: Counter, kind: str) -> None:
 
 
 def _seams(c: Counter, max_len: float, what: str = "Top", avoid: tuple = ()) -> list[float]:
-    """Seams only when the run is longer than max_len. Each seam goes on a cabinet
-    joint (over a strip), picked so the pieces come out about equal. `avoid` keeps a
-    laminate seam off the plywood seams."""
+    """Seams only when the run is longer than max_len. Kept for when Brook sets the
+    seam rules. A seam does not get a build-up strip (Brook, Nov 9)."""
     import math
     seams, start = [], c.x0
     while c.x1 - start > max_len + 1e-6:
@@ -272,41 +271,26 @@ def _add(c: Counter, code: str, name: str, mat: str, thk: float, w: float, l: fl
 
 def _cross_strips(c: Counter, thk: float, z: float, y0: float, y1: float, mat: str,
                   fl: float, fr: float, code: str, inset_open: float, word: str) -> None:
-    """Front-to-back strips: one at each counter end, one centred on each cabinet joint."""
+    """Front-to-back strips, one at each counter end.
+
+    No strip on a cabinet joint, on any countertop (Brook, Nov 9).
+    """
     length = y1 - y0
+    if length < 0.25:
+        # The front and back bands already meet. Don't stack an end strip on them.
+        return
     wl = max(STRIP_W, fl + 1.5) if fl else STRIP_W
     wr = max(STRIP_W, fr + 1.5) if fr else STRIP_W
     lx = c.x0 + (inset_open if c.left_open else 0.0)
     rx = c.x1 - (inset_open if c.right_open else 0.0)
     how = "Glued and stapled to the top. " if code == "BU" else ""
+    end_note = " No strip across the seams between cabinets."
     _add(c, f"{code}L", f"{word}, left end", mat, thk, wl, length,
-         [((lx, y0, z), (wl, length, thk))], how + "Flush with the left end of the counter.")
-    import math
-    for i, j in enumerate(c.joints, start=1):
-        at = f"{fmt_in(j - c.x0)} from the left end"
-        if code == "BU" and any(abs(j - s) < 1e-6 for s in c.seams):
-            # Laminate seam (Brook): a 6" strip centred on the seam, split at the seam so
-            # each top piece carries 3". Dogbones routed 1/2" deep across the seam.
-            n = max(2, math.ceil(length / DOGBONE_EVERY))
-            ys = [y0 + length * (k + 0.5) / n for k in range(n)]
-            c.dogbones += [(j, y) for y in ys]
-            half = SEAM_W / 2
-            seam_note = (f"Seam strip: half of the 6\" strip centred on the seam at {at}. Rout {n} "
-                         f"dogbone pockets 1/2\" deep across the seam; glue the seam and pull it "
-                         "together with dogbone clamps at install.")
-            _add(c, f"{code}J{i}A", f"{word}, seam strip {i} left half", mat, thk, half, length,
-                 [((j - half, y0, z), (half, length, thk))], how + seam_note)
-            _add(c, f"{code}J{i}B", f"{word}, seam strip {i} right half", mat, thk, half, length,
-                 [((j, y0, z), (half, length, thk))], how + seam_note)
-            c.notes.append(f"Laminate seam at {at}: 6\" strip centred on it (3\" on each piece), {n} "
-                           "dogbone pockets routed 1/2\" deep across it, adhesive in the seam, dogbone "
-                           "clamps pull it tight at install.")
-            continue
-        _add(c, f"{code}J{i}", f"{word}, cabinet joint {i}", mat, thk, STRIP_W, length,
-             [((j - STRIP_W / 2, y0, z), (STRIP_W, length, thk))],
-             how + f"Centred on the joint at {at}. Screw down here.")
+         [((lx, y0, z), (wl, length, thk))],
+         how + "Flush with the left end of the counter." + end_note)
     _add(c, f"{code}R", f"{word}, right end", mat, thk, wr, length,
-         [((rx - wr, y0, z), (wr, length, thk))], how + "Flush with the right end of the counter.")
+         [((rx - wr, y0, z), (wr, length, thk))],
+         how + "Flush with the right end of the counter." + end_note)
 
 
 def _splashes(c: Counter, mat: str, thk: float) -> None:
@@ -339,7 +323,18 @@ def _laminate(c: Counter, fl: float, fr: float) -> None:
         _add(c, f"BUF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, t, STRIP_W, b - a,
              [((a, c.y_front, c.z0), (b - a, STRIP_W, t))],
              "Glued and stapled under the front edge; with the top makes the 1-1/2\" edge.")
-    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back, ply, fl, fr, "BU", 0.0, "Build-up")
+        _add(c, f"BUB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, t, STRIP_W, b - a,
+             [((a, c.y_back - STRIP_W, c.z0), (b - a, STRIP_W, t))],
+             '4" wide, glued and stapled under the top along the full back edge. '
+             "Not across cabinet joints.")
+    # Ends fill the gap between the front and back strips so the corners are not doubled.
+    _cross_strips(c, t, c.z0, c.y_front + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "BU", 0.0,
+                  "Build-up")
+    c.notes.append(
+        '4" build-up strips under the countertop around the whole perimeter: front, the full '
+        "back edge, and both ends. No strip across the seams between cabinets. "
+        "The strips meet at the corners; they are not stacked."
+    )
     _splashes(c, ply, t)
 
     # laminate takeoff, in the order it goes on. Laminate sheets run to 144", so the
@@ -414,11 +409,18 @@ def _solid(c: Counter, fl: float, fr: float) -> None:
     fy0 = c.y_front + rab
     for i, (a, b) in enumerate(spans, start=1):
         n = _num(i, len(spans))
-        _add(c, f"STF{n}", f"Stiffener, front{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
-             [((a, fy0, c.z0), (b - a, STRIP_W, 1.0))], "Behind the front edge strip.")
-        _add(c, f"STB{n}", f"Stiffener, back{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
-             [((a, c.y_back - STRIP_W, c.z0), (b - a, STRIP_W, 1.0))], "Along the back wall.")
-    _cross_strips(c, 1.0, c.z0, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "ST", rab, "Stiffener")
+        _add(c, f"STF{n}", f"Build-up, front{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
+             [((a, fy0, c.z0), (b - a, STRIP_W, 1.0))],
+             '4" wide, directly under the top, behind the front edge strip. Perimeter only.')
+        _add(c, f"STB{n}", f"Build-up, back{(' ' + n) if n else ''}", ply, 1.0, STRIP_W, b - a,
+             [((a, c.y_back - STRIP_W, c.z0), (b - a, STRIP_W, 1.0))],
+             '4" wide, directly under the top, along the back wall. Perimeter only.')
+    _cross_strips(c, 1.0, c.z0, fy0 + STRIP_W, c.y_back - STRIP_W, ply, fl, fr, "ST", rab,
+                  "Build-up")
+    c.notes.append(
+        '4" build-up strips of 1" plywood sit directly under the top, around the perimeter only '
+        "(front, back and both ends). They do not run across the seams between cabinets."
+    )
     _splashes(c, ss, 0.5)
 
 

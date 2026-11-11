@@ -224,6 +224,24 @@ def cmd_client(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_counter(args: argparse.Namespace) -> int:
+    from .client_sheet import load_job, write_counter_sheet
+    from .kitchen import KitchenError
+
+    sheet = Path(args.sheet)
+    try:
+        job = load_job(sheet, args.name)
+        files = write_counter_sheet(job, Path(args.out), args.stem or f"{sheet.stem}-counter-2d",
+                                    png=True)
+    except KitchenError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  {files['pdf']}")
+    if files.get("png"):
+        print(f"  {files['png']}")
+    return 0
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     from .client_sheet import load_job
     from .kitchen import KitchenError
@@ -260,6 +278,31 @@ def cmd_ar(args: argparse.Namespace) -> int:
     w, h, d = res["size_m"]
     print(f"  {res['glb']}\n  {res['usdz']}  ({res['usd_layer']})")
     print(f"  {res['boxes']} parts, {w:.3f} x {h:.3f} x {d:.3f} m (W x H x D)")
+    return 0
+
+
+def cmd_front(args: argparse.Namespace) -> int:
+    """Standalone front elevation: SVG, PDF and an HTML page for the CE pipeline."""
+    from .client_sheet import load_job
+    from .front_view import write_front_view
+    from .kitchen import KitchenError
+
+    sheet = Path(args.sheet)
+    stem = args.stem or f"{sheet.stem}-front"
+    try:
+        res = write_front_view(load_job(sheet, args.name), Path(args.out), stem)
+    except KitchenError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  {res['html']}")
+    print(f"  {res['svg']}")
+    if res["pdf"]:
+        print(f"  {res['pdf']}")
+    for name in res["files"].values():
+        print(f"  {Path(args.out) / name}")
+    if res["placeholders"]:
+        missing = ", ".join(sorted(res["placeholders"]))
+        print(f"  placeholder links (not produced): {missing}")
     return 0
 
 
@@ -314,12 +357,19 @@ def build_parser() -> argparse.ArgumentParser:
     k.add_argument("--sheet-l", type=float, default=None, help="sheet length, inches (default 96)")
     k.set_defaults(func=cmd_kitchen)
 
-    cs = sub.add_parser("client", help="one-page client sheet (PDF + PNG) for a kitchen sheet")
+    cs = sub.add_parser("client", help="Carpenter 2D PDF (elevations, countertop page, one page per style)")
     cs.add_argument("sheet", help="kitchen CSV")
     cs.add_argument("--out", default="out/client-sheet")
     cs.add_argument("--name", default=None, help="job name on the page (default: file name)")
     cs.add_argument("--stem", default=None, help="output file name stem")
     cs.set_defaults(func=cmd_client)
+
+    ct = sub.add_parser("counter", help="one-page Countertop 2D drawing (laminate or solid surface)")
+    ct.add_argument("sheet", help="kitchen CSV")
+    ct.add_argument("--out", default="out/counter-2d")
+    ct.add_argument("--name", default=None, help="job name on the page (default: file name)")
+    ct.add_argument("--stem", default=None, help="output file name stem")
+    ct.set_defaults(func=cmd_counter)
 
     rd = sub.add_parser("render", help="client render (PNG) of a kitchen sheet, logo in the corner")
     rd.add_argument("sheet", help="kitchen CSV")
@@ -339,6 +389,13 @@ def build_parser() -> argparse.ArgumentParser:
     ar.add_argument("--name", default=None, help="file name stem (default: the CSV name)")
     ar.add_argument("--title", default=None, help="job name in the model (default: file name)")
     ar.set_defaults(func=cmd_ar)
+
+    fr = sub.add_parser("front", help="standalone front elevation (SVG, PDF, HTML) for the CE pipeline")
+    fr.add_argument("sheet", help="kitchen CSV")
+    fr.add_argument("--out", default="out/front")
+    fr.add_argument("--name", default=None, help="job name on the sheet (default: file name)")
+    fr.add_argument("--stem", default=None, help="output file name stem")
+    fr.set_defaults(func=cmd_front)
 
     w = sub.add_parser("web", help="local web form for styles and dimensions")
     w.add_argument("--host", default="127.0.0.1")

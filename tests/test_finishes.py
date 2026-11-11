@@ -42,7 +42,7 @@ def test_picks_change_the_client_sheet_colours(tmp_path):
     text = render(job).to_string()
     walnut, white, gray = (finishes.get(i)["color"] for i in ("lam-walnut", "lam-white", "ss-warm-gray"))
     assert walnut in text and gray in text
-    assert "Walnut look" in text and "Warm gray" in text          # the notes list the picks
+    assert "NOTES" not in text and "Walnut look" not in text
 
 
 def test_ar_files_carry_the_finishes_and_textures(tmp_path):

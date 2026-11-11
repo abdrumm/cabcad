@@ -378,7 +378,7 @@ Bases are under a countertop (32" case, Oct 30).
   - Open end: 1" overhang with a finished edge. Wall end: flush.
 - **Laminate (default):**
   - **3/4" plywood top**.
-  - **3/4" plywood build-up strips, 4" wide**, glued and stapled underneath: at the front (full length), at each end, and **centred on every cabinet joint** so installers screw up into them. Front edge = 3/4 + 3/4 = 1-1/2.
+  - **3/4" plywood build-up strips, 4" wide**, glued and stapled under the countertop around the whole perimeter: front (full length), a continuous strip along the full back edge, and both ends. Corners are butted, not stacked. **No strip across a cabinet joint.** Brook, Nov 11: the Oct 24 "no back strip on laminate" note is superseded. Front edge = 3/4 + 3/4 = 1-1/2.
   - A filler end gets one end strip at least 4" wide (filler + 1-1/2 when wider).
   - **No strip along the back wall** and **no backer (balance) sheet** (both to confirm).
   - **Laminate order:** side edges, front edge, top, then the splash's exposed edges, then the splash faces. Every exposed splash edge gets laminate.
@@ -387,17 +387,17 @@ Bases are under a countertop (32" case, Oct 30).
 - **Solid surface (Corian):**
   - **1/2" top**. An underside rabbet, **1/2" wide × 1/4" deep** (Brook said 1/2 × 1/2; modelled 1/2 × 1/4 to leave a 1/4" lip; to confirm), at the front and finished sides takes a **1-1/4" solid-surface edge strip, epoxied**. 1/4 lip + 1-1/4 strip = 1-1/2" reveal.
   - Ease the revealed edges with a 1/8" round-over and sand flat. The front strip runs the full length, and the side strips butt behind it.
-  - **1" plywood stiffener strips, 4" wide** (width to confirm): at the front (behind the edge strip), along the back wall, at the ends, and centred on cabinet joints. Overall 1-1/2". (An older note said a 1" MDF backer; Brook now says 1" plywood.)
-  - Splashes are 1/2" solid surface. Solid surface is **listed, not nested**; the plywood stiffeners are nested.
+  - **4" build-up strips of 1" plywood, directly under the top, perimeter only** (Brook, Nov 7): at the front (behind the edge strip), along the back wall, and at both ends. They do **not** run across the seams between cabinets. The 4" is the strip width (confirmed). Overall 1-1/2". (An older note said a 1" MDF backer, then strips centred on the cabinet joints. The joint strips are gone.)
+  - Splashes are 1/2" solid surface, the same material and colour as the top. Solid surface is **listed, not nested**; the plywood build-up is nested.
   - Also a shop rule (Oct 26): **1/2" solid-surface tops get a 1" MDF or wood substrate siliconed underneath**, for 1-1/2" height and something to screw into.
 - **Seams (Brook, Oct 27): none automatic.** The top, the front build-up and the backsplash are each **one piece the length of the run** everywhere (Omacad, client sheet, AR, front view, cut list, nest).
   - A piece longer than its stock sheet (96" plywood; 144" solid surface or laminate) is flagged **"LONGER THAN STOCK SHEET - seam TBD"** in its note. It's listed under "Not nested" in the nested cut list and on the nest summary page, in red, and isn't drawn on any sheet. Brook decides the seam.
 - **Seam rules, kept for later (code exists but is off):**
   - Seam only when the run is too long. Put the seam on a cabinet joint, with pieces about equal.
-  - **Brook's laminate seam:** a 6" strip of 3/4" ply centred on the seam (3" per piece, labels `CT1-BUJnA/B`), dogbone pockets **1/2" deep** across the seam (one per ~12", at least 2), adhesive, and dogbone clamps at install. Laminate itself seams only past 144", at least 6" from the ply seam.
-  - **Solid surface:** a hard seam with the maker's adhesive over the joint stiffener; no dogbones.
+  - **Laminate seam:** no build-up strip is added across it (Brook, Nov 9). The older 6" strip and dogbone pockets are not built. Laminate itself is still one piece; a piece longer than 144" is flagged for Brook.
+  - **Solid surface:** a hard seam with the maker's adhesive. No build-up strip across the cabinet joint (Nov 7); no dogbones.
   - Keep seams off sink, cooktop and dishwasher openings (2" to 3" from a cutout) and away from inside corners (1-1/2"). Sources: WOODWEB, Customcraft, Corian K-25288 and K-25705.
-- **Output:** `<job>-counter.md` (parts table, laminate takeoff by order, assumptions list), counter parts in the cut list and the nest (labels `CT1-TOP`, `CT1-BUF`, `CT1-BUL/R/Jn`, `CT1-STF/STB/STL/STR/STJn`, `CT1-EF/EL/ER`, `CT1-BS`, `CT1-SSL/SSR`, laminate `CT1-LSL/LSR/LF/LT/LBT/LBEL/LBER/LSxT/LSxE/LBF/LSxF`), and the countertop page in the client sheet.
+- **Output:** `<job>-counter.md` (parts table, laminate takeoff by order, assumptions list), counter parts in the cut list and the nest (labels `CT1-TOP`, `CT1-BUF`, `CT1-BUL/R/Jn`, `CT1-STF/STB/STL/STR` for the solid-surface perimeter build-up — no `STJ`), `CT1-EF/EL/ER`, `CT1-BS`, `CT1-SSL/SSR`, laminate `CT1-LSL/LSR/LF/LT/LBT/LBEL/LBER/LSxT/LSxE/LBF/LSxF`), and the countertop page in the client sheet.
 - **Seam default rule (older, from memory):** seam only when longer than one piece, over a cabinet joint with a strip underneath, away from cutouts. Superseded by "no automatic seams; Brook decides".
 
 ---
@@ -459,7 +459,9 @@ Bases are under a countertop (32" case, Oct 30).
 - **No row titles** in the model (Brook, Oct 23; the `row_labels` code is disabled).
 - "Show in Omacad" opens it full screen on workspace 3 and focuses it. Building takes about a minute.
 
-### 9.3 Client sheet (`client_sheet.py`, "Client sheet (PDF)" button). BUILT
+### 9.3 Carpenter 2D (`client_sheet.py`). BUILT
+Nov 11: the form button and the document title are **Carpenter 2D**. `POST /client-sheet` still returns the same PDF. **Countertop 2D** (`POST /counter-2d`, `cabgen.cli counter`) is that countertop page by itself, for laminate or solid surface. Cabinet detail pages are drawings and dimensions only: no "WHAT IT IS" list and no style width table. The title block is a bottom-right block about one third of the sheet, not a full-height rail.
+
 - **11×17 landscape, multi-page PDF.**
   - **Page 1, the whole kitchen:** title, front elevation (uppers over bases, doors, drawers, filler), isometric shaded 3D, plan view, end view, the cabinet schedule (it goes to 2 columns of W×H×D on long jobs), and a title block.
   - **Page 2, the countertop** (if any): sections, plus seam and dogbone details.
@@ -519,7 +521,7 @@ Bases are under a countertop (32" case, Oct 30).
 ### 9.9 Email drafts (Oct 30). BUILT (draft only, never sends)
 - **Email AR to me** (`POST /email-ar`, `drafts.draft_ar_email`): writes `out/email-ar/<job-slug>/` with `cabcad.usdz` (iPhone), `cabcad.glb` (Android), `email.eml` (To brook@printrbot.com, `X-Unsent: 1`, both files attached) and `mailto.txt`, then opens the folder (`xdg-open`, detached).
   - Recipients in `config/email.json`, enabled entries only: **brook@printrbot.com**. **Rick, ricks@cexhibits.com, is listed but `enabled: false`** (future recipient; do not include until Brook says so).
-- **Draft client email** (`POST /client-email`, test mode): writes `out/client-email/<job-slug>/` with `<job>-client-sheet.pdf`, `<job>-render.png`, `<job>.usdz`, `<job>.glb`, `email.txt` (subject + copy-paste body) and `email.eml` (no To: address; all four files attached), opens the folder, and shows the body with a **Copy email text** button.
+- **Draft client email** was removed from the form on Nov 11 (Brook). `POST /client-email` is not a route. The writer in `drafts.py` is unused. Nothing is sent. **Email AR to me** stays.
 - Neither route contains any mail-sending code; the tests replace `smtplib.SMTP` to prove nothing tries to send.
 
 ### 9.10 Plans dashboard (Oct 30). BUILT

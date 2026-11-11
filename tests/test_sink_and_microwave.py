@@ -11,7 +11,6 @@ from cabgen.params import (
     SINK_BACK_STILE_H, SINK_FRONT_BOARD_BELOW_DOOR_TOP, UPPER_DEPTH,
 )
 from cabgen.parts import build_parts
-from cabgen.units import fmt_in
 from cabgen.web import _wire_data
 
 
@@ -137,8 +136,8 @@ def test_client_sheet_renders_sink_and_microwave_pages(tmp_path: Path):
     pages = render_pages(job, "2026-10-27")
     import html
     text = html.unescape("".join(p.to_string() for p in pages))
-    assert "SINK" in text.upper() and "false drawer front" in text
-    assert "the shelf projects to " + fmt_in(16.5) in text
+    assert "SINK" in text.upper() and "opening" in text
+    assert "the shelf projects to" not in text and "WHAT IT IS" not in text
 
 
 def test_client_views_show_one_unbroken_countertop(tmp_path: Path):

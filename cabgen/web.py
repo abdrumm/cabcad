@@ -18,7 +18,8 @@ from .kitchen import (
     group_settings, parse_group, group_sheet, write_kitchen,
 )
 from .params import (
-    BASE_DEPTH, DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_RECESS,
+    BASE_DEPTH, DEFAULT_WIDTHS, FORM_FIELDS, Params, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_MAX,
+    TOE_KICK_RECESS,
     UPPER_1DOOR_MAX_WIDTH, _coerce, base_case_height, door_rule_warnings,
 )
 
@@ -169,9 +170,14 @@ def _field_html(field: dict, values: dict) -> str:
         return (f'<div class="check"><input type="checkbox" id="f-{name}" '
                 f'name="{name}"{checked}><label for="f-{name}">{html.escape(label)}</label></div>')
     step = ' step="0.0625"'
+    bounds = ""
+    if field.get("min") is not None:
+        bounds += f' min="{field["min"]:g}"'
+    if field.get("max") is not None:
+        bounds += f' max="{field["max"]:g}"'
     return (f'<div><label for="f-{name}">{html.escape(label)}</label>'
             f'<input type="number" id="f-{name}" name="{name}" '
-            f'value="{html.escape(str(val))}"{step}></div>')
+            f'value="{html.escape(str(val))}"{bounds}{step}></div>')
 
 
 def _form_html(values: dict) -> str:
@@ -434,9 +440,9 @@ def _base_size_fields(view: dict) -> str:
                    10, 36,
                    "Back face of the case (on the wall) to the front face of the case. "
                    "The door is not included.")
-        + _num_opt("toe_kick_h", "Toe kick height", view["toe_kick_h"], "in", 0, 12,
-                   "Floor to the bottom of the case. It comes out of the case, not off the "
-                   "33-1/2 inch finished height.")
+        + _num_opt("toe_kick_h", "Toe kick height", view["toe_kick_h"], "in", 0, TOE_KICK_MAX,
+                   "Floor to the bottom of the case, 4 inches at most. It comes out of the "
+                   "case, not off the 33-1/2 inch finished height.")
         + _num_opt("toe_kick_recess", "Toe kick depth", view["toe_kick_recess"],
                    "in, case front to kick face", 0, 12,
                    "Front face of the case, measured back to the face of the toe kick. "
@@ -666,18 +672,14 @@ RUN_CSS = """
   .card.drop-before { box-shadow: -4px 0 0 0 var(--accent); }
   .card.drop-after { box-shadow: 4px 0 0 0 var(--accent); }
   .wire { border: 1px solid var(--line); border-radius: 12px;
-          padding: clamp(.4rem, 1.2vw, .6rem) clamp(.6rem, 1.6vw, 1rem) .4rem;
-          margin: .9rem 0; min-width: 0; max-width: 100%; }
+          padding: clamp(.4rem, 1vw, .55rem) clamp(.45rem, 1.2vw, .7rem) .45rem;
+          margin: .9rem 0 0; min-width: 0; width: 100%; max-width: 100%;
+          box-sizing: border-box; }
   .wirehead { display: flex; flex-wrap: wrap; gap: .35rem .8rem; align-items: baseline; }
-  /* Front view fills the width it is given and a slice of the window height.
-     60vh up to 640px on a normal desktop. Short windows (the ~800-900px laptop)
-     use the smaller slice in the max-height query so the form and the drawing
-     share the screen. A wide short window puts the drawing beside the form.
-     Vector art stays sharp; preserveAspectRatio meet keeps the aspect. */
-  #wire { display: block; width: 100%; max-width: 100%;
-          height: clamp(320px, 60vh, 640px);
-          height: clamp(320px, min(60vh, 60dvh), 640px);
-          max-height: min(80dvh, 900px); }
+  /* The live front view sits under the form and uses the page width.
+     Height follows the viewBox, so the drawing stays in proportion and is
+     not locked into a side column. */
+  #wire { display: block; width: 100%; max-width: 100%; height: auto; }
   #wire .wf-floor { stroke: currentColor; stroke-width: .6; }
   #wire .wf-wall { fill: #8884; stroke: currentColor; stroke-width: .35; }
   #wire .wf-case { fill: #8881; stroke: currentColor; stroke-width: .35; }
@@ -746,36 +748,13 @@ RUN_CSS = """
     .rowside { border-right: 0; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: .55rem; }
     .actions button { padding: .4rem .8rem; }
   }
-  /* Owner's short-laptop slice, for a stacked page: smaller than 60vh so the
-     drawing does not push the form into a long scroll. Wide short windows
-     override this and park the drawing in the side column instead. */
   @media (max-height: 900px) {
     .lead { margin-bottom: .45rem; }
     .row { margin-bottom: .55rem; }
-    .wire { margin: .55rem 0; }
     button.plus { min-height: 4.5rem; }
-    #wire { height: clamp(240px, 45vh, 480px);
-            height: clamp(240px, min(45vh, 45dvh), 480px); }
   }
-  /* Wide and short (13-15" laptop, short desktop): the drawing sits beside the
-     rows and uses the leftover height, instead of stacking under them. */
   .stage { min-width: 0; max-width: 100%; }
-  .stage-main, .stage-notes { min-width: 0; max-width: 100%; }
-  /* Up through a 1080p desktop: the drawing stays beside the rows so a 640px
-     front view does not sit below the form and force a long scroll. Taller
-     monitors (a 1440p iMac) keep the drawing full width under the form. */
-  @media (min-width: 68rem) and (max-height: 1100px) {
-    .stage { display: grid;
-             grid-template-columns: minmax(0, 1.15fr) minmax(min(100%, 18rem), 0.95fr);
-             grid-template-areas: "main wire" "notes notes";
-             column-gap: clamp(.6rem, 1.4vw, 1.1rem); align-items: start; }
-    .stage-main { grid-area: main; }
-    .stage > .wire { grid-area: wire; position: sticky; top: .4rem; margin: 0;
-                     align-self: start; max-height: calc(100dvh - .8rem); }
-    .stage-notes { grid-area: notes; }
-    .stage > .wire #wire { height: clamp(240px, min(68vh, 68dvh), 640px);
-                           max-height: calc(100dvh - 8rem); }
-  }
+  .stage-main, .stage-notes, .stage > .wire { min-width: 0; max-width: 100%; width: 100%; }
 </style>
 """
 
@@ -819,7 +798,9 @@ function drawWire() {
   const uoff = parseFloat(wfVal('uoff')) || 0;
   // The toe kick height is called out on the form, so the front view follows it.
   const toeRaw = parseFloat(wfVal('toe_kick_h'));
-  const toeH = Number.isFinite(toeRaw) ? toeRaw : null;
+  // Brook, Nov 9: the kick is never taller than 4". The live view follows the field
+  // but will not draw a taller kick.
+  const toeH = Number.isFinite(toeRaw) ? Math.min(4, Math.max(0, toeRaw)) : null;
   // Same for the base case height: floor to the top of the case, no countertop.
   // It is fixed by the 33-1/2" finished rule, so this only mirrors the field.
   const hRaw = parseFloat(wfVal('height'));
@@ -1313,11 +1294,13 @@ def _run_fields(view: dict) -> str:
 <header class="bar">
 <div class="brand">CabCad<span class="muted">cabinet group</span></div>
 <div class="actions">
-<button type="submit">Show in Omacad</button>
-<button type="submit" class="ghost" formaction="/client-sheet" formtarget="_blank">Client sheet (PDF)</button>
+<button type="submit">Omacad</button>
+<button type="submit" class="ghost" formaction="/carpenter-2d" formtarget="_blank" title="11x17 drawing set: elevations, the countertop page, and one page per style">Carpenter 2D</button>
+<button type="submit" class="ghost" formaction="/counter-2d" formtarget="_blank" title="One 11x17 page of the countertop only, laminate or solid surface">Countertop 2D</button>
+<button type="submit" class="ghost" formaction="/front-view" formtarget="_blank" title="Front elevation of the whole run, as its own page for the CE pipeline, with links to the render and the AR files">Front view</button>
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 <button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
-<button type="submit" class="ghost" formaction="/client-email" title="Collect the client PDF, a render and the AR file with a ready email text. Test mode: nothing is sent.">Draft client email</button>
+<button type="submit" class="ghost" formaction="/photo" formtarget="_blank" title="Photorealistic still of this design. Opens in a new tab and can take several minutes. It does not run when you only change the form.">Photorealistic view</button>
 </div>
 </header>
 <section class="jobline" aria-label="Job">
@@ -1447,19 +1430,25 @@ def _job_card(out_dir: Path, stem: str, form_id: str = "runform") -> str:
         return (f'<a class="jitem" href="/files/{html.escape(name)}" target="_blank">'
                 f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></a>')
 
-    def button(action: str, title: str, note: str) -> str:
+    def button(action: str, title: str, note: str, target: str = "") -> str:
         if not form_id:
             return ""
-        return (f'<button class="jitem" type="submit" form="{form_id}" formaction="{action}">'
+        tgt = f' formtarget="{html.escape(target)}"' if target else ""
+        return (f'<button class="jitem" type="submit" form="{form_id}" formaction="{action}"{tgt}>'
                 f'<strong>{html.escape(title)}</strong><span>{html.escape(note)}</span></button>')
 
     groups = [
         ("Shop floor", "".join(link(*item) for item in NEST_LINKS)),
-        ("Client", button("/client-sheet", "Client sheet (PDF)",
-                          "One page: colours, notes and the iso view") +
-                   button("/client-email", "Draft client email",
-                          "PDF + render + AR in a draft. Nothing is sent")),
-        ("Model", button("/run", "Show in Omacad", "Builds the model and opens it") +
+        ("Client", button("/carpenter-2d", "Carpenter 2D",
+                          "11x17 set: elevations, countertop page, one page per style",
+                          target="_blank") +
+                   button("/counter-2d", "Countertop 2D",
+                          "One page, countertop only, laminate or solid surface",
+                          target="_blank") +
+                   button("/front-view", "Front view",
+                          "Standalone elevation for the CE pipeline, with the render and AR",
+                          target="_blank")),
+        ("Model", button("/run", "Omacad", "Builds the model and opens it") +
                   button("/ar", "AR view", "QR code and phone page for the model") +
                   link(".omacad", "Model file (.omacad)", "The 3D model on disk")),
     ]
@@ -1512,7 +1501,19 @@ def _handle_run(form: dict, out_dir: Path) -> str:
         layout = layout_path.read_text(encoding="utf-8")
     if not ok:
         return _run_page(view, error=msg, layout=layout)
+    _enqueue_photo(form, out_dir)
     return _run_page(view, note=msg, layout=layout, card=_job_card(out_dir, "base-run"))
+
+
+def _enqueue_photo(form: dict, out_dir: Path) -> None:
+    """Start the still for the design just built. Never raises, and never waits."""
+    from .client_sheet import load_job
+    from .photo_view import render_photo
+    try:
+        job = load_job(out_dir / "base-run.csv", name=str(form.get("job") or "Cabinet group"))
+        render_photo(job, out_dir, block=False)
+    except Exception:
+        return
 
 
 def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
@@ -1534,6 +1535,75 @@ def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
     except (KitchenError, RuntimeError, OSError) as exc:
         return None, _run_page(view, error=f"client sheet: {exc}")
     return files["pdf"].read_bytes(), ""
+
+
+# Old bookmark. The button is Carpenter 2D; both paths write the same PDF.
+CARPENTER_PATHS = {"/client-sheet", "/carpenter-2d"}
+
+
+def _handle_counter_2d(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """One countertop page. The Carpenter 2D PDF already includes this sheet."""
+    from .client_sheet import load_job, write_counter_sheet
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "counter-2d.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        files = write_counter_sheet(job, out_dir, "counter-2d", png=False)
+    except (KitchenError, RuntimeError, OSError) as exc:
+        return None, _run_page(view, error=f"countertop 2D: {exc}")
+    return files["pdf"].read_bytes(), ""
+
+
+def _handle_photo(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """Photorealistic still. Only this button starts it. A repeat of the same design is cached."""
+    from .client_sheet import load_job
+    from .photo_view import render_photo
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "photo-view.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        page, _ran = render_photo(job, out_dir)
+    except (KitchenError, OSError, ValueError) as exc:
+        return None, _run_page(view, error=f"photorealistic view: {exc}")
+    return page.encode("utf-8"), ""
+
+
+def _handle_front_view(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """Standalone front elevation. The HTML links the render and the AR files."""
+    from .client_sheet import load_job
+    from .front_view import write_front_view
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "front-view.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        files = write_front_view(job, out_dir, "front-view")
+    except (KitchenError, RuntimeError, OSError, ValueError) as exc:
+        return None, _run_page(view, error=f"front view: {exc}")
+    return files["html"].read_bytes(), ""
 
 
 def _handle_ar(form: dict, out_dir: Path, host: str, port: int) -> str:
@@ -1746,6 +1816,12 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if not self._local():
                 self._html("<h1>Forbidden</h1><p>Only the AR pages are shared on the network.</p>", 403)
                 return
+            if path == "/photo-status":
+                from .photo_view import status_page
+                qs = parse_qs(urlparse(self.path).query)
+                fp = (qs.get("fp") or [""])[0]
+                self._html(status_page(out_dir, fp))
+                return
             if path in ("/", "/index.html", "/run"):
                 self._page(_run_page(group_view(None)))
                 return
@@ -1761,10 +1837,14 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                 ctype = {
                     ".svg": "image/svg+xml",
                     ".pdf": "application/pdf",
+                    ".html": "text/html; charset=utf-8",
+                    ".png": "image/png",
                     ".csv": "text/csv; charset=utf-8",
                     ".md": "text/markdown; charset=utf-8",
                     ".txt": "text/plain; charset=utf-8",
                     ".json": "application/json",
+                    ".glb": "model/gltf-binary",
+                    ".usdz": "model/vnd.usdz+zip",
                 }.get(target.suffix, "application/octet-stream")
                 self._send(target.read_bytes(), ctype)
                 return
@@ -1784,8 +1864,8 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
                 return
-            if path in ("/email-ar", "/client-email"):
-                self._page(_handle_draft(form, out_dir, "ar" if path == "/email-ar" else "client"))
+            if path == "/email-ar":
+                self._page(_handle_draft(form, out_dir, "ar"))
                 return
             if path == "/finishes":
                 from .finishes import add_custom, label
@@ -1800,17 +1880,47 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if path == "/cutlist":
                 self._html(live_cutlist(form, out_dir))
                 return
-            if path == "/client-sheet":
+            if path in CARPENTER_PATHS:
                 pdf, page = _handle_client_sheet(form, out_dir)
                 if pdf is None:
                     self._page(page)
                 else:
                     self._send(pdf, "application/pdf")
                 return
+            if path == "/counter-2d":
+                pdf, page = _handle_counter_2d(form, out_dir)
+                if pdf is None:
+                    self._page(page)
+                else:
+                    self._send(pdf, "application/pdf")
+                return
+            if path == "/photo":
+                body, page = _handle_photo(form, out_dir)
+                if body is None:
+                    self._page(page)
+                else:
+                    self._send(body, "text/html; charset=utf-8")
+                return
+            if path == "/front-view":
+                body, page = _handle_front_view(form, out_dir)
+                if body is None:
+                    self._page(page)
+                else:
+                    # The saved page is what the links are relative to.
+                    self.send_response(303)
+                    self.send_header("Location", "/files/front-view.html")
+                    self.send_header("Content-Length", "0")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                return
             if path != "/generate":
                 self._html("<h1>Not found</h1>", 404)
                 return
             p = params_from_form(form)
+            if p.toe_kick_h > TOE_KICK_MAX + 1e-9:
+                self._page(_form_html(form) + '<p class="warn">Toe kick height is 4 inches '
+                           "at most. The finished height stays 33-1/2 inches.</p>")
+                return
             result = generate(p, out_dir, with_omacad=True)
             warnings = [str(u) for u in result["uncuttable"]]
             warnings += list(result.get("warnings", []))

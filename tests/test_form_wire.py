@@ -16,6 +16,9 @@ def _page():
 def test_page_has_wireframe_and_drag_handles():
     page = _page()
     assert '<svg id="wire"' in page
+    assert 'preserveAspectRatio="xMidYMid meet"' in page
+    assert "#wire { display: block; width: 100%; max-width: 100%; height: auto; }" in page
+    assert 'grid-template-areas: "main wire"' not in page
     assert "function drawWire()" in page and "function moveCabinet(" in page
     assert page.count('title="Drag to move this cabinet along the row"') >= 2
     assert "pointerdown" in page and "touch-action: none" in page

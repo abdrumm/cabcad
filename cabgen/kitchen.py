@@ -24,7 +24,7 @@ from pathlib import Path
 from .cutlist import to_csv
 from .model3d import Box, HoleSpec, build_model
 from .params import (
-    BASE_DEPTH, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_RECESS, Params, base_case_height,
+    BASE_DEPTH, STYLE_PRESETS, TOE_KICK_H, TOE_KICK_MAX, TOE_KICK_RECESS, Params, base_case_height,
     door_rule_warnings, enforce_upper_door_limit, min_width,
 )
 from .parts import build_parts
@@ -172,7 +172,12 @@ def place_kitchen(rows: list[dict], settings: dict, source: str = "kitchen") -> 
             # The toe kick and the counter depth are called out once for the whole
             # base run, so every base in the run gets the same sizes.
             if settings.get("toe_kick_h") is not None:
-                params.toe_kick_h = float(settings["toe_kick_h"])
+                kick = float(settings["toe_kick_h"])
+                if kick < 0 or kick > TOE_KICK_MAX + 1e-9:
+                    raise KitchenError(
+                        f"toe kick height {kick:g} is outside 0 to {TOE_KICK_MAX:g} inches"
+                    )
+                params.toe_kick_h = kick
             if settings.get("toe_kick_recess") is not None:
                 params.toe_kick_recess = float(settings["toe_kick_recess"])
             if settings.get("counter_depth") is not None and params.depth:
@@ -561,7 +566,7 @@ def group_settings(form: dict) -> dict:
         # Case height is not a setting: the 33-1/2" finished rule sets it from the
         # countertop (Brook, Oct 30). Blank sizes keep the style's own numbers.
         "base_depth": base_depth,
-        "toe_kick_h": _base_size(form.get("toe_kick_h"), "toe kick height", 0.0, 12.0),
+        "toe_kick_h": _base_size(form.get("toe_kick_h"), "toe kick height", 0.0, TOE_KICK_MAX),
         "toe_kick_recess": _base_size(
             form.get("toe_kick_recess"), "toe kick depth from the case front", 0.0, 12.0),
         "counter_depth": counter_depth,
