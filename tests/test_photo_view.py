@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 8
+    assert SCRIPT_VERSION == 9
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,7 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 8 and payload["samples"] == 80
+    assert payload["version"] == 9 and payload["samples"] == 80
     assert payload["walls"] == "0"
     assert payload["denoise"] is True
 
@@ -138,7 +138,8 @@ def test_camera_shows_the_finished_end_and_keeps_the_stack():
     off square, the left wall's face is inside the frame, and the wall runs
     past the camera so the picture cannot see around it."""
     from cabgen.blender.render_kitchen import (
-        FRAME_MARGIN, camera_for_run, in_frame, side_wall_forward, view_angle,
+        EYE_CLEARANCE, FRAME_MARGIN, camera_for_run, in_frame, side_wall_forward,
+        view_angle,
     )
     # The renderer frames the cabinets plus a short strip of wall in front.
     bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05 + 0.22, 2.2)
@@ -146,6 +147,8 @@ def test_camera_shows_the_finished_end_and_keeps_the_stack():
         bmin, bmax, "left", aspect=16 / 9, margin=FRAME_MARGIN)
     assert dist > 1.0
     assert abs(view_angle(cam, target) - 35.0) < 1.0
+    assert abs((bmax[2] - cam[2]) - EYE_CLEARANCE) < 1e-6
+    assert cam[2] < bmax[2]
     assert cam[0] > bmax[0]
     assert cam[1] > bmax[1]
     for x in (bmin[0], bmax[0]):

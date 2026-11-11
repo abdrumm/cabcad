@@ -1,4 +1,4 @@
-"""Procedural kitchen still for CabCAD. Script version 8.
+"""Procedural kitchen still for CabCAD. Script version 9.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 8
+SCRIPT_VERSION = 9
 INCH = 0.0254
 SAMPLES = 80
 WIDTH = 1920
@@ -30,6 +30,10 @@ OPEN_ANGLE = 35.0
 # Tighter than 1.12 so the run fills the picture and the left edge is the
 # wall, not the dark background beside it.
 FRAME_MARGIN = 1.03
+# Raise the eye about 2 feet, but stop just under the upper tops so those
+# tops stay out of the picture.
+EYE_LIFT = 0.610
+EYE_CLEARANCE = 0.06
 
 
 def _norm(v):
@@ -178,17 +182,31 @@ def in_frame(point, cam, target, lens_mm=32.0, aspect=WIDTH / HEIGHT, sensor_mm=
             and abs(_dot(rel, up)) / depth <= tan_v + 1e-6)
 
 
+def lift_to_eye(cam, top_z, lift=EYE_LIFT, clearance=EYE_CLEARANCE):
+    """Raise the camera. Never put it above the uppers.
+
+    A full two feet from the version-8 height would clear the tops and show
+    them. The lens stops ``clearance`` metres under the top instead.
+    """
+    z = min(cam[2] + lift, top_z - clearance)
+    if z < cam[2]:
+        z = cam[2]
+    return (cam[0], cam[1], z)
+
+
 def camera_for_run(bounds_min, bounds_max, walls, lens_mm=32.0,
                    aspect=WIDTH / HEIGHT, margin=1.12, degrees=OPEN_ANGLE):
     """Camera about 35 degrees off square, toward the finished end.
 
     A left wall means the right end is finished, so the camera sits to the
     right and that end panel faces the lens. A right wall is the mirror.
-    Both walls stay nearly straight on. The whole stack still fits.
+    Both walls stay nearly straight on. The eye is just under the upper
+    tops, and the whole stack still fits.
     """
     view = _view_dir(walls, degrees)
     cam, target, dist = camera_fit(
         bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
+    cam = lift_to_eye(cam, bounds_max[2])
     return cam, target, dist, view
 
 
