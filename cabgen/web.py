@@ -672,18 +672,14 @@ RUN_CSS = """
   .card.drop-before { box-shadow: -4px 0 0 0 var(--accent); }
   .card.drop-after { box-shadow: 4px 0 0 0 var(--accent); }
   .wire { border: 1px solid var(--line); border-radius: 12px;
-          padding: clamp(.4rem, 1.2vw, .6rem) clamp(.6rem, 1.6vw, 1rem) .4rem;
-          margin: .9rem 0; min-width: 0; max-width: 100%; }
+          padding: clamp(.4rem, 1vw, .55rem) clamp(.45rem, 1.2vw, .7rem) .45rem;
+          margin: .9rem 0 0; min-width: 0; width: 100%; max-width: 100%;
+          box-sizing: border-box; }
   .wirehead { display: flex; flex-wrap: wrap; gap: .35rem .8rem; align-items: baseline; }
-  /* Front view fills the width it is given and a slice of the window height.
-     60vh up to 640px on a normal desktop. Short windows (the ~800-900px laptop)
-     use the smaller slice in the max-height query so the form and the drawing
-     share the screen. A wide short window puts the drawing beside the form.
-     Vector art stays sharp; preserveAspectRatio meet keeps the aspect. */
-  #wire { display: block; width: 100%; max-width: 100%;
-          height: clamp(320px, 60vh, 640px);
-          height: clamp(320px, min(60vh, 60dvh), 640px);
-          max-height: min(80dvh, 900px); }
+  /* The live front view sits under the form and uses the page width.
+     Height follows the viewBox, so the drawing stays in proportion and is
+     not locked into a side column. */
+  #wire { display: block; width: 100%; max-width: 100%; height: auto; }
   #wire .wf-floor { stroke: currentColor; stroke-width: .6; }
   #wire .wf-wall { fill: #8884; stroke: currentColor; stroke-width: .35; }
   #wire .wf-case { fill: #8881; stroke: currentColor; stroke-width: .35; }
@@ -752,36 +748,13 @@ RUN_CSS = """
     .rowside { border-right: 0; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: .55rem; }
     .actions button { padding: .4rem .8rem; }
   }
-  /* Owner's short-laptop slice, for a stacked page: smaller than 60vh so the
-     drawing does not push the form into a long scroll. Wide short windows
-     override this and park the drawing in the side column instead. */
   @media (max-height: 900px) {
     .lead { margin-bottom: .45rem; }
     .row { margin-bottom: .55rem; }
-    .wire { margin: .55rem 0; }
     button.plus { min-height: 4.5rem; }
-    #wire { height: clamp(240px, 45vh, 480px);
-            height: clamp(240px, min(45vh, 45dvh), 480px); }
   }
-  /* Wide and short (13-15" laptop, short desktop): the drawing sits beside the
-     rows and uses the leftover height, instead of stacking under them. */
   .stage { min-width: 0; max-width: 100%; }
-  .stage-main, .stage-notes { min-width: 0; max-width: 100%; }
-  /* Up through a 1080p desktop: the drawing stays beside the rows so a 640px
-     front view does not sit below the form and force a long scroll. Taller
-     monitors (a 1440p iMac) keep the drawing full width under the form. */
-  @media (min-width: 68rem) and (max-height: 1100px) {
-    .stage { display: grid;
-             grid-template-columns: minmax(0, 1.15fr) minmax(min(100%, 18rem), 0.95fr);
-             grid-template-areas: "main wire" "notes notes";
-             column-gap: clamp(.6rem, 1.4vw, 1.1rem); align-items: start; }
-    .stage-main { grid-area: main; }
-    .stage > .wire { grid-area: wire; position: sticky; top: .4rem; margin: 0;
-                     align-self: start; max-height: calc(100dvh - .8rem); }
-    .stage-notes { grid-area: notes; }
-    .stage > .wire #wire { height: clamp(240px, min(68vh, 68dvh), 640px);
-                           max-height: calc(100dvh - 8rem); }
-  }
+  .stage-main, .stage-notes, .stage > .wire { min-width: 0; max-width: 100%; width: 100%; }
 </style>
 """
 
@@ -1321,7 +1294,7 @@ def _run_fields(view: dict) -> str:
 <header class="bar">
 <div class="brand">CabCad<span class="muted">cabinet group</span></div>
 <div class="actions">
-<button type="submit">Show in Omacad</button>
+<button type="submit">Omacad</button>
 <button type="submit" class="ghost" formaction="/carpenter-2d" formtarget="_blank" title="11x17 drawing set: elevations, the countertop page, and one page per style">Carpenter 2D</button>
 <button type="submit" class="ghost" formaction="/counter-2d" formtarget="_blank" title="One 11x17 page of the countertop only, laminate or solid surface">Countertop 2D</button>
 <button type="submit" class="ghost" formaction="/front-view" formtarget="_blank" title="Front elevation of the whole run, as its own page for the CE pipeline, with links to the render and the AR files">Front view</button>
@@ -1475,7 +1448,7 @@ def _job_card(out_dir: Path, stem: str, form_id: str = "runform") -> str:
                    button("/front-view", "Front view",
                           "Standalone elevation for the CE pipeline, with the render and AR",
                           target="_blank")),
-        ("Model", button("/run", "Show in Omacad", "Builds the model and opens it") +
+        ("Model", button("/run", "Omacad", "Builds the model and opens it") +
                   button("/ar", "AR view", "QR code and phone page for the model") +
                   link(".omacad", "Model file (.omacad)", "The 3D model on disk")),
     ]
@@ -1528,7 +1501,19 @@ def _handle_run(form: dict, out_dir: Path) -> str:
         layout = layout_path.read_text(encoding="utf-8")
     if not ok:
         return _run_page(view, error=msg, layout=layout)
+    _enqueue_photo(form, out_dir)
     return _run_page(view, note=msg, layout=layout, card=_job_card(out_dir, "base-run"))
+
+
+def _enqueue_photo(form: dict, out_dir: Path) -> None:
+    """Start the still for the design just built. Never raises, and never waits."""
+    from .client_sheet import load_job
+    from .photo_view import render_photo
+    try:
+        job = load_job(out_dir / "base-run.csv", name=str(form.get("job") or "Cabinet group"))
+        render_photo(job, out_dir, block=False)
+    except Exception:
+        return
 
 
 def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:

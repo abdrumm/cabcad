@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-159 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
+163 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -96,20 +96,27 @@ since then pass. AR export does not need Omacad and passes here.
 - Photorealistic view is the last button on the kitchen form. It does not run
   when the form is only opened. The original `.blend` was not found. The still
   is a new generic room around the current boxes, including the perimeter
-  build-up (`cabgen/blender/render_kitchen.py`, version 1). No `.blend` file
+  build-up (`cabgen/blender/render_kitchen.py`, version 2). No `.blend` file
   is required and none is in git. Blender is not vendored.
   Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
   the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
   `/home/abdrumm/.local/opt/blender-5.2.4-linux-x64/blender`
   It is `-march=x86-64-v2` (SSE4.2). The i7-2600 has SSE4.2 and AVX, not AVX2,
-  and no GPU. Cycles is CPU only: no CUDA, OptiX, HIP, or oneAPI. Denoise is
-  off unless OpenImageDenoise can be set on the CPU; if it cannot, the still
-  renders without it. 4 cores / 8 threads, 31 GiB RAM. A 64×64, 8-sample smoke
-  frame on that machine was 3.2 seconds. That is not a kitchen timing. The
-  demo frame is 960×540, 32 samples, denoise off. One render at a time, in
-  the background, cached by design. `GET /photo-status` only checks; it does
-  not start a render. This checkout did not run Blender, so there is no
-  kitchen PNG from here. `cabgen.render` is still the flat shaded still.
+  and no GPU. Cycles is CPU only: no CUDA, OptiX, HIP, or oneAPI. Denoise
+  stays off. OpenImageDenoise is not used; that build often wants AVX2.
+  4 cores / 8 threads, 31 GiB RAM. Measured on that machine: a 64×64,
+  8-sample smoke frame was 3.2 seconds, and a 4-base 4-upper kitchen at
+  960×540 and 32 samples (version 1 camera) was 25.0 seconds. That frame
+  cropped the tops of the uppers and the feet. Version 2 fits the camera to
+  the cabinet bounds and lights the run with a warm morning sun through a
+  window in the side wall, plus a soft fill. The demo frame is 960×540 and
+  64 samples (about twice the measured 32-sample work, before the window and
+  the extra bounces). That 64-sample time has not been measured. One render
+  at a time, in the background, cached by design. A repeat of the same design
+  on that machine was 0.015 seconds, and an ordinary page was 0.044 seconds.
+  `GET /photo-status` only checks; it does not start a render. This checkout
+  did not run Blender, so there is no new kitchen PNG from here.
+  `cabgen.render` is still the flat shaded still.
 
 ## Where we left off / next steps
 Done 2026-11-08, from docs/PLANS.md items 3, 4 and 5. Items 1 and 2 were left
@@ -134,18 +141,21 @@ alone. The finished height is still 33-1/2".
   strips go around the perimeter, including the back edge, and do not cross
   cabinet joints.
 - Standalone front elevation: `python3 -m cabgen.cli front <sheet.csv> --out
-  <dir>` writes SVG, PDF and an HTML page for the CE pipeline. The HTML links
-  the render PNG and the AR files written next to it. The kitchen form has a
-  Front view button beside the client sheet (it also lives on the job card).
+  <dir>` writes SVG, PDF and an HTML page for the CE pipeline. The sheet is
+  the elevation only: no logo and no title block, so the drawing can use the
+  page. The HTML links the render PNG and the AR files written next to it.
+  The kitchen form has a Front view button. The live wireframe under the form
+  uses the page width (`#wire` is `width: 100%; height: auto`).
 - Toe kick height is at most 4" (Brook, Nov 9). The kitchen form, the single
   cabinet form, and a `# toe_kick_h=` line all refuse a taller kick. The live
   front view will not draw one. The kick still comes out of the case. Finished
   height stays 33-1/2".
-- 11x17 drawing sheets (Carpenter 2D, countertop, cabinet detail, standalone
-  front, and the shop drawing) keep the identity in one block at the bottom
-  right, about a third of the sheet tall. The drawing name is the first line
-  inside that block. The upper part of the sheet, including the right side, is
-  for the drawings. Nest sheets are unchanged.
+- On Carpenter 2D, the countertop page, the cabinet detail pages, and the
+  shop drawing, the identity block is a small box at the bottom right: half
+  the old 5.2 in width, and about a quarter of that block's area (2.6 by
+  1.83 inches). The cabinets table sits just to its left on the overview.
+  The standalone front
+  elevation has no block. Nest sheets are unchanged.
 
 Still to do:
 1. Cut over: put this tree at `~/Work/cabcad`, keep the `v0.15` tag, push to

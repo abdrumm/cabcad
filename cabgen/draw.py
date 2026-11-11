@@ -449,8 +449,9 @@ def _notes_block(svg: Svg, p: Params, layout: Layout, parts: list[Part],
         y += 0.02
 
 
-SHOP_BLOCK_H = round(PAGE_H / 3.0, 3)
-SHOP_BLOCK_W = 5.2
+# Same corner block as the Carpenter 2D sheets: half the old 5.2 in width.
+SHOP_BLOCK_W = 2.6
+SHOP_BLOCK_H = 1.83
 
 
 def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1):
@@ -461,14 +462,14 @@ def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1):
     y = PAGE_H - MARGIN - SHOP_BLOCK_H
     svg.rect(x, y, SHOP_BLOCK_W, SHOP_BLOCK_H, fill="none", stroke=INK, sw=0.01)
     svg.line(x, y, x + SHOP_BLOCK_W, y, stroke=INK, sw=0.02)
-    svg.text(x + 0.12, y + 0.28, "SHOP DRAWING", size=0.14, weight="bold")
+    svg.text(x + 0.08, y + 0.16, "SHOP DRAWING", size=0.11, weight="bold")
     name = p.name
-    size = 0.11
-    room = SHOP_BLOCK_W - 0.24
-    while size > 0.075 and len(name) * size * 0.56 > room:
+    size = 0.08
+    room = SHOP_BLOCK_W - 0.16
+    while size > 0.065 and len(name) * size * 0.56 > room:
         size -= 0.005
     shown = name if len(name) * size * 0.56 <= room else name[: max(8, int(room / (size * 0.56)) - 1)] + "…"
-    svg.text(x + 0.12, y + 0.50, shown, size=size)
+    svg.text(x + 0.08, y + 0.32, shown, size=size)
     rows = [
         ("CASE", f'{fmt_in(p.width)} x {fmt_in(p.depth)} x {fmt_in(p.height)}'),
         ("SHEET", f"{sheet} OF {sheets}"),
@@ -477,19 +478,22 @@ def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1):
         ("FRONTS", f'{p.doors} door, {p.drawers} drw'),
         ("COUNTER", "yes" if p.has_counter else "none"),
     ]
-    yy = y + 0.78
     for i, (k, v) in enumerate(rows):
         col, row = i % 2, i // 2
-        xx = x + 0.12 + col * (SHOP_BLOCK_W - 0.24) / 2
-        svg.text(xx, yy + row * 0.42, k, size=0.055)
-        svg.text(xx, yy + row * 0.42 + 0.14, v, size=0.08, weight="bold")
+        xx = x + 0.08 + col * (SHOP_BLOCK_W - 0.16) / 2
+        yy = y + 0.50 + row * 0.36
+        svg.text(xx, yy, k, size=0.045)
+        svg.text(xx, yy + 0.11, v, size=0.07, weight="bold")
+    # Elevations use the sheet above a cut-list band. The band is taller than
+    # the corner block so the parts list still fits; it stops at the block.
+    cut_h = 4.15
+    cut_top = PAGE_H - MARGIN - cut_h
     ux, uy = MARGIN + 0.04, MARGIN + 0.08
     uw = PAGE_W - 2 * MARGIN - 0.1
-    uh = y - uy - 0.08
-    lx, ly = ux, y + 0.04
+    uh = cut_top - uy - 0.06
+    lx = ux
     lw = x - lx - 0.08
-    lh = PAGE_H - MARGIN - ly - 0.02
-    return (ux, uy, uw, uh), (lx, ly, lw, lh)
+    return (ux, uy, uw, uh), (lx, cut_top, lw, cut_h)
 
 
 def _title_block(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, float, float],

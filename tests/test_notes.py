@@ -42,8 +42,9 @@ def test_facts_come_from_the_design(tmp_path: Path):
     f = facts_from_job(job)
     assert f.sink and f.drawers == 0 and f.counter == "solid" and f.filler == 2 and f.uppers == 1
     page = render(job).to_string()
-    assert "Solid surface, 1-1/2" in page and "Sink base: false drawer front" in page
-    assert "Laminate, 1-1/2" not in page and "filler closes the gap at the left wall" in page
+    assert "Solid surface, 1-1/2" not in page and "Sink base: false drawer front" not in page
+    assert "NOTES" not in page
+    assert "filler closes the gap at the left wall" not in page
 
 
 def test_single_cabinet_drawing_notes_only_what_applies():

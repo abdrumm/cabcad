@@ -282,6 +282,18 @@ def _wall_band(svg: Svg, x, y, w, h):
 
 
 # --------------------------------------------------------------------------- views
+def elevation_scale_words(job: Job, bw: float, bh: float) -> str:
+    """The front-elevation scale, for the identity block. Not drawn on the view."""
+    spans = [s for s in (job.run_span("base"), job.run_span("upper")) if s]
+    if not spans:
+        return "per view"
+    x0 = min(s[0] for s in spans)
+    x1 = max(s[1] for s in spans)
+    top = max(c.z + c.params.height for c in job.cabs)
+    _s, words = _scale(x1 - x0, top, bw - 2.6, bh - 2.2)
+    return words
+
+
 def front_elevation(svg: Svg, job: Job, box) -> None:
     bx, by, bw, bh = box
     span_b, span_u = job.run_span("base"), job.run_span("upper")
@@ -289,8 +301,8 @@ def front_elevation(svg: Svg, job: Job, box) -> None:
     x0 = min(s[0] for s in spans)
     x1 = max(s[1] for s in spans)
     top = max(c.z + c.params.height for c in job.cabs)
-    s, words = _scale(x1 - x0, top, bw - 2.6, bh - 2.2)
-    _heading(svg, bx, by + 0.2, "FRONT ELEVATION", words)
+    s, _words = _scale(x1 - x0, top, bw - 2.6, bh - 2.2)
+    _heading(svg, bx, by + 0.2, "FRONT ELEVATION")
     ox = bx + 0.6 + (bw - 2.6 - (x1 - x0) * s) / 2 - x0 * s
     floor = by + 1.25 + top * s
     X = lambda x: ox + x * s
@@ -355,9 +367,6 @@ def front_elevation(svg: Svg, job: Job, box) -> None:
     if job.bases:
         bh_ = job.counter.top_z if job.counter else max(c.params.height for c in job.bases)
         _vdim(svg, xr, Z(0), Z(bh_), fmt_in(bh_), size=0.12)
-        if job.counter:
-            svg.text(xr + 0.12, Z(bh_) + 0.3, "top of", size=0.1, fill=SOFT)
-            svg.text(xr + 0.12, Z(bh_) + 0.44, "counter", size=0.1, fill=SOFT)
     if job.uppers:
         ub = min(c.z for c in job.uppers)
         ut = max(c.z + c.params.height for c in job.uppers)
@@ -365,8 +374,6 @@ def front_elevation(svg: Svg, job: Job, box) -> None:
             _vdim(svg, xr, Z(bh_), Z(ub), fmt_in(ub - bh_), size=0.12)
         _vdim(svg, xr, Z(ub), Z(ut), fmt_in(ut - ub), size=0.12)
         _vdim(svg, xr + 0.4, Z(0), Z(ut), "overall " + ft_in(ut), size=0.13)
-        svg.text(xr + 0.65, Z(ub) + 0.04, f"{fmt_in(ub)} floor to", size=0.1, fill=SOFT)
-        svg.text(xr + 0.65, Z(ub) + 0.18, "bottom of uppers", size=0.1, fill=SOFT)
         svg.line(xr - 0.1, Z(ub), xr + 0.6, Z(ub), stroke=SOFT, sw=0.004, dash="0.03,0.03")
 
 
@@ -377,8 +384,8 @@ def plan_view(svg: Svg, job: Job, box) -> None:
     x1 = max(s[1] for s in spans)
     wall = job.wall_y
     depth = wall + 0.75
-    s, words = _scale(x1 - x0, depth, bw - 1.6, bh - 1.3)
-    _heading(svg, bx, by + 0.2, "PLAN (TOP VIEW)", words)
+    s, _words = _scale(x1 - x0, depth, bw - 1.6, bh - 1.3)
+    _heading(svg, bx, by + 0.2, "PLAN (TOP VIEW)")
     ox = bx + 0.7 + (bw - 1.6 - (x1 - x0) * s) / 2 - x0 * s
     oy = by + 0.75
     X = lambda x: ox + x * s
@@ -419,7 +426,6 @@ def plan_view(svg: Svg, job: Job, box) -> None:
                  sw=0.008, dash="0.06,0.04")
         svg.text(X(c.x + p.width / 2), Y(c.y + p.depth) + 0.2, job.codes[c.name], size=0.12,
                  anchor="middle", fill=SOFT)
-    svg.text(bx + 0.7, by + 0.45, "Uppers shown dashed, hung on the same wall.", size=0.1, fill=SOFT)
     front = ct.y_front if ct else -0.75
     yb = Y(front) + 0.3
     span_b = job.run_span("base")
@@ -442,8 +448,8 @@ def end_view(svg: Svg, job: Job, box) -> None:
     bx, by, bw, bh = box
     wall = job.wall_y
     top = max(c.z + c.params.height for c in job.cabs)
-    s, words = _scale(wall + 1, top, bw - 1.6, bh - 1.25)
-    _heading(svg, bx, by + 0.2, "END VIEW", words)
+    s, _words = _scale(wall + 1, top, bw - 1.6, bh - 1.25)
+    _heading(svg, bx, by + 0.2, "END VIEW")
     ox = bx + 0.75 + (bw - 1.6 - (wall + 1) * s) / 2 + 0.75 * s
     floor = by + 0.75 + top * s
     Yx = lambda y: ox + y * s            # front on the left, wall on the right
@@ -599,9 +605,7 @@ def iso_view(svg: Svg, job: Job, box, phi_deg: float = 32.0, tilt: float = 0.55,
 
 def schedule(svg: Svg, job: Job, box) -> None:
     bx, by, bw, bh = box
-    _heading(svg, bx, by + 0.15, "CABINETS")
-    svg.text(bx + bw, by + 0.15, "Depth includes the doors and drawer fronts.", size=0.1,
-             anchor="end", fill=SOFT)
+    svg.text(bx, by + 0.15, "CABINETS", size=0.12, weight="bold", fill=INK)
     # uppers first, then the bases (Brook, 2026-10-24); filler and counter stay last
     ordered = sorted(job.cabs, key=lambda c: (c.run != "upper", c.x))
     rows = []
@@ -618,30 +622,33 @@ def schedule(svg: Svg, job: Job, box) -> None:
         ct = job.counter
         rows.append((ct.code, "Countertop, " + ("laminate" if ct.kind == "laminate" else "solid surface"),
                      fmt_in(ct.length), fmt_in(EDGE_T), fmt_in(ct.depth)))
-    room = bh - 0.75
-    if len(rows) * 0.18 <= room and bw >= 6.0:
-        # one column, the full width
-        cols = [("Tag", 0.0), ("Style", 0.55), ("Width", 3.9), ("Height", 4.75), ("Depth", 5.55)]
-        y = by + 0.45
+    room = bh - 0.34
+    if len(rows) * 0.125 <= room and bw >= 5.3:
+        depth_x = bw - 0.85
+        height_x = depth_x - 0.75
+        width_x = height_x - 0.8
+        cols = [("Tag", 0.0), ("Style", 0.42), ("Width", width_x), ("Height", height_x), ("Depth", depth_x)]
+        y = by + 0.32
         for name, dx in cols:
-            svg.text(bx + dx, y, name, size=0.11, weight="bold", fill=SOFT)
-        svg.line(bx, y + 0.06, bx + bw, y + 0.06, stroke="#c9ced4", sw=0.006)
-        line_h = min(0.21, room / max(1, len(rows)))
+            svg.text(bx + dx, y, name, size=0.08, weight="bold", fill=SOFT)
+        svg.line(bx, y + 0.04, bx + bw, y + 0.04, stroke="#c9ced4", sw=0.005)
+        line_h = min(0.15, room / max(1, len(rows)))
+        size = 0.10 if line_h >= 0.13 else 0.09
         for row in rows:
             y += line_h
             for (name, dx), val in zip(cols, row):
-                svg.text(bx + dx, y, val, size=0.13, fill=INK, weight="bold" if name == "Tag" else "normal")
+                svg.text(bx + dx, y, val, size=size, fill=INK, weight="bold" if name == "Tag" else "normal")
         return
     # a long job: two columns, the size as W x H x D, the style without its row word
     half = math.ceil(len(rows) / 2)
-    line_h = min(0.18, room / half)
-    size = min(0.11, line_h * 0.72)
+    line_h = min(0.15, room / max(1, half))
+    size = min(0.10, max(0.085, line_h * 0.7))
     colw = bw / 2
     for k in range(2):
         x0 = bx + k * colw
-        y = by + 0.45
-        for name, dx in (("Tag", 0.0), ("Style", 0.42), ("W x H x D", colw - 1.4)):
-            svg.text(x0 + dx, y, name, size=0.1, weight="bold", fill=SOFT)
+        y = by + 0.32
+        for name, dx in (("Tag", 0.0), ("Style", 0.38), ("W x H x D", max(0.9, colw - 1.25))):
+            svg.text(x0 + dx, y, name, size=0.08, weight="bold", fill=SOFT)
         svg.line(x0, y + 0.06, x0 + colw - 0.15, y + 0.06, stroke="#c9ced4", sw=0.006)
         for tag, label, w, h, d in rows[k * half:(k + 1) * half]:
             y += line_h
@@ -661,11 +668,14 @@ def _fit(text: str, size: float, width: float) -> str:
     return text if len(text) <= room else text[:room - 1].rstrip() + "\u2026"
 
 
-# Identity sits in one block, about a third of the sheet tall, at the bottom right.
-# The upper two-thirds of the sheet, including the right side, is for the drawings
-# (Brook, Nov 11). There is no full-height rail and no separate title band.
-BLOCK_H = round(PAGE_H / 3.0, 3)
-BLOCK_W = 5.2
+# Identity block, bottom right. The 44d9aa1 block was 5.2 in wide and a third
+# of the sheet tall (19.1 sq in). This one is half that width and about a
+# quarter of that area: 2.6 x 1.83 in.
+BLOCK_W = 2.6
+BLOCK_H = 1.83
+# Cabinets table sits immediately left of that block, same bottom edge.
+SCHED_W = 5.85
+SCHED_GAP = 0.12
 
 
 def sheet_zones() -> tuple[tuple[float, float, float, float], tuple[float, float, float, float]]:
@@ -692,23 +702,29 @@ def _fit_line(text: str, width: float, max_size: float = 0.16, min_size: float =
 
 def _identity_block(svg: Svg, job: Job, date: str, drawing: str, page: str,
                     cabinets: str | None, scale: str | None = None) -> None:
-    """Compact title block: drawing name on its top line, job name under that."""
+    """Small title block. Type stays at a readable size; the box is the part that shrank."""
     from . import branding as br
     x = PAGE_W - M - BLOCK_W
     y = PAGE_H - M - BLOCK_H
     w, h = BLOCK_W, BLOCK_H
-    pad = 0.1
+    pad = 0.07
     svg.rect(x, y, w, h, fill="#ffffff", stroke=br.RULE, sw=0.008)
-    svg.line(x, y, x + w, y, stroke=br.NAVY, sw=0.028)
-    inner = w - 2 * pad - 0.85
-    draw, draw_size = _fit_line(drawing, inner, max_size=0.15, min_size=0.09)
-    svg.text(x + pad, y + 0.28, draw, size=draw_size, weight="bold", fill=br.INK)
-    svg.group(br.logo_svg(x + w - pad - 0.78, y + 0.08, 0.28))
+    svg.line(x, y, x + w, y, stroke=br.NAVY, sw=0.022)
+    logo_h = 0.22
+    logo_w = logo_h * 2860 / 960
+    svg.group(br.logo_svg(x + w - pad - logo_w, y + 0.04, logo_h))
+    inner = w - 2 * pad - logo_w - 0.06
+    draw, draw_size = _fit_line(drawing, inner, max_size=0.11, min_size=0.08)
+    svg.text(x + pad, y + 0.17, draw, size=draw_size, weight="bold", fill=br.INK)
     st = job.settings or {}
-    title = job.name + (f"  \u00b7  No. {st['job_no']}" if st.get("job_no") else "")
-    shown, size = _fit_line(title, w - 2 * pad, max_size=0.11, min_size=0.075)
-    svg.text(x + pad, y + 0.50, shown, size=size, fill=br.INK)
-    svg.line(x + pad, y + 0.60, x + w - pad, y + 0.60, stroke=br.RULE, sw=0.005)
+    raw = (job.name or "").strip()
+    if raw.lower() == "cabinet group":
+        raw = ""
+    title = raw + (f"  \u00b7  No. {st['job_no']}" if st.get("job_no") else "")
+    title = title.strip(" \u00b7")
+    if title:
+        shown, size = _fit_line(title, w - 2 * pad, max_size=0.08, min_size=0.065)
+        svg.text(x + pad, y + 0.34, shown, size=size, fill=br.INK)
     nb, nu = len(job.bases), len(job.uppers)
     sheet = page.replace("Page ", "") if page else "1 of 1"
     kind = "none"
@@ -727,13 +743,13 @@ def _identity_block(svg: Svg, job: Job, date: str, drawing: str, page: str,
     for i, (label, value) in enumerate(facts):
         col, row = i % 2, i // 2
         xx = x + pad + col * col_w
-        yy = y + 0.82 + row * 0.42
-        svg.text(xx, yy, label, size=0.055, fill=br.SOFT)
-        svg.text(xx, yy + 0.14, _fit(str(value), 0.09, col_w - 0.08), size=0.09,
+        yy = y + 0.52 + row * 0.18
+        svg.text(xx, yy, label, size=0.048, fill=br.SOFT)
+        svg.text(xx + 0.34, yy, _fit(str(value), 0.072, col_w - 0.36), size=0.072,
                  weight="bold", fill=br.INK)
-    svg.text(x + pad, y + h - 0.42, br.COMPANY, size=0.07, weight="bold", fill=br.NAVY)
-    svg.text(x + pad, y + h - 0.28, br.STREET, size=0.06, fill=br.SOFT)
-    svg.text(x + pad, y + h - 0.14, f"{br.CITY}  {br.PHONE}", size=0.06, fill=br.SOFT)
+    svg.text(x + pad, y + h - 0.32, br.COMPANY, size=0.065, weight="bold", fill=br.NAVY)
+    svg.text(x + pad, y + h - 0.20, br.STREET, size=0.055, fill=br.SOFT)
+    svg.text(x + pad, y + h - 0.09, f"{br.CITY}  {br.PHONE}", size=0.055, fill=br.SOFT)
 
 
 def begin_sheet(svg: Svg, job: Job, date: str, drawing: str, page: str = "",
@@ -864,14 +880,17 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
     boxes = lone.boxes
     W, H, D = p.width, p.height, p.depth + 0.75        # depth includes the fronts
     (ux, uy, uw, uh), (lx, ly, lw, lh) = sheet_zones()
-    iso_w = min(5.4, uw * 0.32)
-    ortho_w = uw - iso_w - 0.14
-    front_col = ortho_w * 0.56
-    side_col = ortho_w - front_col
-    fit = min((uh - 0.95) / max(H, 1.0), (front_col - 1.2) / max(W, 1.0),
-              (side_col - 1.2) / max(D + 0.8, 1.0))
+    iso_w = min(4.8, uw * 0.30)
+    left_span = (ly + lh) - uy
+    ortho_h = left_span * 0.56
+    front_col = (uw - iso_w) * 0.54
+    side_col = (uw - iso_w) - front_col
+    fit = min((ortho_h - 0.9) / max(H, 1.0), (front_col - 1.15) / max(W, 1.0),
+              (side_col - 1.15) / max(D + 0.8, 1.0))
     s, words = _std_scale(fit)
-    fit_top = min((lh - 0.8) / max(D, 1.0), (lw - 1.2) / max(W, 1.0))
+    top_y = uy + ortho_h + 0.04
+    top_h = (ly + lh) - top_y
+    fit_top = min((top_h - 0.7) / max(D, 1.0), (lw - 1.15) / max(W, 1.0))
     st, top_words = _std_scale(fit_top)
     scale = words if words == top_words else f"{words}  ·  top {top_words}"
     svg = Svg(PAGE_W, PAGE_H)
@@ -908,11 +927,11 @@ def detail_page(job: Job, style: str, cabs: list, date: str, page: str) -> Svg:
               f"kick {fmt_in(p.toe_kick_recess)}", size=0.11, ext_to=Z(0) + 0.03)
     _vdim(svg, SY(p.depth) + 0.35, Z(0), Z(H), fmt_in(H), size=0.12, ext_to=SY(p.depth) + 0.03)
 
-    iso_view(svg, lone, (ux + ortho_w + 0.12, uy, iso_w, uh),
+    iso_view(svg, lone, (ux + uw - iso_w, uy, iso_w, ortho_h),
              ground=not str(p.style).startswith("upper"), dim_text=f"W = {fmt_in(W)}")
 
-    _heading(svg, lx, ly + 0.18, "TOP")
-    tx, ty0 = lx + 0.62, ly + 0.40
+    _heading(svg, lx, top_y + 0.16, "TOP")
+    tx, ty0 = lx + 0.62, top_y + 0.36
     XT = lambda x: tx + x * st
     TY = lambda y: ty0 + (p.depth - y) * st
     _ortho(svg, boxes, "top", XT, TY)
@@ -946,8 +965,8 @@ def _counter_front(svg: Svg, job: Job, ct, box) -> None:
     bx, by, bw, bh = box
     top = ct.top_z + SPLASH_H
     height = top - ct.z0
-    s, words = _scale(ct.length, height, bw - 1.6, bh - 1.05)
-    _heading(svg, bx, by + 0.16, "FRONT VIEW", words)
+    s, _words = _scale(ct.length, height, bw - 1.6, bh - 1.05)
+    _heading(svg, bx, by + 0.16, "FRONT VIEW")
     ox = bx + 0.1 + max(0.0, (bw - 1.6 - ct.length * s) / 2)
     top_y = by + 0.40
     X = lambda x: ox + (x - ct.x0) * s
@@ -966,15 +985,13 @@ def _counter_front(svg: Svg, job: Job, ct, box) -> None:
         _hdim(svg, X(ct.x0), X(case0), y_oh, fmt_in(case0 - ct.x0) + " past case", size=0.09)
     if ct.x1 - case1 > 0.2:
         _hdim(svg, X(case1), X(ct.x1), y_oh, fmt_in(ct.x1 - case1) + " past case", size=0.09)
-    svg.text(X(ct.x0), Z(top) - 0.08, "backsplash and side splash match the countertop",
-             size=0.1, fill=DIM)
 
 
 def _counter_plan(svg: Svg, job: Job, ct, box) -> None:
     """Top view: the deck, the splashes in the counter colour, the overhangs."""
     bx, by, bw, bh = box
-    s, words = _scale(ct.length, ct.depth, bw - 1.4, bh - 1.2)
-    _heading(svg, bx, by + 0.16, "TOP VIEW", words)
+    s, _words = _scale(ct.length, ct.depth, bw - 1.4, bh - 1.2)
+    _heading(svg, bx, by + 0.16, "TOP VIEW")
     ox = bx + 0.58 + max(0.0, (bw - 1.4 - ct.length * s) / 2)
     oy = by + 0.42
     X = lambda x: ox + (x - ct.x0) * s
@@ -1001,7 +1018,6 @@ def _counter_plan(svg: Svg, job: Job, ct, box) -> None:
     oh = -ct.y_front
     if oh > 0.05:
         _vdim(svg, X(ct.x1) + 0.3, Y(0.0), Y(ct.y_front), fmt_in(oh) + " overhang", size=0.09)
-    svg.text(bx, by + bh - 0.04, "Dashed lines are the cabinet joints.", size=0.095, fill=SOFT)
 
 
 def _counter_side(svg: Svg, ct, box) -> None:
@@ -1009,8 +1025,8 @@ def _counter_side(svg: Svg, ct, box) -> None:
     from .counter import SPLASH_H
     bx, by, bw, bh = box
     height = (ct.top_z + SPLASH_H) - ct.z0
-    s, words = _scale(ct.depth + 0.4, height, bw - 1.5, bh - 1.35)
-    _heading(svg, bx, by + 0.16, "SIDE VIEW", words)
+    s, _words = _scale(ct.depth + 0.4, height, bw - 1.5, bh - 1.35)
+    _heading(svg, bx, by + 0.16, "SIDE VIEW")
     ox = bx + 0.62
     top_y = by + 0.42
     X = lambda y: ox + (y - ct.y_front) * s
@@ -1036,8 +1052,6 @@ def _counter_side(svg: Svg, ct, box) -> None:
     if front:
         y0 = front.pos[1]
         _hdim(svg, X(y0), X(y0 + front.size[1]), Z(ct.z0) + 0.78, '4" build-up', size=0.09)
-    svg.text(bx, by + bh - 0.04, "Hatched strips are the build-up, directly under the top.",
-             size=0.095, fill=SOFT)
 
 
 def _underside(svg: Svg, job: Job, ct, x: float, y: float, w: float, h: float) -> None:
@@ -1057,62 +1071,33 @@ def _underside(svg: Svg, job: Job, ct, x: float, y: float, w: float, h: float) -
     for cab in job.bases[1:]:
         svg.line(PX(cab.x), PY(ct.y_front), PX(cab.x), PY(ct.y_back), stroke="#b03a2e",
                  sw=0.008, dash="0.04,0.03")
-    svg.text(x, y + h - 0.06, "Front at the top. Red dashes: cabinet joints.", size=0.09, fill=SOFT)
 
 
-def _counter_details(svg: Svg, job: Job, ct, box) -> None:
-    bx, by, bw, bh = box
-    _heading(svg, bx, by + 0.16, "DETAILS")
-    _underside(svg, job, ct, bx, by + 0.36, bw * 0.46, bh - 0.5)
-    tx = bx + bw * 0.50
-    if ct.kind == "laminate":
-        lines = [
-            'Build-up: 4" strips, 3/4" plywood, glued and',
-            "stapled under the countertop all the way around:",
-            "front, full back edge, and both ends.",
-            "No strip across the seams between cabinets.",
-            "Backsplash and side splash match the countertop",
-            "(laminate, the same colour as the top).",
-            f"Front overhang {fmt_in(-ct.y_front)}. Open ends overhang 1\".",
-            "Wall ends are flush, with a side splash when asked.",
-            "TYPICAL LAMINATE SEAM",
-            "No seam is placed on its own, and no build-up",
-            "strip runs across a cabinet joint.",
-        ]
-    else:
-        lines = [
-            'Build-up: 4" strips of 1" plywood, directly',
-            "under the top, around the perimeter only",
-            "(front, back and both ends).",
-            "Not across the seams between cabinets.",
-            "Backsplash and side splash match the countertop",
-            "(solid surface, the same colour as the top).",
-            f"Front overhang {fmt_in(-ct.y_front)}. Open ends overhang 1\".",
-            "Wall ends are flush, with a side splash when asked.",
-            "The 1/2\" top plus the 1\" strips make the",
-            "1-1/2\" edge. Screw up into the strips.",
-        ]
-    for i, line in enumerate(lines):
-        svg.text(tx, by + 0.42 + i * 0.2, line, size=0.105, fill=INK,
-                 weight="bold" if line.isupper() else "normal")
+def _counter_front_words(ct, bw: float, bh: float) -> str:
+    from .counter import SPLASH_H
+    height = (ct.top_z + SPLASH_H) - ct.z0
+    _s, words = _scale(ct.length, height, bw - 1.6, bh - 1.05)
+    return words
 
 
 def counter_page(job: Job, date: str, page: str) -> Svg:
-    """Countertop sheet: front, top and side views, plus build-up and splash details."""
+    """Countertop sheet: front, top, side, and the build-up drawing. No prose."""
     ct = job.counter
-    lam = ct.kind == "laminate"
     svg = Svg(PAGE_W, PAGE_H)
-    drawing = "Countertop 2D"
-    (cx, cy, cw, ch), (lx, ly, lw, lh) = begin_sheet(svg, job, date, drawing, page)
-    front_h = 2.35
-    rest_y = cy + front_h + 0.08
-    rest_h = cy + ch - rest_y
-    side_w = min(6.6, cw * 0.40)
+    (cx, cy, cw, ch), (lx, ly, lw, lh) = sheet_zones()
+    front_h = 2.2
+    under_extra = 1.7
+    under_y = ly - under_extra
+    begin_sheet(svg, job, date, "Countertop 2D", page,
+                scale=_counter_front_words(ct, cw, front_h))
+    rest_y = cy + front_h + 0.06
+    rest_h = under_y - 0.06 - rest_y
+    side_w = min(6.2, cw * 0.38)
     left_w = cw - side_w - 0.1
     _counter_front(svg, job, ct, (cx, cy, cw, front_h))
     _counter_plan(svg, job, ct, (cx, rest_y, left_w, rest_h))
     _counter_side(svg, ct, (cx + left_w + 0.1, rest_y, side_w, rest_h))
-    _counter_details(svg, job, ct, (lx, ly, lw, lh))
+    _underside(svg, job, ct, lx, under_y, lw, (ly + lh) - under_y)
     return svg
 
 
@@ -1172,21 +1157,26 @@ def render(job: Job, date: str | None = None, page: str = "") -> Svg:
 
 
 def _render(job: Job, date: str | None = None, page: str = "") -> Svg:
+    """Drawings above and left of a short bottom-right band: cabinets table, then the block."""
     date = date or _dt.date.today().strftime("%B %-d, %Y")
     svg = Svg(PAGE_W, PAGE_H)
-    (cx, cy, cw, ch), (lx, ly, lw, lh) = begin_sheet(svg, job, date, "Carpenter 2D", page)
-    right_w = 5.5
-    front_elevation(svg, job, (cx, cy, cw - right_w - 0.1, ch))
-    iso_h = ch * 0.56
-    iso_view(svg, job, (cx + cw - right_w, cy, right_w, iso_h))
-    end_view(svg, job, (cx + cw - right_w, cy + ch * 0.58, right_w, ch * 0.42))
-    notes = client_notes(job)
-    note_h = 0.9 if notes else 0.0
-    sched_w = 6.3
-    plan_view(svg, job, (lx, ly, max(3.2, lw - sched_w - 0.1), lh - note_h))
-    schedule(svg, job, (lx + lw - sched_w, ly, sched_w, lh - note_h))
-    if notes:
-        notes_block(svg, notes, lx, ly + lh - note_h + 0.12, width=lw)
+    cx, cy = M + 0.06, M + 0.08
+    block_x = PAGE_W - M - BLOCK_W
+    block_y = PAGE_H - M - BLOCK_H
+    sched_x = block_x - SCHED_GAP - SCHED_W
+    left_w = sched_x - 0.10 - cx
+    left_h = (PAGE_H - M - 0.04) - cy
+    elev_h = left_h * 0.62
+    begin_sheet(svg, job, date, "Carpenter 2D", page,
+                scale=elevation_scale_words(job, left_w, elev_h))
+    front_elevation(svg, job, (cx, cy, left_w, elev_h))
+    plan_view(svg, job, (cx, cy + elev_h + 0.06, left_w, left_h - elev_h - 0.06))
+    rx = sched_x
+    rw = PAGE_W - M - 0.06 - rx
+    rh = block_y - 0.08 - cy
+    iso_view(svg, job, (rx, cy, rw, rh * 0.55))
+    end_view(svg, job, (rx, cy + rh * 0.58, rw, rh * 0.40))
+    schedule(svg, job, (sched_x, block_y, SCHED_W, BLOCK_H))
     return svg
 
 

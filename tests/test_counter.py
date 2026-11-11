@@ -199,10 +199,13 @@ def test_client_sheet_counter_page(tmp_dir=None):
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample")
     pages = render_pages(job, "Oct 24, 2026")
     text = pages[1].to_string()
-    for words in ("Countertop 2D", "FRONT VIEW", "TOP VIEW", "SIDE VIEW", "DETAILS",
-                  "TYPICAL LAMINATE SEAM", "BUILD-UP, FROM BELOW", "overhang",
-                  "match the countertop", "Coppinger Exhibits", "laminate"):
+    for words in ("Countertop 2D", "FRONT VIEW", "TOP VIEW", "SIDE VIEW",
+                  "BUILD-UP, FROM BELOW", "overhang", "Coppinger Exhibits", "laminate",
+                  "4&quot; build-up", "4&quot; splash"):
         assert words in text, words
+    for gone in ("TYPICAL LAMINATE SEAM", "match the countertop", "glued", "stapled",
+                 "COUNTERTOP - LAMINATE", "scale approx", "DETAILS"):
+        assert gone not in text, gone
     assert 'width="17.0in" height="11.0in"' in text
     maple = get("lam-maple")["color"]
     picked = job_from(job.cabs, {**job.settings, "finish_counter": "lam-maple"}, "Sample")
@@ -211,6 +214,7 @@ def test_client_sheet_counter_page(tmp_dir=None):
     solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample")
     solid_page = render_pages(solid, "Oct 24, 2026")[1].to_string()
     assert "Countertop 2D" in solid_page and ">solid surface<" in solid_page
-    assert "perimeter only" in solid_page
-    assert "Not across the seams" in solid_page
+    assert "perimeter only" not in solid_page
+    assert "Not across the seams" not in solid_page
     assert "centred where cabinets meet" not in solid_page
+    assert "4&quot; build-up" in solid_page

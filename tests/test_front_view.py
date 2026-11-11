@@ -21,13 +21,11 @@ def test_front_sheet_is_only_the_elevation():
     job = load_job(SAMPLE, "Sample Kitchen")
     text = render_front(job, "November 8, 2026").to_string()
     assert "FRONT ELEVATION" in text
-    assert "Sample Kitchen" in text
-    assert "Coppinger Exhibits" in text
-    assert "November 8, 2026" in text
+    assert "bases " in text
     assert 'width="17.0in" height="11.0in"' in text
-    assert "PLAN (TOP VIEW)" not in text
-    assert "END VIEW" not in text
-    assert ">1 of 1<" in text
+    assert "PLAN (TOP VIEW)" not in text and "END VIEW" not in text
+    assert "Coppinger Exhibits" not in text and "viewBox=\"0 0 2860 960\"" not in text
+    assert ">1 of 1<" not in text and "SHEET" not in text
 
 
 def test_placeholder_links_are_marked():

@@ -1,10 +1,10 @@
 """Standalone front elevation, for the CE pipeline page.
 
-One sheet: the front view of the whole cabinet run, with the same border and
-title block as the client sheet. ``write_front_view`` also writes an HTML page
-that embeds that drawing and links the job's render and AR files. CabCad
-already writes both (``cabgen.render`` and ``cabgen.ar_export``). A file that
-could not be written is a clearly marked placeholder link.
+One sheet: the front view of the whole cabinet run, and nothing else. No logo,
+title block, or cut list (Brook, Nov 11). The elevation uses the sheet inside
+the margin. ``write_front_view`` also writes an HTML page that embeds that
+drawing and links the job's render and AR files. A file that could not be
+written is a clearly marked placeholder link.
 
     python3 -m cabgen.cli front jobs/sample-kitchen.csv --out out/front
 """
@@ -18,17 +18,18 @@ import subprocess
 from pathlib import Path
 
 from .client_sheet import (
-    PAGE_H, PAGE_W, Svg, begin_sheet, front_elevation, palette_for,
+    INK, M, PAGE_H, PAGE_W, Svg, front_elevation, palette_for,
 )
 
 
 def render_front(job, date: str | None = None) -> Svg:
-    """The front elevation of the run, alone on an 11x17 sheet."""
-    date = date or _dt.date.today().strftime("%B %-d, %Y")
+    """The front elevation, alone, filling the sheet inside the margin."""
     svg = Svg(PAGE_W, PAGE_H)
+    svg.rect(M / 2, M / 2, PAGE_W - M, PAGE_H - M, fill="none", stroke=INK, sw=0.014)
+    inset = 0.04
+    box = (M + inset, M + inset, PAGE_W - 2 * M - 2 * inset, PAGE_H - 2 * M - 2 * inset)
     with palette_for(job):
-        (cx, cy, cw, ch), _lower = begin_sheet(svg, job, date, "Front elevation", page="1 of 1")
-        front_elevation(svg, job, (cx, cy, cw, ch))
+        front_elevation(svg, job, box)
     return svg
 
 

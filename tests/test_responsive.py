@@ -21,10 +21,10 @@ def test_viewport_meta_and_responsive_css_are_present():
         assert "@media (max-width:" in page
         assert "@media (max-height:" in page
         assert ".table-scroll" in page
-    assert "height: clamp(320px, 60vh, 640px)" in run
+    assert "#wire { display: block; width: 100%; max-width: 100%; height: auto; }" in run
+    assert 'grid-template-areas: "main wire"' not in run
+    assert 'preserveAspectRatio="xMidYMid meet"' in run
     assert "@media (max-height: 900px)" in run
-    assert "height: clamp(240px, 45vh, 480px)" in run
-    assert "min(45vh, 45dvh)" in run
     assert "flex-wrap: wrap" in run
     assert 'class="stage"' in run
 

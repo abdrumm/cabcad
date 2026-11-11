@@ -34,6 +34,7 @@ BUNDLED_SCRIPT = Path(__file__).resolve().parent / "blender" / "render_kitchen.p
 
 _lock = threading.Lock()
 _running: dict | None = None
+_pending: dict | None = None
 
 
 def fingerprint(job) -> str:
@@ -92,7 +93,7 @@ def job_payload(job) -> dict:
     return {
         "name": job.name,
         "version": SCRIPT_VERSION,
-        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "32")),
+        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "64")),
         "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "960")),
         "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "540")),
         "denoise": denoise,
@@ -149,10 +150,11 @@ def _page(title: str, body: str, refresh: str = "") -> str:
 <html lang="en"><head><meta charset="utf-8">{meta}
 <title>{html.escape(title)}</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; margin: 1.5rem auto; max-width: 46rem;
-         line-height: 1.45; color: #1f2933; }}
+  body {{ font-family: system-ui, sans-serif; margin: 1.5rem auto; max-width: 72rem;
+         line-height: 1.45; color: #1f2933; padding: 0 1rem; }}
   h1 {{ font-size: 1.25rem; }}
-  img {{ max-width: 100%; height: auto; background: #fff; }}
+  img {{ display: block; width: 100%; height: auto; max-width: 100%;
+        object-fit: contain; background: #111; }}
   code {{ font-size: .92em; }}
   .warn {{ background: #f59e0b22; border: 1px solid #f59e0b66; padding: .7rem .9rem;
           border-radius: 8px; }}
@@ -179,9 +181,12 @@ unless OpenImageDenoise can be set on the CPU; if it cannot, the still is
 rendered without it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>A 64×64, 8-sample smoke frame on that machine was 3.2 seconds. That is not
-the time for a kitchen. The demo frame is 960×540, 32 samples, denoise off,
-one render at a time. Opening this form does not start it.</p>
+<p>A 64×64, 8-sample smoke frame on that machine was 3.2 seconds. A 4-base,
+4-upper kitchen at 960×540 and 32 samples took 25 seconds there and cropped
+the stack. The current frame is 960×540 and 64 samples, denoise off. That is
+about twice the measured 32-sample work, before the window and the extra
+bounces, so it is aimed under a minute. It has not been timed at 64 samples.
+One render at a time. Opening this form does not start it.</p>
 """)
 
 
@@ -195,11 +200,14 @@ def _result_page(name: str, file_name: str, cached: bool) -> str:
 """)
 
 
-def _progress_page(name: str, fp: str, busy: bool) -> str:
+def _progress_page(name: str, fp: str, busy: bool, queued: bool = False) -> str:
     href = f"/photo-status?fp={fp}"
-    if busy:
-        lead = ("A render is already running, so this one was not started. "
-                "One still at a time. This page checks the render that is in progress.")
+    if queued:
+        lead = ("This design is next. One still at a time. "
+                "This page follows it. The kitchen form stays usable.")
+    elif busy:
+        lead = ("This design is already running. "
+                "One still at a time. This page checks that render.")
     else:
         lead = ("Rendering one still on the CPU. This tab refreshes. "
                 "The kitchen form stays usable; opening it does not start another render.")
@@ -235,8 +243,17 @@ def run_blender(binary: Path, script: Path, job_json: Path, png: Path) -> None:
     )
 
 
+def _begin(name: str, fp: str, out_dir: Path, info: dict, payload: dict) -> threading.Thread:
+    """Start one worker. Caller holds ``_lock`` and has claimed ``_running``."""
+    _write_status(out_dir, fp, name, "running")
+    thread = threading.Thread(
+        target=_worker, args=(name, fp, out_dir, info, payload), daemon=True)
+    thread.start()
+    return thread
+
+
 def _worker(name: str, fp: str, out_dir: Path, info: dict, payload: dict) -> None:
-    global _running
+    global _running, _pending
     png = _png(out_dir, fp)
     error = ""
     try:
@@ -256,18 +273,27 @@ def _worker(name: str, fp: str, out_dir: Path, info: dict, payload: dict) -> Non
         if png.is_file() and png.stat().st_size < 32:
             png.unlink()
     _write_status(out_dir, fp, name, "error" if error else "done", error)
+    nxt = None
     with _lock:
         if _running and _running.get("fp") == fp:
             _running = None
+        nxt = _pending
+        _pending = None
+        if nxt is not None:
+            _running = {"fp": nxt["fp"]}
+    if nxt is not None:
+        _begin(nxt["name"], nxt["fp"], nxt["out_dir"], nxt["info"], nxt["payload"])
 
 
 def render_photo(job, out_dir: Path, *, block: bool = False) -> tuple[str, bool]:
-    """HTML for the new tab, and whether a new render was started.
+    """HTML for the new tab, and whether a new Blender process was started.
 
     ``block=True`` waits (tests). The web form uses the default and returns
-    immediately. A cached PNG is returned without calling Blender.
+    immediately. A cached PNG is returned without calling Blender. The same
+    design joins the render already running. A different design waits for
+    that one to finish; only the latest waiter is kept.
     """
-    global _running
+    global _running, _pending
     out_dir = Path(out_dir)
     fp = fingerprint(job)
     png = _png(out_dir, fp)
@@ -276,15 +302,21 @@ def render_photo(job, out_dir: Path, *, block: bool = False) -> tuple[str, bool]
     info = discover()
     if not info["ready"]:
         return _missing_page(job), False
+    thread = None
     with _lock:
+        if (_running and _running.get("fp") == fp) or (_pending and _pending.get("fp") == fp):
+            return _progress_page(job.name, fp, busy=True), False
         if _running is not None:
-            return _progress_page(job.name, _running["fp"], busy=True), False
+            old = _pending
+            _pending = {"name": job.name, "fp": fp, "out_dir": out_dir,
+                        "info": info, "payload": job_payload(job)}
+            if old and old.get("fp") != fp:
+                _write_status(old["out_dir"], old["fp"], old["name"], "dropped")
+            _write_status(out_dir, fp, job.name, "queued")
+            return _progress_page(job.name, fp, busy=False, queued=True), False
         _running = {"fp": fp}
-    _write_status(out_dir, fp, job.name, "running")
-    thread = threading.Thread(
-        target=_worker, args=(job.name, fp, out_dir, info, job_payload(job)), daemon=True)
-    thread.start()
-    if block:
+        thread = _begin(job.name, fp, out_dir, info, job_payload(job))
+    if block and thread is not None:
         thread.join()
         status = _read_status(out_dir, fp) or {}
         if status.get("state") == "error":
@@ -310,6 +342,9 @@ def status_page(out_dir: Path, fp: str) -> str:
         return _error_page(status.get("name") or "", status.get("error") or "render failed")
     with _lock:
         running = _running.get("fp") if _running else None
+        waiting = _pending.get("fp") if _pending else None
+    if waiting == fp or (status and status.get("state") == "queued"):
+        return _progress_page((status or {}).get("name") or "Kitchen", fp, busy=False, queued=True)
     if running == fp or (status and status.get("state") == "running"):
         return _progress_page(status.get("name") if status else "Kitchen", fp, busy=False)
     return _idle_page()

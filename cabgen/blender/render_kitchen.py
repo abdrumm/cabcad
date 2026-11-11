@@ -28,11 +28,60 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 1
+SCRIPT_VERSION = 2
 INCH = 0.0254
-SAMPLES = 32
+SAMPLES = 64
 WIDTH = 960
 HEIGHT = 540
+
+
+def _norm(v):
+    import math
+    m = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) or 1.0
+    return (v[0] / m, v[1] / m, v[2] / m)
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def camera_fit(bounds_min, bounds_max, view_dir, lens_mm=32.0, aspect=WIDTH / HEIGHT,
+               margin=1.14, sensor_mm=36.0):
+    """Place a camera so every corner of the box is inside the frame.
+
+    ``view_dir`` points from the subject toward the camera. ``margin`` shrinks
+    the field of view, so 1.14 leaves a comfortable gap around the stack.
+    Blender's default sensor is 36 mm wide and, for a landscape frame, the
+    vertical field is that divided by the aspect. A 36 mm lens on 960x540
+    sees only about 31 degrees vertically, which is why a camera parked a
+    fixed multiple of the run width cropped the uppers and the toe kicks.
+    """
+    cx = (bounds_min[0] + bounds_max[0]) / 2.0
+    cy = (bounds_min[1] + bounds_max[1]) / 2.0
+    cz = (bounds_min[2] + bounds_max[2]) / 2.0
+    center = (cx, cy, cz)
+    back = _norm(view_dir)
+    look = (-back[0], -back[1], -back[2])
+    right = _norm(_cross((0.0, 0.0, 1.0), look))
+    if abs(right[0]) + abs(right[1]) + abs(right[2]) < 1e-8:
+        right = (1.0, 0.0, 0.0)
+    up = _norm(_cross(look, right))
+    tan_h = (sensor_mm / 2.0) / lens_mm / margin
+    tan_v = (sensor_mm / aspect / 2.0) / lens_mm / margin
+    dist = 0.05
+    for ix in (bounds_min[0] - cx, bounds_max[0] - cx):
+        for iy in (bounds_min[1] - cy, bounds_max[1] - cy):
+            for iz in (bounds_min[2] - cz, bounds_max[2] - cz):
+                p = (ix, iy, iz)
+                need = _dot(p, back) + max(abs(_dot(p, right)) / tan_h, abs(_dot(p, up)) / tan_v)
+                if need > dist:
+                    dist = need
+    cam = (center[0] + back[0] * dist, center[1] + back[1] * dist, center[2] + back[2] * dist)
+    return cam, center, dist
 
 
 def denoise_plan(requested: bool, has_oidn: bool, accelerator: str) -> dict:
@@ -127,7 +176,7 @@ def main():
     if hasattr(scene.cycles, "use_adaptive_sampling"):
         scene.cycles.use_adaptive_sampling = True
         if hasattr(scene.cycles, "adaptive_threshold"):
-            scene.cycles.adaptive_threshold = 0.05
+            scene.cycles.adaptive_threshold = 0.04
     scene.cycles.use_denoising = False
     has_oidn = False
     denoiser_attr = None
@@ -151,7 +200,7 @@ def main():
             scene.cycles.use_denoising = False
             plan = {"denoise": False, "reason": f"OIDN setup failed ({exc}); rendered without denoise"}
     print(f"cabcad-denoise {plan['reason']}", flush=True)
-    for name, value in (("max_bounces", 6), ("diffuse_bounces", 3), ("glossy_bounces", 3)):
+    for name, value in (("max_bounces", 8), ("diffuse_bounces", 4), ("glossy_bounces", 4)):
         if hasattr(scene.cycles, name):
             setattr(scene.cycles, name, value)
     scene.render.resolution_x = width
@@ -237,41 +286,87 @@ def main():
     cube_m(minx - pad * 0.35, miny - 0.02, 0.0, minx - pad * 0.35 + 0.08, maxy + pad * 0.4,
            wall_top, wall)
 
-    target = ((minx + maxx) / 2.0, (miny + maxy) / 2.0, minz * 0.25 + maxz * 0.45)
+    # Fit the cabinets only. The room walls extend past them on purpose.
+    # Camera sits in front (+Y) and a little to the right, just above centre.
+    cam_loc, target, _dist = camera_fit(
+        (minx, miny, minz), (maxx, maxy, maxz), (0.38, 1.0, 0.16),
+        lens_mm=32.0, aspect=width / float(height), margin=1.16)
     bpy.ops.object.empty_add(type="PLAIN_AXES", location=target)
     aim = bpy.context.active_object
-    cam_loc = (target[0] - span * 0.22, maxy + span * 0.95, target[2] + span * 0.28)
     bpy.ops.object.camera_add(location=cam_loc)
     cam = bpy.context.active_object
-    cam.data.lens = 36
+    cam.data.lens = 32
+    cam.data.sensor_width = 36
+    if hasattr(cam.data, "sensor_fit"):
+        cam.data.sensor_fit = "HORIZONTAL"
+    cam.data.clip_start = 0.02
+    cam.data.clip_end = 200.0
     con = cam.constraints.new(type="TRACK_TO")
     con.target = aim
     con.track_axis = "TRACK_NEGATIVE_Z"
     con.up_axis = "UP_Y"
     scene.camera = cam
 
-    bpy.ops.object.light_add(type="AREA", location=(target[0], maxy + span * 0.25, maxz + span * 0.7))
-    key = bpy.context.active_object
-    key.data.energy = 220
-    key.data.size = max(1.4, span * 1.5)
-    key.data.color = (1.0, 0.94, 0.86)
-    if hasattr(key.data, "shape"):
-        key.data.shape = "RECTANGLE"
-        key.data.size_y = key.data.size * 0.55
-    bpy.ops.object.light_add(type="SUN", location=(target[0], maxy, maxz + 3))
+    # Morning sun through a window in the left wall. The beam rakes across
+    # the fronts. A large cool fill from the camera side keeps the detail.
+    win_h = max(0.9, (maxz - minz) * 0.42)
+    win_z0 = minz + (maxz - minz) * 0.45
+    win_y0 = (miny + maxy) / 2.0 - win_h * 0.15
+    win_y1 = win_y0 + max(0.7, (maxy - miny) * 0.55)
+    frame = material("window-frame", (0.92, 0.91, 0.88), 0.45, 0.0)
+    # emissive pane so the opening reads as a light source even before the sun
+    emit = bpy.data.materials.new("window-light")
+    emit.use_nodes = True
+    bsdf = emit.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        _set_input(bsdf, ("Base Color", "Color"), (1.0, 0.78, 0.48, 1.0))
+        _set_input(bsdf, ("Emission Color", "Emission"), (1.0, 0.72, 0.38, 1.0))
+        _set_input(bsdf, ("Emission Strength",), 8.0)
+    wx = minx - pad * 0.35 + 0.02
+    cube_m(wx, win_y0, win_z0, wx + 0.02, win_y1, win_z0 + win_h, emit)
+    t = 0.04
+    cube_m(wx, win_y0 - t, win_z0 - t, wx + 0.045, win_y1 + t, win_z0, frame)
+    cube_m(wx, win_y0 - t, win_z0 + win_h, wx + 0.045, win_y1 + t, win_z0 + win_h + t, frame)
+    cube_m(wx, win_y0 - t, win_z0, wx + 0.045, win_y0, win_z0 + win_h, frame)
+    cube_m(wx, win_y1, win_z0, wx + 0.045, win_y1 + t, win_z0 + win_h, frame)
+
+    sun_from = (minx - 1.4, (win_y0 + win_y1) / 2.0, win_z0 + win_h * 0.85)
+    sun_at = ((minx + maxx) / 2.0, (miny + maxy) / 2.0, (minz + maxz) * 0.42)
+    bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
-    sun.data.energy = 2.4
+    sun.data.energy = 4.5
+    sun.data.color = (1.0, 0.78, 0.52)
     if hasattr(sun.data, "angle"):
-        sun.data.angle = 0.12
-    sun.rotation_euler = (0.9, 0.1, -0.55)
+        sun.data.angle = 0.06
+    bpy.ops.object.empty_add(type="PLAIN_AXES", location=sun_at)
+    sun_aim = bpy.context.active_object
+    scon = sun.constraints.new(type="TRACK_TO")
+    scon.target = sun_aim
+    scon.track_axis = "TRACK_NEGATIVE_Z"
+    scon.up_axis = "UP_Y"
+
+    bpy.ops.object.light_add(type="AREA", location=(cam_loc[0] * 0.3 + target[0] * 0.7,
+                                                    maxy + 0.4, target[2] + 0.35))
+    fill = bpy.context.active_object
+    fill.data.energy = 40
+    fill.data.size = max(1.6, (maxx - minx) * 0.7)
+    fill.data.color = (0.86, 0.90, 1.0)
+    fcon = fill.constraints.new(type="TRACK_TO")
+    fcon.target = aim
+    fcon.track_axis = "TRACK_NEGATIVE_Z"
+    fcon.up_axis = "UP_Y"
 
     world = bpy.data.worlds.new("Kitchen")
     scene.world = world
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (0.75, 0.82, 0.90, 1.0)
-        bg.inputs[1].default_value = 0.35
+        bg.inputs[0].default_value = (0.93, 0.84, 0.70, 1.0)
+        bg.inputs[1].default_value = 0.22
+    if hasattr(scene.cycles, "sample_clamp_indirect"):
+        scene.cycles.sample_clamp_indirect = 3.0
+    if hasattr(scene.cycles, "blur_glossy"):
+        scene.cycles.blur_glossy = 0.15
 
     print(f"cabcad-render version {SCRIPT_VERSION} samples {samples} {width}x{height} cpu",
           flush=True)

@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 
-from cabgen.client_sheet import BLOCK_H, PAGE_H, PAGE_W, load_job, render, render_pages
+from cabgen.client_sheet import BLOCK_H, BLOCK_W, PAGE_H, PAGE_W, SCHED_W, load_job, render, render_pages
 from cabgen.draw import shop_drawing
 from cabgen.front_view import render_front
 from cabgen.params import Params
@@ -19,7 +19,7 @@ def _texts(svg: str):
 
 
 def _block(svg: str):
-    """The identity block: bottom-right, about a third of the sheet tall, not a full-height rail."""
+    """The identity block: a small bottom-right box, about a quarter of the old rail."""
     rects = re.findall(
         r'<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"',
         svg,
@@ -27,7 +27,7 @@ def _block(svg: str):
     hits = []
     for x, y, w, h in rects:
         x, y, w, h = map(float, (x, y, w, h))
-        if x > 10 and 4.0 <= w <= 6.5 and 3.2 <= h <= 4.2 and y > 6:
+        if x > 12 and 2.4 <= w <= 4.0 and 1.2 <= h <= 2.0 and y > 8:
             hits.append((x, y, w, h))
     return hits
 
@@ -42,6 +42,9 @@ def test_client_pages_use_a_short_bottom_right_block():
         assert block, i
         _x, y, _w, h = block[0]
         assert abs(h - BLOCK_H) < 0.05
+        assert abs(_w - BLOCK_W) < 0.05
+        old = 5.2 * round(11.0 / 3.0, 3)
+        assert 0.22 * old <= BLOCK_W * BLOCK_H <= 0.28 * old
         assert y + h > PAGE_H - 0.6
         title = [t for t in _texts(text) if "Sample Kitchen" in t[3]]
         assert title, i
@@ -51,6 +54,19 @@ def test_client_pages_use_a_short_bottom_right_block():
         for tx, yy, _size, body in _texts(text):
             assert float(tx) < PAGE_W - 0.02, (i, body)
             assert 0 < float(yy) < PAGE_H - 0.02, (i, body)
+
+
+def test_cabinets_table_sits_left_of_the_block():
+    job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample Kitchen")
+    text = render(job, date="November 11, 2026").to_string()
+    block = _block(text)[0]
+    heads = [t for t in _texts(text) if t[3] == "CABINETS"]
+    assert len(heads) == 1
+    hx, hy = float(heads[0][0]), float(heads[0][1])
+    assert hy > 8
+    assert hx + 0.2 < block[0]
+    assert abs((block[0] - SCHED_W) - hx) < 0.4
+    assert "NOTES" not in text
 
 
 def test_a_long_job_name_stays_on_one_line():
@@ -66,13 +82,14 @@ def test_a_long_job_name_stays_on_one_line():
     assert len(titles[0][3]) < len(job.name)
 
 
-def test_front_sheet_gives_the_upper_right_to_the_elevation():
+def test_front_sheet_is_only_the_elevation():
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample Kitchen")
     text = render_front(job, "November 11, 2026").to_string()
-    assert _block(text)
+    assert not _block(text)
     assert "FRONT ELEVATION" in text and "PLAN (TOP VIEW)" not in text
+    assert "Coppinger Exhibits" not in text
     head = [t for t in _texts(text) if t[3] == "FRONT ELEVATION"][0]
-    assert float(head[1]) < 1.2
+    assert float(head[1]) < 1.0
 
 
 def test_shop_drawing_uses_the_same_bottom_right_block():
