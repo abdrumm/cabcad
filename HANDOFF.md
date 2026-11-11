@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-163 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
+164 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -96,27 +96,29 @@ since then pass. AR export does not need Omacad and passes here.
 - Photorealistic view is the last button on the kitchen form. It does not run
   when the form is only opened. The original `.blend` was not found. The still
   is a new generic room around the current boxes, including the perimeter
-  build-up (`cabgen/blender/render_kitchen.py`, version 2). No `.blend` file
+  build-up (`cabgen/blender/render_kitchen.py`, version 3). No `.blend` file
   is required and none is in git. Blender is not vendored.
   Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
   the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
   `/home/abdrumm/.local/opt/blender-5.2.4-linux-x64/blender`
   It is `-march=x86-64-v2` (SSE4.2). The i7-2600 has SSE4.2 and AVX, not AVX2,
-  and no GPU. Cycles is CPU only: no CUDA, OptiX, HIP, or oneAPI. Denoise
-  stays off. OpenImageDenoise is not used; that build often wants AVX2.
+  and no GPU. Cycles is CPU only: no CUDA, OptiX, HIP, or oneAPI.
   4 cores / 8 threads, 31 GiB RAM. Measured on that machine: a 64×64,
   8-sample smoke frame was 3.2 seconds, and a 4-base 4-upper kitchen at
-  960×540 and 32 samples (version 1 camera) was 25.0 seconds. That frame
-  cropped the tops of the uppers and the feet. Version 2 fits the camera to
-  the cabinet bounds and lights the run with a warm morning sun through a
-  window in the side wall, plus a soft fill. The demo frame is 960×540 and
-  64 samples (about twice the measured 32-sample work, before the window and
-  the extra bounces). That 64-sample time has not been measured. One render
-  at a time, in the background, cached by design. A repeat of the same design
-  on that machine was 0.015 seconds, and an ordinary page was 0.044 seconds.
-  `GET /photo-status` only checks; it does not start a render. This checkout
-  did not run Blender, so there is no new kitchen PNG from here.
-  `cabgen.render` is still the flat shaded still.
+  960×540 and 64 samples, no denoise, was 28.7 seconds for a 4-base 4-upper
+  kitchen (fingerprint `16b10cbb085ede1a` on commit `6250615`). That frame
+  showed the whole stack and looked washed out: the world light and a bright
+  window pane put a grey veil over the cabinets. Version 3 keeps that camera
+  fit and renders 1920×1080, 64 samples. The window is an opening with a warm
+  sun and a warm area light, a dim fill, a darker floor, and a higher-contrast
+  view. OpenImageDenoise on the CPU is requested. If Blender cannot set it,
+  the still renders without it (`CABCAD_BLENDER_DENOISE=0` skips it). Four
+  times the pixels of the 28.7 second frame has not been timed here. One
+  render at a time, in the background, cached by design. A repeat of the same
+  design on that machine was 0.015 seconds, and an ordinary page was 0.044
+  seconds. `GET /photo-status` only checks; it does not start a render.
+  This checkout did not run Blender, so there is no new kitchen PNG from here.
+  `cabgen.render` is still the flat shaded still. Cabinet sizes are unchanged.
 
 ## Where we left off / next steps
 Done 2026-11-08, from docs/PLANS.md items 3, 4 and 5. Items 1 and 2 were left

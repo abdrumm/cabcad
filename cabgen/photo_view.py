@@ -89,13 +89,13 @@ def export_boxes(job) -> list[dict]:
 
 
 def job_payload(job) -> dict:
-    denoise = os.environ.get("CABCAD_BLENDER_DENOISE", "0").strip() in ("1", "true", "yes")
+    denoise = os.environ.get("CABCAD_BLENDER_DENOISE", "1").strip().lower() not in ("0", "false", "no")
     return {
         "name": job.name,
         "version": SCRIPT_VERSION,
         "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "64")),
-        "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "960")),
-        "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "540")),
+        "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "1920")),
+        "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "1080")),
         "denoise": denoise,
         "boxes": export_boxes(job),
     }
@@ -150,11 +150,11 @@ def _page(title: str, body: str, refresh: str = "") -> str:
 <html lang="en"><head><meta charset="utf-8">{meta}
 <title>{html.escape(title)}</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; margin: 1.5rem auto; max-width: 72rem;
-         line-height: 1.45; color: #1f2933; padding: 0 1rem; }}
+  body {{ font-family: system-ui, sans-serif; margin: 0.75rem auto; max-width: 100%;
+         line-height: 1.45; color: #1f2933; padding: 0 0.75rem; }}
   h1 {{ font-size: 1.25rem; }}
-  img {{ display: block; width: 100%; height: auto; max-width: 100%;
-        object-fit: contain; background: #111; }}
+  img {{ display: block; width: min(100%, 1920px); height: auto; max-width: 100%;
+        object-fit: contain; object-position: center; background: #1a1a1a; }}
   code {{ font-size: .92em; }}
   .warn {{ background: #f59e0b22; border: 1px solid #f59e0b66; padding: .7rem .9rem;
           border-radius: 8px; }}
@@ -176,17 +176,15 @@ current cabinet and countertop boxes. Blender itself is not in git.</p>
 <h2>Install on the iMac</h2>
 <p>Official Blender <b>5.2.4 LTS</b>, portable Linux build, already run on this
 i7-2600 (no AVX2, official <code>-march=x86-64-v2</code>, SSE4.2). It is not on
-<code>PATH</code>. CPU only: no CUDA, OptiX, HIP or oneAPI. Denoise stays off
-unless OpenImageDenoise can be set on the CPU; if it cannot, the still is
-rendered without it.</p>
+<code>PATH</code>. CPU only: no CUDA, OptiX, HIP or oneAPI. The still tries
+OpenImageDenoise on the CPU. If that denoiser cannot be set, the picture is
+rendered without it. <code>CABCAD_BLENDER_DENOISE=0</code> skips it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>A 64×64, 8-sample smoke frame on that machine was 3.2 seconds. A 4-base,
-4-upper kitchen at 960×540 and 32 samples took 25 seconds there and cropped
-the stack. The current frame is 960×540 and 64 samples, denoise off. That is
-about twice the measured 32-sample work, before the window and the extra
-bounces, so it is aimed under a minute. It has not been timed at 64 samples.
-One render at a time. Opening this form does not start it.</p>
+<p>Measured on that machine: 960×540, 64 samples, no denoise, 28.7 seconds for
+a 4-base 4-upper kitchen, and the picture was washed out. The current frame
+is 1920×1080 and 64 samples. Four times the pixels. That time has not been
+measured. One render at a time. Opening this form does not start it.</p>
 """)
 
 

@@ -1,26 +1,24 @@
-"""Procedural kitchen still for CabCAD. Script version 1.
+"""Procedural kitchen still for CabCAD. Script version 3.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
-and the 4" perimeter build-up.
+and the 4" perimeter build-up. Cabinet sizes are not scaled.
 
     blender -b --factory-startup -P cabgen/blender/render_kitchen.py -- job.json out.png
 
-CPU only. CUDA, OptiX, HIP and oneAPI are not selected. Denoise stays off
-unless the job asks for it and OpenImageDenoise can be set on the CPU. If
-that setup fails, the still is rendered without a denoiser. OIDN is not
-required, and no GPU denoiser is used.
+CPU only. CUDA, OptiX, HIP and oneAPI are not selected. The still is
+1920x1080. OpenImageDenoise on the CPU is tried when the job asks for it.
+If that denoiser cannot be set, the still renders without it. No GPU
+denoiser is used.
 
-The iMac binary that has been run (parent, Nov 11) is official Blender 5.2.4
-LTS, portable, not on PATH:
+The iMac binary (parent, Nov 11) is official Blender 5.2.4 LTS:
 
     /home/abdrumm/.local/opt/blender-5.2.4-linux-x64/blender
 
-Point CabCAD at it with CABCAD_BLENDER set to that absolute path. It is an
-official -march=x86-64-v2 build (SSE4.2). The i7-2600 has SSE4.2 and AVX, not
-AVX2, and has no GPU. A 64x64 / 8-sample smoke frame took 3.2s there. That
-timing is not a kitchen still. This script's demo frame is 960x540, 32
-samples, denoise off.
+It is -march=x86-64-v2 (SSE4.2). The i7-2600 has no AVX2 and no GPU.
+Measured there: 960x540 at 64 samples, no denoise, was 28.7 seconds for a
+4-base 4-upper kitchen and looked washed out. This version does not claim
+a new timing. Four times the pixels is the requested quality.
 """
 
 from __future__ import annotations
@@ -28,11 +26,11 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 2
+SCRIPT_VERSION = 3
 INCH = 0.0254
 SAMPLES = 64
-WIDTH = 960
-HEIGHT = 540
+WIDTH = 1920
+HEIGHT = 1080
 
 
 def _norm(v):
@@ -127,10 +125,10 @@ def _look(name: str, material: str, color: str):
     if "plywood" in text or "build-up" in text or "buildup" in text:
         return _hex(color, (0.62, 0.48, 0.34)), 0.55, 0.0
     if any(word in text for word in ("laminate", "door", "drawer", "front")):
-        return _hex(color, (0.90, 0.90, 0.88)), 0.38, 0.0
+        return _hex(color, (0.93, 0.92, 0.88)), 0.32, 0.0
     if "filler" in text:
-        return _hex(color, (0.86, 0.86, 0.84)), 0.45, 0.0
-    return _hex(color, (0.93, 0.92, 0.90)), 0.5, 0.0
+        return _hex(color, (0.90, 0.89, 0.86)), 0.4, 0.0
+    return _hex(color, (0.86, 0.85, 0.82)), 0.55, 0.0
 
 
 def _set_input(node, names, value):
@@ -216,8 +214,18 @@ def main():
             scene.view_settings.view_transform = "AgX"
         elif "Filmic" in transforms:
             scene.view_settings.view_transform = "Filmic"
+        looks = {item.identifier for item in
+                 scene.view_settings.bl_rna.properties["look"].enum_items}
+        for name in ("AgX - Medium High Contrast", "Medium High Contrast",
+                     "AgX - Punchy"):
+            if name in looks:
+                scene.view_settings.look = name
+                break
+        scene.view_settings.exposure = -0.15
     except Exception:
         pass
+    if hasattr(scene.cycles, "use_light_tree"):
+        scene.cycles.use_light_tree = True
 
     mats = {}
 
@@ -231,6 +239,8 @@ def main():
             _set_input(bsdf, ("Base Color", "Color"), (*rgba, 1.0))
             _set_input(bsdf, ("Roughness",), rough)
             _set_input(bsdf, ("Metallic", "Metalness"), metal)
+            spec = 0.45 if metal > 0.5 else 0.22
+            _set_input(bsdf, ("Specular IOR Level", "Specular"), spec)
         mats[key] = mat
         return mat
 
@@ -277,8 +287,8 @@ def main():
     miny, maxy = min(ys), max(ys)
     minz, maxz = min(zs), max(zs)
     span = max(maxx - minx, maxz - minz, 0.5)
-    floor = material("floor", (0.45, 0.32, 0.22), 0.62, 0.0)
-    wall = material("wall", (0.94, 0.93, 0.91), 0.75, 0.0)
+    floor = material("floor", (0.32, 0.22, 0.15), 0.48, 0.0)
+    wall = material("wall", (0.82, 0.80, 0.76), 0.88, 0.0)
     pad = max(0.55, span * 0.45)
     cube_m(minx - pad, miny - pad * 0.4, -0.02, maxx + pad, maxy + pad * 1.5, 0.0, floor)
     wall_top = max(maxz + span * 0.35, 2.45)
@@ -307,37 +317,29 @@ def main():
     con.up_axis = "UP_Y"
     scene.camera = cam
 
-    # Morning sun through a window in the left wall. The beam rakes across
-    # the fronts. A large cool fill from the camera side keeps the detail.
-    win_h = max(0.9, (maxz - minz) * 0.42)
-    win_z0 = minz + (maxz - minz) * 0.45
-    win_y0 = (miny + maxy) / 2.0 - win_h * 0.15
-    win_y1 = win_y0 + max(0.7, (maxy - miny) * 0.55)
-    frame = material("window-frame", (0.92, 0.91, 0.88), 0.45, 0.0)
-    # emissive pane so the opening reads as a light source even before the sun
-    emit = bpy.data.materials.new("window-light")
-    emit.use_nodes = True
-    bsdf = emit.node_tree.nodes.get("Principled BSDF")
-    if bsdf:
-        _set_input(bsdf, ("Base Color", "Color"), (1.0, 0.78, 0.48, 1.0))
-        _set_input(bsdf, ("Emission Color", "Emission"), (1.0, 0.72, 0.38, 1.0))
-        _set_input(bsdf, ("Emission Strength",), 8.0)
-    wx = minx - pad * 0.35 + 0.02
-    cube_m(wx, win_y0, win_z0, wx + 0.02, win_y1, win_z0 + win_h, emit)
-    t = 0.04
-    cube_m(wx, win_y0 - t, win_z0 - t, wx + 0.045, win_y1 + t, win_z0, frame)
-    cube_m(wx, win_y0 - t, win_z0 + win_h, wx + 0.045, win_y1 + t, win_z0 + win_h + t, frame)
-    cube_m(wx, win_y0 - t, win_z0, wx + 0.045, win_y0, win_z0 + win_h, frame)
-    cube_m(wx, win_y1, win_z0, wx + 0.045, win_y1 + t, win_z0 + win_h, frame)
+    # A window in the left wall, not a glowing slab. The sun and a warm
+    # area light outside it do the morning beam. A dim fill keeps shadows open.
+    win_h = max(1.0, (maxz - minz) * 0.55)
+    win_z0 = minz + max(0.35, (maxz - minz) * 0.28)
+    win_y0 = miny + (maxy - miny) * 0.15
+    win_y1 = win_y0 + max(0.9, (maxy - miny) * 0.62)
+    frame = material("window-frame", (0.55, 0.50, 0.44), 0.4, 0.0)
+    opening = material("window-opening", (0.22, 0.26, 0.32), 0.9, 0.0)
+    t = 0.045
+    cube_m(minx - 0.01, win_y0, win_z0, minx + 0.015, win_y1, win_z0 + win_h, opening)
+    cube_m(minx - 0.02, win_y0 - t, win_z0 - t, minx + 0.03, win_y1 + t, win_z0, frame)
+    cube_m(minx - 0.02, win_y0 - t, win_z0 + win_h, minx + 0.03, win_y1 + t, win_z0 + win_h + t, frame)
+    cube_m(minx - 0.02, win_y0 - t, win_z0, minx + 0.03, win_y0, win_z0 + win_h, frame)
+    cube_m(minx - 0.02, win_y1, win_z0, minx + 0.03, win_y1 + t, win_z0 + win_h, frame)
 
-    sun_from = (minx - 1.4, (win_y0 + win_y1) / 2.0, win_z0 + win_h * 0.85)
-    sun_at = ((minx + maxx) / 2.0, (miny + maxy) / 2.0, (minz + maxz) * 0.42)
+    sun_at = ((minx + maxx) * 0.55, (miny + maxy) * 0.5, minz + (maxz - minz) * 0.35)
+    sun_from = (minx - 2.2, (win_y0 + win_y1) * 0.5 + 0.4, win_z0 + win_h * 1.15)
     bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
-    sun.data.energy = 4.5
-    sun.data.color = (1.0, 0.78, 0.52)
+    sun.data.energy = 3.2
+    sun.data.color = (1.0, 0.84, 0.58)
     if hasattr(sun.data, "angle"):
-        sun.data.angle = 0.06
+        sun.data.angle = 0.03
     bpy.ops.object.empty_add(type="PLAIN_AXES", location=sun_at)
     sun_aim = bpy.context.active_object
     scon = sun.constraints.new(type="TRACK_TO")
@@ -345,12 +347,26 @@ def main():
     scon.track_axis = "TRACK_NEGATIVE_Z"
     scon.up_axis = "UP_Y"
 
-    bpy.ops.object.light_add(type="AREA", location=(cam_loc[0] * 0.3 + target[0] * 0.7,
-                                                    maxy + 0.4, target[2] + 0.35))
+    bpy.ops.object.light_add(
+        type="AREA",
+        location=(minx - 0.55, (win_y0 + win_y1) / 2.0, win_z0 + win_h * 0.45))
+    window = bpy.context.active_object
+    window.data.energy = 180
+    window.data.size = max(0.9, win_y1 - win_y0)
+    window.data.color = (1.0, 0.74, 0.46)
+    if hasattr(window.data, "shape"):
+        window.data.shape = "RECTANGLE"
+        window.data.size_y = win_h * 0.9
+    wcon = window.constraints.new(type="TRACK_TO")
+    wcon.target = aim
+    wcon.track_axis = "TRACK_NEGATIVE_Z"
+    wcon.up_axis = "UP_Y"
+
+    bpy.ops.object.light_add(type="AREA", location=(target[0], maxy + 1.1, target[2] + 0.15))
     fill = bpy.context.active_object
-    fill.data.energy = 40
-    fill.data.size = max(1.6, (maxx - minx) * 0.7)
-    fill.data.color = (0.86, 0.90, 1.0)
+    fill.data.energy = 8
+    fill.data.size = max(2.0, (maxx - minx) * 0.85)
+    fill.data.color = (0.78, 0.84, 0.95)
     fcon = fill.constraints.new(type="TRACK_TO")
     fcon.target = aim
     fcon.track_axis = "TRACK_NEGATIVE_Z"
@@ -361,12 +377,12 @@ def main():
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (0.93, 0.84, 0.70, 1.0)
-        bg.inputs[1].default_value = 0.22
+        bg.inputs[0].default_value = (0.55, 0.64, 0.78, 1.0)
+        bg.inputs[1].default_value = 0.04
     if hasattr(scene.cycles, "sample_clamp_indirect"):
-        scene.cycles.sample_clamp_indirect = 3.0
+        scene.cycles.sample_clamp_indirect = 0.0
     if hasattr(scene.cycles, "blur_glossy"):
-        scene.cycles.blur_glossy = 0.15
+        scene.cycles.blur_glossy = 0.0
 
     print(f"cabcad-render version {SCRIPT_VERSION} samples {samples} {width}x{height} cpu",
           flush=True)

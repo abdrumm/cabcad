@@ -47,7 +47,19 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 2
+    assert SCRIPT_VERSION == 3
+
+
+def test_still_is_1920_by_1080(monkeypatch):
+    monkeypatch.delenv("CABCAD_BLENDER_WIDTH", raising=False)
+    monkeypatch.delenv("CABCAD_BLENDER_HEIGHT", raising=False)
+    monkeypatch.delenv("CABCAD_BLENDER_DENOISE", raising=False)
+    from cabgen.photo_view import job_payload
+    job = load_job(SAMPLE, "Sample Kitchen")
+    payload = job_payload(job)
+    assert payload["width"] == 1920 and payload["height"] == 1080
+    assert payload["version"] == 3 and payload["samples"] == 64
+    assert payload["denoise"] is True
 
 
 def test_camera_fits_the_whole_stack_including_a_wide_run():
