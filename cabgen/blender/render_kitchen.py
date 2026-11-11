@@ -26,11 +26,14 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 3
+SCRIPT_VERSION = 4
 INCH = 0.0254
-SAMPLES = 64
+SAMPLES = 36
 WIDTH = 1920
 HEIGHT = 1080
+# From the subject toward the camera: in front of the run, a little to the
+# left, slightly above. Image-right is then +X, matching the drawings.
+FRONT_VIEW = (-0.16, 1.0, 0.20)
 
 
 def _norm(v):
@@ -80,6 +83,131 @@ def camera_fit(bounds_min, bounds_max, view_dir, lens_mm=32.0, aspect=WIDTH / HE
                     dist = need
     cam = (center[0] + back[0] * dist, center[1] + back[1] * dist, center[2] + back[2] * dist)
     return cam, center, dist
+
+
+def box_center_m(pos, size):
+    """CabCAD inches (x right, y toward the wall, z up) to a Blender centre, metres."""
+    x, y, z = pos
+    sx, sy, sz = size
+    return ((x + sx / 2.0) * INCH, -(y + sy / 2.0) * INCH, (z + sz / 2.0) * INCH)
+
+
+def camera_axes(cam, target):
+    """Camera basis. ``right`` is +X on the picture, ``look`` points at the target.
+
+    Track-To with up = Y flipped the picture: the microwave, which is on the
+    right in the drawings, landed on the left. This basis keeps world +X on
+    the right when the camera looks from the front toward the wall.
+    """
+    look = _norm((target[0] - cam[0], target[1] - cam[1], target[2] - cam[2]))
+    right = _norm(_cross((0.0, 0.0, 1.0), look))
+    if abs(right[0]) + abs(right[1]) + abs(right[2]) < 1e-8:
+        right = (1.0, 0.0, 0.0)
+    up = _norm(_cross(look, right))
+    return right, up, look
+
+
+def image_x(point, cam, target):
+    """Horizontal position on the picture. Larger means further right."""
+    right, _up, _look = camera_axes(cam, target)
+    rel = (point[0] - cam[0], point[1] - cam[1], point[2] - cam[2])
+    return _dot(rel, right)
+
+
+def back_wall_interval(cabinet_back_y, thickness=0.06):
+    """Wall just behind the cabinets. The room-facing face is ``cabinet_back_y``."""
+    return cabinet_back_y - thickness, cabinet_back_y
+
+
+def denoise_should_try(requested, has_attr, enum_ids):
+    """Whether to assign OpenImageDenoise.
+
+    Blender 5.2 in background mode reported ``scene.cycles.denoiser`` with an
+    empty ``enum_items``, and the old check treated that as "no denoiser".
+    An empty list means the choices were not filled in, not that OIDN is absent.
+    """
+    if not requested or not has_attr:
+        return False
+    if not enum_ids:
+        return True
+    return "OPENIMAGEDENOISE" in enum_ids
+
+
+def _enum_ids(scene, attr):
+    try:
+        return [item.identifier for item in scene.cycles.bl_rna.properties[attr].enum_items]
+    except Exception:
+        return []
+
+
+def _enable_cpu_denoise(scene, bpy, requested):
+    """Turn on CPU OpenImageDenoise. Returns the log line. Never raises."""
+    if not requested:
+        return "off; job asked to skip"
+    attr = next((name for name in ("denoiser", "denoising_denoiser")
+                 if hasattr(scene.cycles, name)), None)
+    enum_ids = _enum_ids(scene, attr) if attr else []
+    if not denoise_should_try(True, attr is not None, enum_ids):
+        return "off; no denoiser attribute"
+    try:
+        scene.cycles.use_denoising = True
+        setattr(scene.cycles, attr, "OPENIMAGEDENOISE")
+    except Exception as exc:
+        scene.cycles.use_denoising = False
+        return f"off; OIDN assignment failed ({exc})"
+    notes = [f"cycles.{attr}=OPENIMAGEDENOISE"]
+    if hasattr(scene.cycles, "denoising_use_gpu"):
+        try:
+            scene.cycles.denoising_use_gpu = False
+            notes.append("denoising_use_gpu=False")
+        except Exception as exc:
+            notes.append(f"denoising_use_gpu failed ({exc})")
+    for name, value in (("denoising_device", "CPU"), ("denoising_prefilter", "ACCURATE"),
+                        ("denoising_input_passes", "RGB_ALBEDO_NORMAL")):
+        if hasattr(scene.cycles, name):
+            try:
+                setattr(scene.cycles, name, value)
+                notes.append(f"{name}={value}")
+            except Exception:
+                pass
+    for layer in getattr(scene, "view_layers", []):
+        cycles = getattr(layer, "cycles", None)
+        if cycles is not None and hasattr(cycles, "use_denoising"):
+            try:
+                cycles.use_denoising = True
+                notes.append(f"view-layer {layer.name}")
+            except Exception:
+                pass
+    if not getattr(scene.cycles, "use_denoising", False):
+        comp = _try_compositor_denoise(scene, bpy)
+        if comp:
+            return "compositor Denoise node (Cycles denoiser did not stick)"
+        return "off; use_denoising did not stick"
+    return "OIDN CPU (" + ", ".join(notes) + ")"
+
+
+def _try_compositor_denoise(scene, bpy):
+    try:
+        if hasattr(scene, "use_nodes"):
+            scene.use_nodes = True
+        if hasattr(scene.render, "use_compositing"):
+            scene.render.use_compositing = True
+        tree = getattr(scene, "node_tree", None)
+        if tree is None:
+            return False
+        nodes, links = tree.nodes, tree.links
+        render = next((n for n in nodes if n.bl_idname == "CompositorNodeRLayers"), None)
+        out = next((n for n in nodes if n.bl_idname == "CompositorNodeComposite"), None)
+        if render is None or out is None or "Image" not in render.outputs:
+            return False
+        den = nodes.new("CompositorNodeDenoise")
+        links.new(render.outputs["Image"], den.inputs["Image"])
+        if "Image" in den.outputs and "Image" in out.inputs:
+            links.new(den.outputs["Image"], out.inputs["Image"])
+            return True
+    except Exception as exc:
+        print(f"cabcad-denoise compositor failed ({exc})", flush=True)
+    return False
 
 
 def denoise_plan(requested: bool, has_oidn: bool, accelerator: str) -> dict:
@@ -144,6 +272,25 @@ def _set_input(node, names, value):
             return
 
 
+def _aim_camera(cam, cam_loc, target):
+    """Point the camera with image-right = world +X. No Track-To constraint."""
+    import mathutils
+    right, up, look = camera_axes(cam_loc, target)
+    cam.matrix_world = mathutils.Matrix((
+        (right[0], up[0], -look[0], cam_loc[0]),
+        (right[1], up[1], -look[1], cam_loc[1]),
+        (right[2], up[2], -look[2], cam_loc[2]),
+        (0.0, 0.0, 0.0, 1.0),
+    ))
+
+
+def _track(obj, target):
+    con = obj.constraints.new(type="TRACK_TO")
+    con.target = target
+    con.track_axis = "TRACK_NEGATIVE_Z"
+    con.up_axis = "UP_Y"
+
+
 def main():
     import bpy
 
@@ -176,29 +323,9 @@ def main():
         if hasattr(scene.cycles, "adaptive_threshold"):
             scene.cycles.adaptive_threshold = 0.04
     scene.cycles.use_denoising = False
-    has_oidn = False
-    denoiser_attr = None
-    for attr in ("denoiser", "denoising_denoiser"):
-        if hasattr(scene.cycles, attr):
-            denoiser_attr = attr
-            try:
-                items = scene.cycles.bl_rna.properties[attr].enum_items
-                has_oidn = any(item.identifier == "OPENIMAGEDENOISE" for item in items)
-            except Exception:
-                has_oidn = True
-            break
-    plan = denoise_plan(want_denoise, has_oidn, "CPU")
-    if plan["denoise"] and denoiser_attr:
-        try:
-            setattr(scene.cycles, denoiser_attr, "OPENIMAGEDENOISE")
-            if hasattr(scene.cycles, "denoising_use_gpu"):
-                scene.cycles.denoising_use_gpu = False
-            scene.cycles.use_denoising = True
-        except Exception as exc:
-            scene.cycles.use_denoising = False
-            plan = {"denoise": False, "reason": f"OIDN setup failed ({exc}); rendered without denoise"}
-    print(f"cabcad-denoise {plan['reason']}", flush=True)
-    for name, value in (("max_bounces", 8), ("diffuse_bounces", 4), ("glossy_bounces", 4)):
+    denoise_log = _enable_cpu_denoise(scene, bpy, want_denoise)
+    print(f"cabcad-denoise {denoise_log}", flush=True)
+    for name, value in (("max_bounces", 4), ("diffuse_bounces", 2), ("glossy_bounces", 2)):
         if hasattr(scene.cycles, name):
             setattr(scene.cycles, name, value)
     scene.render.resolution_x = width
@@ -216,12 +343,12 @@ def main():
             scene.view_settings.view_transform = "Filmic"
         looks = {item.identifier for item in
                  scene.view_settings.bl_rna.properties["look"].enum_items}
-        for name in ("AgX - Medium High Contrast", "Medium High Contrast",
-                     "AgX - Punchy"):
+        for name in ("AgX - Medium Contrast", "Medium Contrast",
+                     "AgX - Base Contrast"):
             if name in looks:
                 scene.view_settings.look = name
                 break
-        scene.view_settings.exposure = -0.15
+        scene.view_settings.exposure = 0.35
     except Exception:
         pass
     if hasattr(scene.cycles, "use_light_tree"):
@@ -287,22 +414,18 @@ def main():
     miny, maxy = min(ys), max(ys)
     minz, maxz = min(zs), max(zs)
     span = max(maxx - minx, maxz - minz, 0.5)
-    floor = material("floor", (0.32, 0.22, 0.15), 0.48, 0.0)
-    wall = material("wall", (0.82, 0.80, 0.76), 0.88, 0.0)
-    pad = max(0.55, span * 0.45)
-    cube_m(minx - pad, miny - pad * 0.4, -0.02, maxx + pad, maxy + pad * 1.5, 0.0, floor)
-    wall_top = max(maxz + span * 0.35, 2.45)
-    cube_m(minx - pad * 0.3, miny - 0.10, 0.0, maxx + pad * 0.3, miny - 0.02, wall_top, wall)
-    cube_m(minx - pad * 0.35, miny - 0.02, 0.0, minx - pad * 0.35 + 0.08, maxy + pad * 0.4,
-           wall_top, wall)
+    floor = material("floor", (0.55, 0.40, 0.26), 0.55, 0.0)
+    wall = material("wall", (0.93, 0.90, 0.84), 0.9, 0.0)
+    pad = max(0.8, span * 0.55)
+    cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, maxy + pad * 1.6, 0.0, floor)
+    wall_top = max(maxz + 0.55, 2.6)
+    # Flush to the cabinet backs. No side wall and no blue window slab.
+    wall_y0, wall_y1 = back_wall_interval(miny)
+    cube_m(minx - pad * 0.4, wall_y0, 0.0, maxx + pad * 0.4, wall_y1, wall_top, wall)
 
-    # Fit the cabinets only. The room walls extend past them on purpose.
-    # Camera sits in front (+Y) and a little to the right, just above centre.
     cam_loc, target, _dist = camera_fit(
-        (minx, miny, minz), (maxx, maxy, maxz), (0.38, 1.0, 0.16),
-        lens_mm=32.0, aspect=width / float(height), margin=1.16)
-    bpy.ops.object.empty_add(type="PLAIN_AXES", location=target)
-    aim = bpy.context.active_object
+        (minx, miny, minz), (maxx, maxy, maxz), FRONT_VIEW,
+        lens_mm=32.0, aspect=width / float(height), margin=1.12)
     bpy.ops.object.camera_add(location=cam_loc)
     cam = bpy.context.active_object
     cam.data.lens = 32
@@ -311,74 +434,50 @@ def main():
         cam.data.sensor_fit = "HORIZONTAL"
     cam.data.clip_start = 0.02
     cam.data.clip_end = 200.0
-    con = cam.constraints.new(type="TRACK_TO")
-    con.target = aim
-    con.track_axis = "TRACK_NEGATIVE_Z"
-    con.up_axis = "UP_Y"
+    _aim_camera(cam, cam_loc, target)
     scene.camera = cam
 
-    # A window in the left wall, not a glowing slab. The sun and a warm
-    # area light outside it do the morning beam. A dim fill keeps shadows open.
-    win_h = max(1.0, (maxz - minz) * 0.55)
-    win_z0 = minz + max(0.35, (maxz - minz) * 0.28)
-    win_y0 = miny + (maxy - miny) * 0.15
-    win_y1 = win_y0 + max(0.9, (maxy - miny) * 0.62)
-    frame = material("window-frame", (0.55, 0.50, 0.44), 0.4, 0.0)
-    opening = material("window-opening", (0.22, 0.26, 0.32), 0.9, 0.0)
-    t = 0.045
-    cube_m(minx - 0.01, win_y0, win_z0, minx + 0.015, win_y1, win_z0 + win_h, opening)
-    cube_m(minx - 0.02, win_y0 - t, win_z0 - t, minx + 0.03, win_y1 + t, win_z0, frame)
-    cube_m(minx - 0.02, win_y0 - t, win_z0 + win_h, minx + 0.03, win_y1 + t, win_z0 + win_h + t, frame)
-    cube_m(minx - 0.02, win_y0 - t, win_z0, minx + 0.03, win_y0, win_z0 + win_h, frame)
-    cube_m(minx - 0.02, win_y1, win_z0, minx + 0.03, win_y1 + t, win_z0 + win_h, frame)
-
-    sun_at = ((minx + maxx) * 0.55, (miny + maxy) * 0.5, minz + (maxz - minz) * 0.35)
-    sun_from = (minx - 2.2, (win_y0 + win_y1) * 0.5 + 0.4, win_z0 + win_h * 1.15)
+    # Morning sun from in front of the run, behind the camera, so the whole
+    # front is lit. A wide warm area light does the window; a softer one
+    # keeps the shadows from going black.
+    aim_at = ((minx + maxx) / 2.0, (miny + maxy) / 2.0, minz + (maxz - minz) * 0.45)
+    bpy.ops.object.empty_add(type="PLAIN_AXES", location=aim_at)
+    aim = bpy.context.active_object
+    sun_from = ((minx + maxx) / 2.0, maxy + 3.2, maxz + 1.6)
     bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
-    sun.data.energy = 3.2
-    sun.data.color = (1.0, 0.84, 0.58)
+    sun.data.energy = 5.0
+    sun.data.color = (1.0, 0.86, 0.62)
     if hasattr(sun.data, "angle"):
-        sun.data.angle = 0.03
-    bpy.ops.object.empty_add(type="PLAIN_AXES", location=sun_at)
-    sun_aim = bpy.context.active_object
-    scon = sun.constraints.new(type="TRACK_TO")
-    scon.target = sun_aim
-    scon.track_axis = "TRACK_NEGATIVE_Z"
-    scon.up_axis = "UP_Y"
+        sun.data.angle = 0.10
+    _track(sun, aim)
 
-    bpy.ops.object.light_add(
-        type="AREA",
-        location=(minx - 0.55, (win_y0 + win_y1) / 2.0, win_z0 + win_h * 0.45))
+    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 2.4,
+                                                    minz + (maxz - minz) * 0.62))
     window = bpy.context.active_object
-    window.data.energy = 180
-    window.data.size = max(0.9, win_y1 - win_y0)
-    window.data.color = (1.0, 0.74, 0.46)
+    window.data.energy = 600
+    window.data.size = max(1.8, (maxx - minx) * 0.95)
+    window.data.color = (1.0, 0.78, 0.50)
     if hasattr(window.data, "shape"):
         window.data.shape = "RECTANGLE"
-        window.data.size_y = win_h * 0.9
-    wcon = window.constraints.new(type="TRACK_TO")
-    wcon.target = aim
-    wcon.track_axis = "TRACK_NEGATIVE_Z"
-    wcon.up_axis = "UP_Y"
+        window.data.size_y = max(1.2, (maxz - minz) * 0.85)
+    _track(window, aim)
 
-    bpy.ops.object.light_add(type="AREA", location=(target[0], maxy + 1.1, target[2] + 0.15))
+    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.6,
+                                                    minz + (maxz - minz) * 0.25))
     fill = bpy.context.active_object
-    fill.data.energy = 8
-    fill.data.size = max(2.0, (maxx - minx) * 0.85)
-    fill.data.color = (0.78, 0.84, 0.95)
-    fcon = fill.constraints.new(type="TRACK_TO")
-    fcon.target = aim
-    fcon.track_axis = "TRACK_NEGATIVE_Z"
-    fcon.up_axis = "UP_Y"
+    fill.data.energy = 80
+    fill.data.size = max(2.2, (maxx - minx) * 1.1)
+    fill.data.color = (1.0, 0.93, 0.82)
+    _track(fill, aim)
 
     world = bpy.data.worlds.new("Kitchen")
     scene.world = world
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (0.55, 0.64, 0.78, 1.0)
-        bg.inputs[1].default_value = 0.04
+        bg.inputs[0].default_value = (1.0, 0.94, 0.84, 1.0)
+        bg.inputs[1].default_value = 0.12
     if hasattr(scene.cycles, "sample_clamp_indirect"):
         scene.cycles.sample_clamp_indirect = 0.0
     if hasattr(scene.cycles, "blur_glossy"):

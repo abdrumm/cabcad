@@ -93,7 +93,7 @@ def job_payload(job) -> dict:
     return {
         "name": job.name,
         "version": SCRIPT_VERSION,
-        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "64")),
+        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "36")),
         "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "1920")),
         "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "1080")),
         "denoise": denoise,
@@ -181,10 +181,11 @@ OpenImageDenoise on the CPU. If that denoiser cannot be set, the picture is
 rendered without it. <code>CABCAD_BLENDER_DENOISE=0</code> skips it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>Measured on that machine: 960×540, 64 samples, no denoise, 28.7 seconds for
-a 4-base 4-upper kitchen, and the picture was washed out. The current frame
-is 1920×1080 and 64 samples. Four times the pixels. That time has not been
-measured. One render at a time. Opening this form does not start it.</p>
+<p>Measured on that machine: 1920×1080, 64 samples, no denoise, 89.8 seconds,
+and the picture was dark, grainy, and mirrored. The current frame is still
+1920×1080, with 36 samples and CPU denoising when Blender will turn it on.
+That time has not been measured. One render at a time. Opening this form
+does not start it.</p>
 """)
 
 

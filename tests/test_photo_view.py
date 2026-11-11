@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 3
+    assert SCRIPT_VERSION == 4
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,7 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 3 and payload["samples"] == 64
+    assert payload["version"] == 4 and payload["samples"] == 36
     assert payload["denoise"] is True
 
 
@@ -89,6 +89,36 @@ def test_camera_fits_the_whole_stack_including_a_wide_run():
                     assert depth > 0.2
                     assert abs(_dot(p, right)) / depth <= tan_h / 1.16 + 1e-6
                     assert abs(_dot(p, up)) / depth <= tan_v / 1.16 + 1e-6
+
+
+def test_the_right_hand_cabinet_stays_on_the_right():
+    """U4, the microwave, is the rightmost upper. The picture must not mirror it."""
+    from cabgen.blender.render_kitchen import (
+        FRONT_VIEW, box_center_m, camera_fit, image_x,
+    )
+    left = box_center_m((0.0, 0.0, 54.0), (24.0, 12.0, 30.0))
+    micro = box_center_m((72.0, 0.0, 54.0), (30.0, 12.0, 30.0))
+    assert micro[0] > left[0]
+    bmin = (left[0] - 0.3, min(left[1], micro[1]) - 0.4, 0.0)
+    bmax = (micro[0] + 0.3, max(left[1], micro[1]) + 0.2, 2.2)
+    cam, target, _dist = camera_fit(bmin, bmax, FRONT_VIEW, lens_mm=32.0,
+                                    aspect=16 / 9, margin=1.12)
+    assert image_x(micro, cam, target) > image_x(left, cam, target)
+
+
+def test_back_wall_sits_on_the_cabinet_backs():
+    from cabgen.blender.render_kitchen import back_wall_interval
+    back = -1.4
+    y0, y1 = back_wall_interval(back)
+    assert y0 < y1 and abs(y1 - back) < 1e-9
+
+
+def test_empty_denoiser_enum_still_tries_oidn():
+    from cabgen.blender.render_kitchen import denoise_should_try
+    assert denoise_should_try(True, True, []) is True
+    assert denoise_should_try(True, True, ["OPENIMAGEDENOISE"]) is True
+    assert denoise_should_try(False, True, []) is False
+    assert denoise_should_try(True, False, []) is False
 
 
 def test_photo_page_does_not_crop_the_still(tmp_path, monkeypatch):
