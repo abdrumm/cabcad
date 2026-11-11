@@ -113,6 +113,11 @@ alone. The finished height is still 33-1/2".
   cabinet form, and a `# toe_kick_h=` line all refuse a taller kick. The live
   front view will not draw one. The kick still comes out of the case. Finished
   height stays 33-1/2".
+- 11x17 drawing sheets (client, countertop, cabinet detail, standalone front,
+  and the carpenter shop drawing) put the job name on one line across the top.
+  A long name shrinks onto that line. The logo, address, date, revision, sheet
+  and scale sit in a thin column on the right. The views use the rest of the
+  sheet. Nest sheets are unchanged.
 
 Still to do:
 1. Cut over: put this tree at `~/Work/cabcad`, keep the `v0.15` tag, push to

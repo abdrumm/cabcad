@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 from .client_sheet import (
-    M, PAGE_H, PAGE_W, INK, SOFT, Svg, front_elevation, palette_for, title_block,
+    PAGE_H, PAGE_W, Svg, begin_sheet, front_elevation, palette_for,
 )
 
 
@@ -27,13 +27,8 @@ def render_front(job, date: str | None = None) -> Svg:
     date = date or _dt.date.today().strftime("%B %-d, %Y")
     svg = Svg(PAGE_W, PAGE_H)
     with palette_for(job):
-        svg.rect(M / 2, M / 2, PAGE_W - M, PAGE_H - M, fill="none", stroke=INK, sw=0.014)
-        svg.text(M + 0.1, M + 0.28, job.name.upper(), size=0.26, weight="bold", fill=INK)
-        svg.text(M + 0.1, M + 0.52, "Front elevation  —  standalone sheet for the CE pipeline",
-                 size=0.13, fill=SOFT)
-        front_elevation(svg, job, (M + 0.1, M + 0.7, PAGE_W - 2 * M - 0.25, 7.2))
-        title_block(svg, job, (M + 9.9, M + 8.15, 6.3, 2.0), date,
-                    drawing="Front elevation", page="1 of 1")
+        cx, cy, cw, ch = begin_sheet(svg, job, date, "Front elevation", page="1 of 1")
+        front_elevation(svg, job, (cx, cy, cw, ch))
     return svg
 
 

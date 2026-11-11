@@ -449,32 +449,50 @@ def _notes_block(svg: Svg, p: Params, layout: Layout, parts: list[Part],
         y += 0.02
 
 
-def _title_block(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, float, float],
-                 sheet: int = 1, sheets: int = 1) -> None:
-    bx, by, bw, bh = box
-    svg.rect(bx, by, bw, bh, fill="none", stroke=INK, sw=0.012)
-    svg.line(bx, by + 0.42, bx + bw, by + 0.42, stroke=INK, sw=0.008)
-    svg.text(bx + 0.12, by + 0.28, p.name.upper(), size=0.17, weight="bold")
-    svg.text(bx + bw - 0.12, by + 0.28, "SHOP DRAWING", size=0.13, anchor="end")
+SHOP_RAIL_W = 1.62
 
+
+def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1) -> tuple[float, float, float, float]:
+    """One title line on top and a thin identity rail on the right. Returns the drawing box."""
+    svg.rect(MARGIN / 2, MARGIN / 2, PAGE_W - MARGIN, PAGE_H - MARGIN,
+             fill="none", stroke=INK, sw=0.014)
+    rail_x = PAGE_W - MARGIN - SHOP_RAIL_W
+    name = p.name.upper()
+    # One line. A long cabinet name shrinks; the header does not grow.
+    size = 0.15
+    room = rail_x - MARGIN - 1.7
+    while size > 0.08 and len(name) * size * 0.56 > room:
+        size -= 0.005
+    svg.text(MARGIN + 0.08, MARGIN + 0.22, name, size=size, weight="bold")
+    svg.text(rail_x - 0.1, MARGIN + 0.22, "SHOP DRAWING", size=0.1, anchor="end")
+    y0 = MARGIN + 0.36
+    h = PAGE_H - MARGIN - y0
+    svg.rect(rail_x, y0, SHOP_RAIL_W, h, fill="none", stroke=INK, sw=0.01)
     rows = [
         ("STYLE", p.name),
         ("CASE", f'{fmt_in(p.width)} W x {fmt_in(p.depth)} D'),
-        ("OVERALL", f'{fmt_in(p.width)} W x {fmt_in(p.height)} H (counter included)'),
-        ("COUNTER", f'{fmt_in(p.counter_width)} x {fmt_in(p.counter_depth)} Corian'
+        ("OVERALL", f'{fmt_in(p.width)} x {fmt_in(p.height)}'),
+        ("COUNTER", f'{fmt_in(p.counter_width)} x {fmt_in(p.counter_depth)}'
          if p.has_counter else "none"),
-        ("FRONTS", f'{p.doors} door(s), {p.drawers} drawer(s), overlay {fmt_in(p.door_overhang)}'),
-        ("MATERIAL", '3/4" melamine carcass, 1/2" melamine back'
-         + (', 1/2" Corian top' if p.has_counter else "")),
-        ("KERF", f'{fmt_in(p.kerf)} saw blade - nesting on the cut list sheet'),
+        ("FRONTS", f'{p.doors} door, {p.drawers} drw'),
+        ("KERF", fmt_in(p.kerf)),
         ("DATE", datetime.date.today().isoformat()),
+        ("SHEET", f"{sheet} OF {sheets}"),
     ]
-    y = by + 0.62
+    y = y0 + 0.18
     for k, v in rows:
-        svg.text(bx + 0.12, y, k, size=0.075, weight="bold")
-        svg.text(bx + 1.15, y, v, size=0.075)
-        y += 0.17
-    svg.text(bx + bw - 0.12, by + bh - 0.12, f"SHEET {sheet} OF {sheets}", size=0.08, anchor="end")
+        svg.text(rail_x + 0.06, y, k, size=0.05, weight="bold")
+        y += 0.09
+        shown = v if len(v) < 28 else v[:26] + "…"
+        svg.text(rail_x + 0.06, y, shown, size=0.058)
+        y += 0.16
+    return MARGIN + 0.02, MARGIN + 0.40, rail_x - MARGIN - 0.1, PAGE_H - MARGIN - 0.42 - 0.02
+
+
+def _title_block(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, float, float],
+                 sheet: int = 1, sheets: int = 1) -> None:
+    """Kept for callers. The sheet chrome draws the rail; this no longer paints a wide block."""
+    _shop_chrome(svg, p, sheet, sheets)
 
 
 # --------------------------------------------------------------------------
@@ -488,34 +506,25 @@ def shop_drawing(p: Params, parts: list[Part], layout: Layout) -> tuple[Svg, lis
     the cut list sheet).
     """
     svg = Svg(PAGE_W, PAGE_H)
-    svg.rect(MARGIN / 2, MARGIN / 2, PAGE_W - MARGIN, PAGE_H - MARGIN,
-             fill="none", stroke=INK, sw=0.014)
-    svg.text(MARGIN + 0.1, MARGIN + 0.05,
-             "CABINET SHOP DRAWING", size=0.16, weight="bold")
-    svg.text(PAGE_W - MARGIN - 0.1, MARGIN + 0.05,
-             f"{p.name}  -  {fmt_in(p.width)} x {fmt_in(p.height)}", size=0.1, anchor="end")
-
-    keys = _front_elevation(svg, p, layout, (MARGIN, MARGIN + 0.35, 6.2, 6.4))
-    _side_elevation(svg, p, layout, (MARGIN + 6.5, MARGIN + 0.35, 2.4, 3.85))
-    _key_block(svg, keys, (MARGIN + 6.5, MARGIN + 4.55, 2.4, 2.85))
-    _notes_block(svg, p, layout, parts, (MARGIN + 9.15, MARGIN + 0.35, 7.05, 5.45))
-    drawn = _cutlist_table(svg, parts, (MARGIN, MARGIN + 7.15, 9.0, 3.05))
-    _title_block(svg, p, layout, (MARGIN + 9.15, MARGIN + 5.95, 7.05, 4.25),
-                 sheet=1, sheets=1 + (1 if len(parts) > drawn else 0))
+    # Same row budget the cut-list box below uses, so the rail can say 1 of 1 or 1 of 2.
+    box_h = (PAGE_H - MARGIN - 0.42 - 0.02) * 0.34
+    max_rows = int((box_h - 0.42) / 0.155)
+    sheets = 1 if len(parts) <= max(1, max_rows) else 2
+    cx, cy, cw, ch = _shop_chrome(svg, p, sheet=1, sheets=sheets)
+    # The rail is narrow, so the elevations and the cut list can be larger.
+    keys = _front_elevation(svg, p, layout, (cx, cy, cw * 0.62, ch * 0.64))
+    _side_elevation(svg, p, layout, (cx + cw * 0.64, cy, cw * 0.36, ch * 0.36))
+    _key_block(svg, keys, (cx + cw * 0.64, cy + ch * 0.38, cw * 0.36, ch * 0.26))
+    _notes_block(svg, p, layout, parts, (cx + cw * 0.64, cy + ch * 0.66, cw * 0.36, ch * 0.34))
+    drawn = _cutlist_table(svg, parts, (cx, cy + ch * 0.66, cw * 0.62, ch * 0.34))
     return svg, parts[drawn:]
 
 
 def cutlist_sheet(p: Params, parts: list[Part], page: int = 1, pages: int = 1) -> Svg:
     """Extra sheet when the cut list runs past sheet 1."""
     svg = Svg(PAGE_W, PAGE_H)
-    svg.rect(MARGIN / 2, MARGIN / 2, PAGE_W - MARGIN, PAGE_H - MARGIN,
-             fill="none", stroke=INK, sw=0.014)
-    svg.text(MARGIN + 0.1, MARGIN + 0.05, "CUT LIST", size=0.16, weight="bold")
-    svg.text(PAGE_W - MARGIN - 0.1, MARGIN + 0.05,
-             f"{p.name}  -  {fmt_in(p.width)} x {fmt_in(p.height)}", size=0.1, anchor="end")
-    _cutlist_table(svg, parts, (MARGIN, MARGIN + 0.6, 9.0, 9.4), page=page, pages=pages)
-    _title_block(svg, p, layout=Layout(params=p), box=(MARGIN + 9.15, MARGIN + 0.6, 7.05, 9.4),
-                 sheet=page, sheets=pages)
+    cx, cy, cw, ch = _shop_chrome(svg, p, sheet=page, sheets=pages)
+    _cutlist_table(svg, parts, (cx, cy + 0.15, cw, ch - 0.15), page=page, pages=pages)
     return svg
 
 

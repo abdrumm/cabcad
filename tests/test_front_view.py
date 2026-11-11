@@ -21,7 +21,7 @@ def test_front_sheet_is_only_the_elevation():
     job = load_job(SAMPLE, "Sample Kitchen")
     text = render_front(job, "November 8, 2026").to_string()
     assert "FRONT ELEVATION" in text
-    assert "SAMPLE KITCHEN" in text
+    assert "Sample Kitchen" in text
     assert "Coppinger Exhibits" in text
     assert "November 8, 2026" in text
     assert 'width="17.0in" height="11.0in"' in text
