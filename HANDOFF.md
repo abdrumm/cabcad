@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-146 passed, 2 failed (pytest, Python 3.12, 2026-11-09, this checkout). The two
+154 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -90,6 +90,19 @@ since then pass. AR export does not need Omacad and passes here.
   publish it to the company site. The render PNG and the AR files (USDZ and GLB)
   are written beside that page and linked from it. If a writer fails, that link
   is drawn dashed and marked "Placeholder — file not produced".
+- Photorealistic view is a button on the kitchen form, after Draft client email.
+  It does not run when the form is only opened or edited. There is no Blender
+  scene in this git repo (no `.blend`, no script, no commit on any branch).
+  `cabgen.render` is the flat shaded still, not that kitchen. The button says
+  so instead of inventing a picture. To turn it on, copy Brook's archived
+  stage onto the iMac as `~/Work/cabcad-blender/scene.blend` and
+  `render_job.py` (the script Blender runs as
+  `blender -b scene.blend -P render_job.py -- job.json out.png`), plus the
+  HDR and textures that file links, and note `blender --version`. Overrides:
+  `CABCAD_BLENDER`, `CABCAD_BLENDER_DIR`, `CABCAD_BLENDER_SCENE`,
+  `CABCAD_BLENDER_SCRIPT`. A repeated click of the same design reuses the PNG.
+  Look for the archive under `~/Work/cabcad`, `~/Work/cabinet-gen`, and the
+  rest of `~/Work`. It was not checked into GitHub.
 
 ## Where we left off / next steps
 Done 2026-11-08, from docs/PLANS.md items 3, 4 and 5. Items 1 and 2 were left

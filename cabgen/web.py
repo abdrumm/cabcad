@@ -1327,6 +1327,7 @@ def _run_fields(view: dict) -> str:
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 <button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
 <button type="submit" class="ghost" formaction="/client-email" title="Collect the client PDF, a render and the AR file with a ready email text. Test mode: nothing is sent.">Draft client email</button>
+<button type="submit" class="ghost" formaction="/photo" formtarget="_blank" title="Photorealistic still of this design. Opens in a new tab and can take several minutes. It does not run when you only change the form.">Photorealistic view</button>
 </div>
 </header>
 <section class="jobline" aria-label="Job">
@@ -1547,6 +1548,28 @@ def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
     except (KitchenError, RuntimeError, OSError) as exc:
         return None, _run_page(view, error=f"client sheet: {exc}")
     return files["pdf"].read_bytes(), ""
+
+
+def _handle_photo(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """Photorealistic still. Only this button starts it. A repeat of the same design is cached."""
+    from .client_sheet import load_job
+    from .photo_view import render_photo
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "photo-view.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        page, _ran = render_photo(job, out_dir)
+    except (KitchenError, OSError, ValueError) as exc:
+        return None, _run_page(view, error=f"photorealistic view: {exc}")
+    return page.encode("utf-8"), ""
 
 
 def _handle_front_view(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
@@ -1845,6 +1868,13 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
                     self._page(page)
                 else:
                     self._send(pdf, "application/pdf")
+                return
+            if path == "/photo":
+                body, page = _handle_photo(form, out_dir)
+                if body is None:
+                    self._page(page)
+                else:
+                    self._send(body, "text/html; charset=utf-8")
                 return
             if path == "/front-view":
                 body, page = _handle_front_view(form, out_dir)
