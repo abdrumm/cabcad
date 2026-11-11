@@ -1,4 +1,4 @@
-"""Procedural kitchen still for CabCAD. Script version 6.
+"""Procedural kitchen still for CabCAD. Script version 7.
 
 There is no .blend file. Blender builds the room from the job's real boxes
 (inches: x to the right, y toward the wall, z up), including the countertop
@@ -7,7 +7,7 @@ and the 4" perimeter build-up. Cabinet sizes are not scaled.
     blender -b --factory-startup -P cabgen/blender/render_kitchen.py -- job.json out.png
 
 CPU only. CUDA, OptiX, HIP and oneAPI are not selected. The still is
-1920x1080, 20 samples, OpenImageDenoise on the CPU when the job asks for it.
+1920x1080, 80 samples, OpenImageDenoise on the CPU when the job asks for it.
 """
 
 from __future__ import annotations
@@ -15,14 +15,18 @@ from __future__ import annotations
 import json
 import sys
 
-SCRIPT_VERSION = 6
+SCRIPT_VERSION = 7
 INCH = 0.0254
-SAMPLES = 20
+SAMPLES = 80
 WIDTH = 1920
 HEIGHT = 1080
-# Warm greige, clearly not the cabinet white. Floor is a mid oak.
+# Back wall is a warm greige. The side wall is darker so the corner reads.
 WALL_COLOR = (0.76, 0.69, 0.60)
+SIDE_WALL_COLOR = (0.52, 0.46, 0.39)
 FLOOR_COLOR = (0.36, 0.24, 0.15)
+# Degrees off a straight-on view, toward the finished end. 75 puts the
+# camera on the right-front, looking back along the run at the left wall.
+OPEN_ANGLE = 75.0
 
 
 def _norm(v):
@@ -118,44 +122,70 @@ def normalize_walls(walls) -> str:
     return key
 
 
-def side_wall_spans(walls, minx, maxx, thickness=0.06):
+def side_wall_spans(walls, minx, maxx, thickness=0.08, overlap=0.002):
     """Side walls tight to the cabinet ends. The room-facing face is the end.
 
-    A left wall's inner face is ``minx``, which is the left face of the run
-    (the side splash, when the job has one). ``None`` means that end is open.
+    A left wall's inner face is ``minx`` (the side splash, when there is one),
+    overlapped by a hair so the splash sits against the wall with no gap.
+    ``None`` means that end is open.
     """
     key = normalize_walls(walls)
-    left = (minx - thickness, minx) if key in ("left", "both") else None
-    right = (maxx, maxx + thickness) if key in ("right", "both") else None
+    left = (minx - thickness, minx + overlap) if key in ("left", "both") else None
+    right = (maxx - overlap, maxx + thickness) if key in ("right", "both") else None
     return left, right
 
 
-def camera_for_run(bounds_min, bounds_max, walls, lens_mm=32.0,
-                   aspect=WIDTH / HEIGHT, margin=1.12):
-    """Camera in front of the run, just past the finished end.
+def side_wall_forward(back_y, camera_y, past=0.5):
+    """How far a side wall runs toward the camera.
 
-    A left wall means the right end is the finished one, so the camera sits
-    to the right of that end and the right side panels face the lens. A right
-    wall is the mirror of that. Both walls stay nearly straight on. The whole
-    stack still fits.
+    Version 6 stopped the wall half a metre past the cabinet front. The
+    camera sits further forward, so the frame looked past that stub into the
+    dark background. The wall now runs from the back wall to beyond the camera.
     """
+    return back_y, camera_y + past
+
+
+def _view_dir(walls, degrees=OPEN_ANGLE):
+    import math
     key = normalize_walls(walls)
     if key == "both":
-        view = (0.10, 1.0, 0.22)
-        cam, target, dist = camera_fit(
-            bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
-        return cam, target, dist, view
+        return (0.12, 1.0, 0.16)
     sign = -1.0 if key == "right" else 1.0
-    end = bounds_max[0] if sign > 0 else bounds_min[0]
-    lateral = 0.22
-    cam = target = dist = view = None
-    for _ in range(18):
-        view = (sign * lateral, 1.0, 0.22)
-        cam, target, dist = camera_fit(
-            bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
-        if (cam[0] - end) * sign >= 0.40:
-            break
-        lateral += 0.07
+    return (sign * math.tan(math.radians(degrees)), 1.0, 0.16)
+
+
+def view_angle(cam, target):
+    """Degrees off a straight-on view. Zero looks square at the run."""
+    import math
+    dx = cam[0] - target[0]
+    dy = cam[1] - target[1]
+    return math.degrees(math.atan2(abs(dx), abs(dy) if abs(dy) > 1e-9 else 1e-9))
+
+
+def in_frame(point, cam, target, lens_mm=32.0, aspect=WIDTH / HEIGHT, sensor_mm=36.0):
+    """True when ``point`` is inside the camera's rendered field."""
+    right, up, look = camera_axes(cam, target)
+    rel = (point[0] - cam[0], point[1] - cam[1], point[2] - cam[2])
+    depth = _dot(rel, look)
+    if depth <= 0.05:
+        return False
+    tan_h = (sensor_mm / 2.0) / lens_mm
+    tan_v = (sensor_mm / aspect / 2.0) / lens_mm
+    return (abs(_dot(rel, right)) / depth <= tan_h + 1e-6
+            and abs(_dot(rel, up)) / depth <= tan_v + 1e-6)
+
+
+def camera_for_run(bounds_min, bounds_max, walls, lens_mm=32.0,
+                   aspect=WIDTH / HEIGHT, margin=1.12, degrees=OPEN_ANGLE):
+    """Camera about 75 degrees off square, toward the finished end.
+
+    A left wall means the right end is finished, so the camera sits to the
+    right and that end panel faces the lens. A right wall is the mirror.
+    Both walls stay nearly straight on. The whole stack still fits.
+    """
+    view = _view_dir(walls, degrees)
+    cam, target, dist = camera_fit(
+        bounds_min, bounds_max, view, lens_mm=lens_mm, aspect=aspect, margin=margin)
     return cam, target, dist, view
 
 
@@ -202,7 +232,7 @@ def _enable_cpu_denoise(scene, bpy, requested):
             notes.append("denoising_use_gpu=False")
         except Exception as exc:
             notes.append(f"denoising_use_gpu failed ({exc})")
-    for name, value in (("denoising_device", "CPU"), ("denoising_prefilter", "FAST"),
+    for name, value in (("denoising_device", "CPU"), ("denoising_prefilter", "ACCURATE"),
                         ("denoising_input_passes", "RGB_ALBEDO_NORMAL")):
         if hasattr(scene.cycles, name):
             try:
@@ -307,14 +337,14 @@ def _look(name: str, material: str, color: str):
 
 
 def raking_sun(minx, maxx, miny, maxy, minz, maxz):
-    """Warm morning sun from the upper front-left, aimed across the fronts.
+    """Low sunset from the right-front. Long shadows fall toward the left wall.
 
-    Blender +Y is toward the camera. The sun sits left of centre, in front of
-    the run and above it, so shadows fall down and to the right: door reveals,
-    the wall under the uppers, and the toe kick.
+    The sun stays near the height of the uppers, so the light rakes across
+    the fronts instead of pouring down from overhead.
     """
-    origin = (minx + (maxx - minx) * 0.12, maxy + 2.6, maxz + 1.45)
-    aim = (minx + (maxx - minx) * 0.70, (miny + maxy) * 0.5, minz + (maxz - minz) * 0.28)
+    height = max(maxz - minz, 0.5)
+    origin = (maxx + 2.8, maxy + 0.9, minz + height * 0.70)
+    aim = (minx + (maxx - minx) * 0.15, (miny + maxy) * 0.5, minz + height * 0.20)
     return origin, aim
 
 
@@ -380,13 +410,13 @@ def main():
     if hasattr(scene.cycles, "use_adaptive_sampling"):
         scene.cycles.use_adaptive_sampling = True
         if hasattr(scene.cycles, "adaptive_threshold"):
-            scene.cycles.adaptive_threshold = 0.05
+            scene.cycles.adaptive_threshold = 0.02
         if hasattr(scene.cycles, "adaptive_min_samples"):
-            scene.cycles.adaptive_min_samples = 8
+            scene.cycles.adaptive_min_samples = 16
     scene.cycles.use_denoising = False
     denoise_log = _enable_cpu_denoise(scene, bpy, want_denoise)
     print(f"cabcad-denoise {denoise_log}", flush=True)
-    for name, value in (("max_bounces", 4), ("diffuse_bounces", 2), ("glossy_bounces", 2)):
+    for name, value in (("max_bounces", 6), ("diffuse_bounces", 3), ("glossy_bounces", 3)):
         if hasattr(scene.cycles, name):
             setattr(scene.cycles, name, value)
     scene.render.resolution_x = width
@@ -409,8 +439,9 @@ def main():
             if name in looks:
                 scene.view_settings.look = name
                 break
-        # 0.4 stops under version 5. 2^-0.4 is about 76% of that brightness.
-        scene.view_settings.exposure = -0.60
+        # One stop under version 6, which is half the light. The sun colour
+        # carries the warmth; this only turns the level down.
+        scene.view_settings.exposure = -1.60
     except Exception:
         pass
     if hasattr(scene.cycles, "use_light_tree"):
@@ -478,28 +509,27 @@ def main():
     span = max(maxx - minx, maxz - minz, 0.5)
     floor = material("floor", FLOOR_COLOR, 0.72, 0.0)
     wall = material("wall", WALL_COLOR, 0.92, 0.0)
-    pad = max(1.4, span * 0.9)
-    cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, maxy + pad * 1.8, 0.0, floor)
-    wall_top = max(maxz + 1.2, 2.8)
-    # Flush to the cabinet backs. Wide enough that the frame is wall, not void.
+    side_wall = material("side-wall", SIDE_WALL_COLOR, 0.94, 0.0)
+    pad = max(1.6, span * 0.9)
+    wall_top = max(maxz + 1.4, 3.05)
     wall_y0, wall_y1 = back_wall_interval(miny)
-    cube_m(minx - pad, wall_y0, 0.0, maxx + pad, wall_y1, wall_top, wall)
-
     walls = job.get("walls") or "0"
-    side_y0, _side_back = back_wall_interval(miny)
-    side_y1 = maxy + 0.50
     left_span, right_span = side_wall_spans(walls, minx, maxx)
-    if left_span:
-        cube_m(left_span[0], side_y0, 0.0, left_span[1], side_y1, wall_top, wall)
-    if right_span:
-        cube_m(right_span[0], side_y0, 0.0, right_span[1], side_y1, wall_top, wall)
-
-    fit_minx = left_span[0] if left_span else minx
-    fit_maxx = right_span[1] if right_span else maxx
-    fit_maxy = side_y1 if (left_span or right_span) else maxy
+    # Frame the cabinets and a strip of side wall beside the end. The wall
+    # mesh itself is built after the camera, and runs past it.
+    fit_minx = min(minx, left_span[0]) if left_span else minx
+    fit_maxx = max(maxx, right_span[1]) if right_span else maxx
+    fit_maxy = maxy + (0.65 if (left_span or right_span) else 0.0)
     cam_loc, target, _dist, _view = camera_for_run(
         (fit_minx, miny, minz), (fit_maxx, fit_maxy, maxz), walls,
         lens_mm=32.0, aspect=width / float(height), margin=1.12)
+    side_y0, side_y1 = side_wall_forward(wall_y0, cam_loc[1])
+    cube_m(minx - pad, miny - 0.2, -0.02, maxx + pad, side_y1 + 0.4, 0.0, floor)
+    cube_m(minx - pad, wall_y0, 0.0, maxx + pad, wall_y1, wall_top, wall)
+    if left_span:
+        cube_m(left_span[0], side_y0, 0.0, left_span[1], side_y1, wall_top, side_wall)
+    if right_span:
+        cube_m(right_span[0], side_y0, 0.0, right_span[1], side_y1, wall_top, side_wall)
     bpy.ops.object.camera_add(location=cam_loc)
     cam = bpy.context.active_object
     cam.data.lens = 32
@@ -511,37 +541,36 @@ def main():
     _aim_camera(cam, cam_loc, target)
     scene.camera = cam
 
-    # Raking morning sun from the upper front-left. A small warm window
-    # light keeps the fronts bright. The fill is only enough to open the
-    # shadows, not to erase them.
+    # Low amber sun from the right-front. Half the version-6 level is the
+    # exposure above. These colours are sunset, not white.
     sun_from, aim_at = raking_sun(minx, maxx, miny, maxy, minz, maxz)
     bpy.ops.object.empty_add(type="PLAIN_AXES", location=aim_at)
     aim = bpy.context.active_object
     bpy.ops.object.light_add(type="SUN", location=sun_from)
     sun = bpy.context.active_object
     sun.data.energy = 2.0
-    sun.data.color = (1.0, 0.78, 0.48)
+    sun.data.color = (1.0, 0.42, 0.08)
     if hasattr(sun.data, "angle"):
-        sun.data.angle = 0.045
+        sun.data.angle = 0.10
     _track(sun, aim)
 
-    bpy.ops.object.light_add(type="AREA", location=(minx + (maxx - minx) * 0.28,
-                                                    maxy + 2.2, maxz + 0.55))
+    bpy.ops.object.light_add(type="AREA", location=(maxx + 1.2, maxy + 0.6,
+                                                    minz + (maxz - minz) * 0.45))
     window = bpy.context.active_object
-    window.data.energy = 18
-    window.data.size = max(0.9, (maxx - minx) * 0.45)
-    window.data.color = (1.0, 0.82, 0.58)
+    window.data.energy = 9
+    window.data.size = max(0.8, (maxx - minx) * 0.35)
+    window.data.color = (1.0, 0.48, 0.14)
     if hasattr(window.data, "shape"):
         window.data.shape = "RECTANGLE"
-        window.data.size_y = max(0.7, (maxz - minz) * 0.45)
+        window.data.size_y = max(0.5, (maxz - minz) * 0.28)
     _track(window, aim)
 
-    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.8,
-                                                    minz + (maxz - minz) * 0.2))
+    bpy.ops.object.light_add(type="AREA", location=((minx + maxx) / 2.0, maxy + 1.4,
+                                                    minz + (maxz - minz) * 0.15))
     fill = bpy.context.active_object
-    fill.data.energy = 4
-    fill.data.size = max(1.6, (maxx - minx) * 0.7)
-    fill.data.color = (1.0, 0.94, 0.86)
+    fill.data.energy = 2
+    fill.data.size = max(1.4, (maxx - minx) * 0.55)
+    fill.data.color = (1.0, 0.55, 0.22)
     _track(fill, aim)
 
     world = bpy.data.worlds.new("Kitchen")
@@ -549,8 +578,8 @@ def main():
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (0.95, 0.88, 0.76, 1.0)
-        bg.inputs[1].default_value = 0.024
+        bg.inputs[0].default_value = (0.90, 0.42, 0.14, 1.0)
+        bg.inputs[1].default_value = 0.012
     if hasattr(scene.cycles, "use_fast_gi"):
         scene.cycles.use_fast_gi = True
         if hasattr(scene.cycles, "fast_gi_method"):

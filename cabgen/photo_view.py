@@ -94,7 +94,7 @@ def job_payload(job) -> dict:
     return {
         "name": job.name,
         "version": SCRIPT_VERSION,
-        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "20")),
+        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "80")),
         "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "1920")),
         "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "1080")),
         "denoise": denoise,
@@ -183,10 +183,10 @@ OpenImageDenoise on the CPU. If that denoiser cannot be set, the picture is
 rendered without it. <code>CABCAD_BLENDER_DENOISE=0</code> skips it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>Measured on that machine: version 5 at 1920×1080, 20 samples, OIDN on,
-58.0 seconds. The current frame is the same size and sample count, a little
-darker, with the job's side wall. Estimate about 58 seconds. Not measured.
-One render at a time. Opening this form does not start it.</p>
+<p>Measured on that machine: version 6 at 1920×1080, 20 samples, OIDN on,
+55.7 seconds. The current frame is the same size, 80 samples, a sunset
+level of light. Estimate about 240 seconds, four times that measurement.
+Not measured. One render at a time. Opening this form does not start it.</p>
 """)
 
 

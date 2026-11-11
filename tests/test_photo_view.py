@@ -47,7 +47,7 @@ def test_export_includes_the_perimeter_build_up():
     names = [box["name"] for box in export_boxes(job)]
     assert any("Build-up, front" in name for name in names)
     assert any("Build-up, back" in name for name in names)
-    assert SCRIPT_VERSION == 6
+    assert SCRIPT_VERSION == 7
 
 
 def test_still_is_1920_by_1080(monkeypatch):
@@ -58,7 +58,7 @@ def test_still_is_1920_by_1080(monkeypatch):
     job = load_job(SAMPLE, "Sample Kitchen")
     payload = job_payload(job)
     assert payload["width"] == 1920 and payload["height"] == 1080
-    assert payload["version"] == 6 and payload["samples"] == 20
+    assert payload["version"] == 7 and payload["samples"] == 80
     assert payload["walls"] == "0"
     assert payload["denoise"] is True
 
@@ -93,16 +93,20 @@ def test_camera_fits_the_whole_stack_including_a_wide_run():
 
 
 def test_counter_laminate_stays_a_surface_and_the_sun_rakes():
-    from cabgen.blender.render_kitchen import WALL_COLOR, _look, raking_sun
+    from cabgen.blender.render_kitchen import SIDE_WALL_COLOR, WALL_COLOR, _look, raking_sun
     top, rough, _metal = _look("Countertop / top", "laminate", "#d8cfbf")
     door, door_rough, _metal = _look("door", "laminate", "#f7f4ee")
     assert rough > door_rough and max(top) <= 0.78
     assert max(top) < max(door)
-    # The wall is a warm grey, not the same white as a door.
+    # The wall is a warm grey, not the same white as a door. The side wall
+    # is darker than the back wall so the corner reads.
     assert max(WALL_COLOR) < 0.85 and WALL_COLOR[0] > WALL_COLOR[2]
+    assert max(SIDE_WALL_COLOR) < min(WALL_COLOR)
     origin, aim = raking_sun(0.0, 3.0, -0.6, 0.1, 0.0, 2.2)
-    assert origin[0] < aim[0]
-    assert origin[1] > 0.1 and origin[2] > 2.2
+    assert origin[0] > 3.0
+    rise = origin[2] - aim[2]
+    reach = origin[0] - aim[0]
+    assert rise > 0 and rise < reach * 0.45
 
 
 def test_the_right_hand_cabinet_stays_on_the_right():
@@ -121,39 +125,40 @@ def test_side_wall_sits_on_the_end_the_job_names():
     from cabgen.blender.render_kitchen import side_wall_spans
     left, right = side_wall_spans("left", 0.0, 3.2)
     assert left is not None and right is None
-    assert abs(left[1] - 0.0) < 1e-9 and left[0] < left[1]
+    assert left[0] < 0.0 and 0.0 <= left[1] <= 0.004
     left, right = side_wall_spans("right", 0.0, 3.2)
-    assert left is None and right is not None and abs(right[0] - 3.2) < 1e-9
+    assert left is None and right is not None and 3.196 <= right[0] <= 3.2
     left, right = side_wall_spans("both", 0.0, 3.2)
     assert left is not None and right is not None
     assert side_wall_spans("0", 0.0, 3.2) == (None, None)
 
 
 def test_camera_shows_the_finished_end_and_keeps_the_stack():
-    """A left wall's finished end is the right one. The camera sits just past
-    it, the right end stays on the right of the picture, and every corner fits."""
-    from cabgen.blender.render_kitchen import _cross, _dot, _norm, camera_for_run
-    bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05, 2.2)
-    cam, _target, dist, _view = camera_for_run(bmin, bmax, "left", aspect=16 / 9, margin=1.12)
+    """A left wall's finished end is the right one. The view is 75 degrees
+    off square, the left wall's face is inside the frame, and the wall runs
+    past the camera so the picture cannot see around it."""
+    from cabgen.blender.render_kitchen import (
+        camera_for_run, in_frame, side_wall_forward, view_angle,
+    )
+    # The renderer frames the cabinets plus a strip of wall in front of them.
+    bmin, bmax = (0.0, -0.7, 0.0), (3.4, 0.05 + 0.65, 2.2)
+    cam, target, dist, _view = camera_for_run(bmin, bmax, "left", aspect=16 / 9, margin=1.12)
     assert dist > 1.0
-    assert cam[0] > bmax[0] + 0.3
+    assert 70.0 <= view_angle(cam, target) <= 80.0
+    assert cam[0] > bmax[0]
     assert cam[1] > bmax[1]
-    tan_h = (36.0 / 2.0) / 32.0
-    tan_v = (36.0 / (16 / 9) / 2.0) / 32.0
-    back = _norm(_view)
-    look = (-back[0], -back[1], -back[2])
-    right = _norm(_cross((0.0, 0.0, 1.0), look))
-    up = _norm(_cross(look, right))
     for x in (bmin[0], bmax[0]):
         for y in (bmin[1], bmax[1]):
             for z in (bmin[2], bmax[2]):
-                p = (x - cam[0], y - cam[1], z - cam[2])
-                depth = _dot(p, look)
-                assert depth > 0.2
-                assert abs(_dot(p, right)) / depth <= tan_h / 1.12 + 1e-6
-                assert abs(_dot(p, up)) / depth <= tan_v / 1.12 + 1e-6
+                assert in_frame((x, y, z), cam, target, aspect=16 / 9)
+    # The left wall face beside the run, from the floor to above the uppers.
+    for point in ((0.0, -0.7, 0.05), (0.0, -0.7, 2.1), (0.0, 0.5, 0.05), (0.0, 0.5, 2.1)):
+        assert in_frame(point, cam, target, aspect=16 / 9)
+    _back, forward = side_wall_forward(-0.76, cam[1])
+    assert forward > cam[1]
     other, _t, _d, _v = camera_for_run(bmin, bmax, "right", aspect=16 / 9)
-    assert other[0] < bmin[0] - 0.3
+    assert other[0] < bmin[0]
+    assert 70.0 <= view_angle(other, _t) <= 80.0
 
 
 def test_back_wall_sits_on_the_cabinet_backs():
