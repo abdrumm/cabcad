@@ -138,7 +138,7 @@ def test_side_view_calls_out_the_toe_kick_recess(tmp_path: Path):
     pages = render_pages(job, date="November 7, 2026")
     detail = next(p.to_string() for p in pages if "BASE, 2 DOORS" in p.to_string())
     assert "kick 2 1/2" in detail
-    assert "back from the case front" in detail
+    assert "back from the case front" not in detail
 
 
 def test_front_view_reads_the_toe_kick_and_case_height():

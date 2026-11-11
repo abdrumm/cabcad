@@ -1322,11 +1322,11 @@ def _run_fields(view: dict) -> str:
 <div class="brand">CabCad<span class="muted">cabinet group</span></div>
 <div class="actions">
 <button type="submit">Show in Omacad</button>
-<button type="submit" class="ghost" formaction="/client-sheet" formtarget="_blank">Client sheet (PDF)</button>
+<button type="submit" class="ghost" formaction="/carpenter-2d" formtarget="_blank" title="11x17 drawing set: elevations, the countertop page, and one page per style">Carpenter 2D</button>
+<button type="submit" class="ghost" formaction="/counter-2d" formtarget="_blank" title="One 11x17 page of the countertop only, laminate or solid surface">Countertop 2D</button>
 <button type="submit" class="ghost" formaction="/front-view" formtarget="_blank" title="Front elevation of the whole run, as its own page for the CE pipeline, with links to the render and the AR files">Front view</button>
 <button type="submit" class="ghost" formaction="/ar" title="Build the job for AR on a phone (iPhone and Android)">AR view</button>
 <button type="submit" class="ghost" formaction="/email-ar" title="Write a draft email to Brook with the AR files (USDZ and GLB) and open the folder. Nothing is sent.">Email AR to me</button>
-<button type="submit" class="ghost" formaction="/client-email" title="Collect the client PDF, a render and the AR file with a ready email text. Test mode: nothing is sent.">Draft client email</button>
 <button type="submit" class="ghost" formaction="/photo" formtarget="_blank" title="Photorealistic still of this design. Opens in a new tab and can take several minutes. It does not run when you only change the form.">Photorealistic view</button>
 </div>
 </header>
@@ -1466,13 +1466,15 @@ def _job_card(out_dir: Path, stem: str, form_id: str = "runform") -> str:
 
     groups = [
         ("Shop floor", "".join(link(*item) for item in NEST_LINKS)),
-        ("Client", button("/client-sheet", "Client sheet (PDF)",
-                          "One page: colours, notes and the iso view") +
+        ("Client", button("/carpenter-2d", "Carpenter 2D",
+                          "11x17 set: elevations, countertop page, one page per style",
+                          target="_blank") +
+                   button("/counter-2d", "Countertop 2D",
+                          "One page, countertop only, laminate or solid surface",
+                          target="_blank") +
                    button("/front-view", "Front view",
                           "Standalone elevation for the CE pipeline, with the render and AR",
-                          target="_blank") +
-                   button("/client-email", "Draft client email",
-                          "PDF + render + AR in a draft. Nothing is sent")),
+                          target="_blank")),
         ("Model", button("/run", "Show in Omacad", "Builds the model and opens it") +
                   button("/ar", "AR view", "QR code and phone page for the model") +
                   link(".omacad", "Model file (.omacad)", "The 3D model on disk")),
@@ -1547,6 +1549,31 @@ def _handle_client_sheet(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
         files = write_client_sheet(job, out_dir, "client-sheet", png=False)
     except (KitchenError, RuntimeError, OSError) as exc:
         return None, _run_page(view, error=f"client sheet: {exc}")
+    return files["pdf"].read_bytes(), ""
+
+
+# Old bookmark. The button is Carpenter 2D; both paths write the same PDF.
+CARPENTER_PATHS = {"/client-sheet", "/carpenter-2d"}
+
+
+def _handle_counter_2d(form: dict, out_dir: Path) -> tuple[bytes | None, str]:
+    """One countertop page. The Carpenter 2D PDF already includes this sheet."""
+    from .client_sheet import load_job, write_counter_sheet
+
+    view = group_view(form)
+    try:
+        settings = group_settings(form)
+        cabinets = parse_group(form)
+    except KitchenError as exc:
+        return None, _run_page(view, error=str(exc))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sheet = out_dir / "counter-2d.csv"
+    sheet.write_text(group_sheet(cabinets, settings), encoding="utf-8")
+    try:
+        job = load_job(sheet, name=str(form.get("job") or "Cabinet group"))
+        files = write_counter_sheet(job, out_dir, "counter-2d", png=False)
+    except (KitchenError, RuntimeError, OSError) as exc:
+        return None, _run_page(view, error=f"countertop 2D: {exc}")
     return files["pdf"].read_bytes(), ""
 
 
@@ -1804,6 +1831,12 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if not self._local():
                 self._html("<h1>Forbidden</h1><p>Only the AR pages are shared on the network.</p>", 403)
                 return
+            if path == "/photo-status":
+                from .photo_view import status_page
+                qs = parse_qs(urlparse(self.path).query)
+                fp = (qs.get("fp") or [""])[0]
+                self._html(status_page(out_dir, fp))
+                return
             if path in ("/", "/index.html", "/run"):
                 self._page(_run_page(group_view(None)))
                 return
@@ -1846,8 +1879,8 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if path == "/ar":
                 self._page(_handle_ar(form, out_dir, host, port))
                 return
-            if path in ("/email-ar", "/client-email"):
-                self._page(_handle_draft(form, out_dir, "ar" if path == "/email-ar" else "client"))
+            if path == "/email-ar":
+                self._page(_handle_draft(form, out_dir, "ar"))
                 return
             if path == "/finishes":
                 from .finishes import add_custom, label
@@ -1862,8 +1895,15 @@ def _make_handler(out_dir: Path, host: str = "127.0.0.1", port: int = 8777):
             if path == "/cutlist":
                 self._html(live_cutlist(form, out_dir))
                 return
-            if path == "/client-sheet":
+            if path in CARPENTER_PATHS:
                 pdf, page = _handle_client_sheet(form, out_dir)
+                if pdf is None:
+                    self._page(page)
+                else:
+                    self._send(pdf, "application/pdf")
+                return
+            if path == "/counter-2d":
+                pdf, page = _handle_counter_2d(form, out_dir)
                 if pdf is None:
                     self._page(page)
                 else:

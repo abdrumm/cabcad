@@ -51,7 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 - PR #7 single-door base (Handle L/R) is in, as on main.
 
 ## Test status
-154 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
+159 passed, 2 failed (pytest, Python 3.12, 2026-11-11, this checkout). The two
 failures are pre-existing and only happen when `~/Work/omacad` is not installed:
 
 - `tests/test_nest_project.py::test_group_form_build_writes_pdf_and_cutlists`
@@ -90,19 +90,26 @@ since then pass. AR export does not need Omacad and passes here.
   publish it to the company site. The render PNG and the AR files (USDZ and GLB)
   are written beside that page and linked from it. If a writer fails, that link
   is drawn dashed and marked "Placeholder — file not produced".
-- Photorealistic view is a button on the kitchen form, after Draft client email.
-  It does not run when the form is only opened or edited. There is no Blender
-  scene in this git repo (no `.blend`, no script, no commit on any branch).
-  `cabgen.render` is the flat shaded still, not that kitchen. The button says
-  so instead of inventing a picture. To turn it on, copy Brook's archived
-  stage onto the iMac as `~/Work/cabcad-blender/scene.blend` and
-  `render_job.py` (the script Blender runs as
-  `blender -b scene.blend -P render_job.py -- job.json out.png`), plus the
-  HDR and textures that file links, and note `blender --version`. Overrides:
-  `CABCAD_BLENDER`, `CABCAD_BLENDER_DIR`, `CABCAD_BLENDER_SCENE`,
-  `CABCAD_BLENDER_SCRIPT`. A repeated click of the same design reuses the PNG.
-  Look for the archive under `~/Work/cabcad`, `~/Work/cabinet-gen`, and the
-  rest of `~/Work`. It was not checked into GitHub.
+- Draft client email is off the form (Brook, Nov 11). `POST /client-email` is
+  not a route. Email AR to me is unchanged and still does not send mail.
+  `drafts.draft_client_email` is unused.
+- Photorealistic view is the last button on the kitchen form. It does not run
+  when the form is only opened. The original `.blend` was not found. The still
+  is a new generic room around the current boxes, including the perimeter
+  build-up (`cabgen/blender/render_kitchen.py`, version 1). No `.blend` file
+  is required and none is in git. Blender is not vendored.
+  Set `CABCAD_BLENDER` to the absolute path. The binary that has been run on
+  the iMac is official Blender 5.2.4 LTS, portable, not on PATH:
+  `/home/abdrumm/.local/opt/blender-5.2.4-linux-x64/blender`
+  It is `-march=x86-64-v2` (SSE4.2). The i7-2600 has SSE4.2 and AVX, not AVX2,
+  and no GPU. Cycles is CPU only: no CUDA, OptiX, HIP, or oneAPI. Denoise is
+  off unless OpenImageDenoise can be set on the CPU; if it cannot, the still
+  renders without it. 4 cores / 8 threads, 31 GiB RAM. A 64×64, 8-sample smoke
+  frame on that machine was 3.2 seconds. That is not a kitchen timing. The
+  demo frame is 960×540, 32 samples, denoise off. One render at a time, in
+  the background, cached by design. `GET /photo-status` only checks; it does
+  not start a render. This checkout did not run Blender, so there is no
+  kitchen PNG from here. `cabgen.render` is still the flat shaded still.
 
 ## Where we left off / next steps
 Done 2026-11-08, from docs/PLANS.md items 3, 4 and 5. Items 1 and 2 were left
@@ -114,10 +121,18 @@ alone. The finished height is still 33-1/2".
   of 3/4" plywood under the top on that same perimeter, including the back
   edge (Brook, Nov 11). The cut list, the nest, the counter takeoff, the
   drawings and the Omacad boxes follow those strips.
-- The client-sheet countertop page (page 2) has a front view, a top view, a
-  side view and a details block: build-up strips, splashes in the countertop
-  colour, overhangs and dimensions. Same border and title block as the other
-  sheets.
+- Carpenter 2D is the old client-sheet PDF, renamed (Brook, Nov 11). The form
+  button is Carpenter 2D (`POST /carpenter-2d`). `POST /client-sheet` still
+  returns the same PDF. Page 1 is the kitchen. The countertop page is included
+  once. Then one drawing page per style. Cabinet detail pages are drawings
+  and dimensions only: no "WHAT IT IS" list, no "THIS STYLE IN …" table, and
+  no "drawn on this page" line. Shop drawings and cut lists still carry the
+  manufacturing notes.
+- Countertop 2D (`POST /counter-2d`, `python3 -m cabgen.cli counter`) is that
+  same countertop sheet alone, one 11x17 page, laminate or solid surface.
+  Front, top, side, and the build-up detail. No cabinet elevations. The 4"
+  strips go around the perimeter, including the back edge, and do not cross
+  cabinet joints.
 - Standalone front elevation: `python3 -m cabgen.cli front <sheet.csv> --out
   <dir>` writes SVG, PDF and an HTML page for the CE pipeline. The HTML links
   the render PNG and the AR files written next to it. The kitchen form has a
@@ -126,11 +141,11 @@ alone. The finished height is still 33-1/2".
   cabinet form, and a `# toe_kick_h=` line all refuse a taller kick. The live
   front view will not draw one. The kick still comes out of the case. Finished
   height stays 33-1/2".
-- 11x17 drawing sheets (client, countertop, cabinet detail, standalone front,
-  and the carpenter shop drawing) put the job name on one line across the top.
-  A long name shrinks onto that line. The logo, address, date, revision, sheet
-  and scale sit in a thin column on the right. The views use the rest of the
-  sheet. Nest sheets are unchanged.
+- 11x17 drawing sheets (Carpenter 2D, countertop, cabinet detail, standalone
+  front, and the shop drawing) keep the identity in one block at the bottom
+  right, about a third of the sheet tall. The drawing name is the first line
+  inside that block. The upper part of the sheet, including the right side, is
+  for the drawings. Nest sheets are unchanged.
 
 Still to do:
 1. Cut over: put this tree at `~/Work/cabcad`, keep the `v0.15` tag, push to

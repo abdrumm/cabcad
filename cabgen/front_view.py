@@ -27,7 +27,7 @@ def render_front(job, date: str | None = None) -> Svg:
     date = date or _dt.date.today().strftime("%B %-d, %Y")
     svg = Svg(PAGE_W, PAGE_H)
     with palette_for(job):
-        cx, cy, cw, ch = begin_sheet(svg, job, date, "Front elevation", page="1 of 1")
+        (cx, cy, cw, ch), _lower = begin_sheet(svg, job, date, "Front elevation", page="1 of 1")
         front_elevation(svg, job, (cx, cy, cw, ch))
     return svg
 

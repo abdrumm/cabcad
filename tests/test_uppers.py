@@ -139,9 +139,9 @@ def test_client_sheet_has_a_detail_page_for_each_new_style(tmp_path: Path):
     pages = render_pages(job, date="October 24, 2026")
     text = {s: pages[i].to_string() for i, s in enumerate(["overview", "counter"] + styles)}
     one = text["upper_1door"]
-    assert "WALL UPPER, 1 DOOR" in one and "handle on the left" in one
-    assert ">left<" in one and ">right<" in one and "stroke-dasharray" in one
-    assert "OPEN SHELVES" in text["upper_open"] and "2 adjustable shelves" in text["upper_open"]
+    assert "WALL UPPER, 1 DOOR" in one and "WHAT IT IS" not in one
+    assert "handle on the left" not in one and "stroke-dasharray" in one
+    assert "OPEN SHELVES" in text["upper_open"] and "2 adjustable shelves" not in text["upper_open"]
     mw = text["upper_microwave"]
     assert "MICROWAVE" in mw and "opening 17 1/4" in mw
     assert "stroke-dasharray" in text["overview"]       # swing marks on the elevation
@@ -318,8 +318,9 @@ Sink,sink,36,base,
 
     job = job_from(cabs, settings, "Wide upper")
     pages = "\n".join(page.to_string() for page in render_pages(job, date="October 30, 2026"))
-    assert "Asked for as one door; built as two doors." in pages
-    assert "Warning: Wide is" in pages
+    assert "Asked for as one door; built as two doors." not in pages
+    assert "WHAT IT IS" not in pages
+    assert "Warning: Wide is" not in pages
 
     _p, parts, layout, model = _build("upper_1door", name="Wide", width=30)
     drawing, _leftover = shop_drawing(_p, parts, layout)

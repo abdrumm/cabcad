@@ -199,9 +199,9 @@ def test_client_sheet_counter_page(tmp_dir=None):
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample")
     pages = render_pages(job, "Oct 24, 2026")
     text = pages[1].to_string()
-    for words in ("COUNTERTOP - LAMINATE", "FRONT VIEW", "TOP VIEW", "SIDE VIEW", "DETAILS",
+    for words in ("Countertop 2D", "FRONT VIEW", "TOP VIEW", "SIDE VIEW", "DETAILS",
                   "TYPICAL LAMINATE SEAM", "BUILD-UP, FROM BELOW", "overhang",
-                  "match the countertop", "Coppinger Exhibits"):
+                  "match the countertop", "Coppinger Exhibits", "laminate"):
         assert words in text, words
     assert 'width="17.0in" height="11.0in"' in text
     maple = get("lam-maple")["color"]
@@ -210,7 +210,7 @@ def test_client_sheet_counter_page(tmp_dir=None):
     assert maple in picked_page          # top and splashes use the countertop colour
     solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample")
     solid_page = render_pages(solid, "Oct 24, 2026")[1].to_string()
-    assert "COUNTERTOP - SOLID SURFACE" in solid_page
+    assert "Countertop 2D" in solid_page and ">solid surface<" in solid_page
     assert "perimeter only" in solid_page
     assert "Not across the seams" in solid_page
     assert "centred where cabinets meet" not in solid_page

@@ -136,13 +136,15 @@ form) also writes `<job>-nest.pdf`, `<job>-nest-cutlist.md` and `<job>-nest-cutl
 Code: `cabgen/nest_project.py`; rules: `cabinet-shop-standards.md` section 5, Nesting.
 Options: `--kerf`, `--sheet-w`, `--sheet-l`. Tests: `tests/test_nest_project.py`.
 
-## Client sheet
+## Carpenter 2D
 
-`python3 -m cabgen.cli client <sheet.csv> --out out/client-sheet` writes `<sheet>-client-sheet.pdf`
-(11x17 landscape): page 1 is the whole kitchen (front elevation, plan, end view, 3D view,
-cabinet schedule, title block), then one detail page per cabinet style (front, side, top, 3D of
-one cabinet, plus the widths of that style in the job). PNG previews of every page come too.
-The group form's "Client sheet (PDF)" button builds the same PDF without touching Omacad.
+`python3 -m cabgen.cli client <sheet.csv> --out out/client-sheet` writes the Carpenter 2D PDF
+(`<sheet>-client-sheet.pdf`, 11x17 landscape). Page 1 is the whole kitchen. The next page is
+the countertop (laminate or solid surface), then one drawing page per cabinet style. The form
+button is **Carpenter 2D**. The old address `POST /client-sheet` still returns that PDF.
+`python3 -m cabgen.cli counter <sheet.csv> --out out/counter-2d` writes the countertop page
+alone (`counter-2d.pdf`). The form button is **Countertop 2D** (`POST /counter-2d`). That page
+is the same sheet as the one inside the Carpenter 2D PDF, not a second copy of it.
 Code: `cabgen/client_sheet.py`. Tests: `tests/test_client_sheet.py`.
 
 ## Countertop

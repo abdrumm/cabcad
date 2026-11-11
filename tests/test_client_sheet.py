@@ -36,6 +36,23 @@ def test_form_button_returns_a_pdf_and_shows_the_filler(tmp_path: Path):
     assert bad is None and "under 12" in page
 
 
+def test_countertop_2d_is_the_same_sheet_alone(tmp_path: Path):
+    from cabgen.client_sheet import job_from, render_counter, write_counter_sheet
+    job = load_job(ROOT / "jobs" / "sample-kitchen.csv", "Sample Kitchen")
+    alone = render_counter(job, "November 11, 2026").to_string()
+    assert 'width="17.0in" height="11.0in"' in alone
+    assert "Countertop 2D" in alone and ">1 of 1<" in alone
+    assert "FRONT VIEW" in alone and "FRONT ELEVATION" not in alone
+    assert "BUILD-UP, FROM BELOW" in alone and "full back edge" in alone
+    solid = job_from(job.cabs, {**job.settings, "counter": "solid"}, "Sample Kitchen")
+    solid_page = render_counter(solid, "November 11, 2026").to_string()
+    assert "Countertop 2D" in solid_page and "perimeter only" in solid_page
+    assert "FRONT ELEVATION" not in solid_page
+    if shutil.which("rsvg-convert"):
+        pdf = write_counter_sheet(job, tmp_path)["pdf"]
+        assert pdf.name == "counter-2d.pdf" and pdf.read_bytes()[:5] == b"%PDF-"
+
+
 def test_one_detail_page_per_style_about_one_cabinet_only():
     job = load_job(ROOT / "jobs" / "sample-kitchen.csv")
     groups = style_groups(job)
@@ -43,9 +60,14 @@ def test_one_detail_page_per_style_about_one_cabinet_only():
     assert [[job.codes[c.name] for c in cabs] for _s, cabs in groups] == [["B1", "B3"], ["B2"], ["U1", "U2", "U3"]]
     pages = render_pages(job, date="October 23, 2026")
     assert len(pages) == 5                      # overview, countertop, 3 styles
-    assert "COUNTERTOP" in pages[1].to_string()
+    assert "Countertop 2D" in pages[1].to_string() and "FRONT ELEVATION" not in pages[1].to_string()
     three = pages[2].to_string()
     assert "BASE, 3 DRAWERS" in three and "W = 27&quot;" in three
-    assert "drawn on this page" in three and ">B3<" in three
+    for gone in ("WHAT IT IS", "THIS STYLE", "drawn on this page",
+                 "adjustable shelf behind", "Other widths of this style"):
+        assert gone not in three
     assert ">B2<" not in three and ">U1<" not in three   # nothing from the neighbours
     assert ">SHEET<" in three and ">3 of 5<" in three
+    assert "Carpenter 2D" in pages[0].to_string()
+    counter_pages = [p for p in pages if "Countertop 2D" in p.to_string() and "FRONT VIEW" in p.to_string()]
+    assert len(counter_pages) == 1

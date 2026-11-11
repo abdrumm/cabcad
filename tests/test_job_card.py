@@ -33,7 +33,9 @@ def test_card_groups_shop_client_and_model(tmp_path):
     card = _job_card(tmp_path, "base-run")
     assert "Shop floor" in card and "Client" in card and "Model" in card
     assert 'href="/files/base-run-nest.pdf"' in card
-    assert 'formaction="/client-sheet"' in card and 'formaction="/ar"' in card
+    assert 'formaction="/carpenter-2d"' in card and 'formaction="/counter-2d"' in card
+    assert 'formaction="/ar"' in card
+    assert "Draft client email" not in card
     assert 'form="runform"' in card
 
 
@@ -45,7 +47,8 @@ def test_card_only_shows_files_that_exist(tmp_path):
     assert "base-run.omacad" not in card
     assert _job_card(tmp_path, "nothing-here", form_id="") == ""
     # With the run form behind it the buttons still make sense on an empty job.
-    assert "Client sheet (PDF)" in _job_card(tmp_path, "nothing-here")
+    assert "Carpenter 2D" in _job_card(tmp_path, "nothing-here")
+    assert "Countertop 2D" in _job_card(tmp_path, "nothing-here")
 
 
 def test_card_without_a_form_has_no_buttons(tmp_path):

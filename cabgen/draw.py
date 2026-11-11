@@ -449,44 +449,47 @@ def _notes_block(svg: Svg, p: Params, layout: Layout, parts: list[Part],
         y += 0.02
 
 
-SHOP_RAIL_W = 1.62
+SHOP_BLOCK_H = round(PAGE_H / 3.0, 3)
+SHOP_BLOCK_W = 5.2
 
 
-def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1) -> tuple[float, float, float, float]:
-    """One title line on top and a thin identity rail on the right. Returns the drawing box."""
+def _shop_chrome(svg: Svg, p: Params, sheet: int = 1, sheets: int = 1):
+    """Border and a bottom-right block. Returns (upper, lower_left)."""
     svg.rect(MARGIN / 2, MARGIN / 2, PAGE_W - MARGIN, PAGE_H - MARGIN,
              fill="none", stroke=INK, sw=0.014)
-    rail_x = PAGE_W - MARGIN - SHOP_RAIL_W
-    name = p.name.upper()
-    # One line. A long cabinet name shrinks; the header does not grow.
-    size = 0.15
-    room = rail_x - MARGIN - 1.7
-    while size > 0.08 and len(name) * size * 0.56 > room:
+    x = PAGE_W - MARGIN - SHOP_BLOCK_W
+    y = PAGE_H - MARGIN - SHOP_BLOCK_H
+    svg.rect(x, y, SHOP_BLOCK_W, SHOP_BLOCK_H, fill="none", stroke=INK, sw=0.01)
+    svg.line(x, y, x + SHOP_BLOCK_W, y, stroke=INK, sw=0.02)
+    svg.text(x + 0.12, y + 0.28, "SHOP DRAWING", size=0.14, weight="bold")
+    name = p.name
+    size = 0.11
+    room = SHOP_BLOCK_W - 0.24
+    while size > 0.075 and len(name) * size * 0.56 > room:
         size -= 0.005
-    svg.text(MARGIN + 0.08, MARGIN + 0.22, name, size=size, weight="bold")
-    svg.text(rail_x - 0.1, MARGIN + 0.22, "SHOP DRAWING", size=0.1, anchor="end")
-    y0 = MARGIN + 0.36
-    h = PAGE_H - MARGIN - y0
-    svg.rect(rail_x, y0, SHOP_RAIL_W, h, fill="none", stroke=INK, sw=0.01)
+    shown = name if len(name) * size * 0.56 <= room else name[: max(8, int(room / (size * 0.56)) - 1)] + "…"
+    svg.text(x + 0.12, y + 0.50, shown, size=size)
     rows = [
-        ("STYLE", p.name),
-        ("CASE", f'{fmt_in(p.width)} W x {fmt_in(p.depth)} D'),
-        ("OVERALL", f'{fmt_in(p.width)} x {fmt_in(p.height)}'),
-        ("COUNTER", f'{fmt_in(p.counter_width)} x {fmt_in(p.counter_depth)}'
-         if p.has_counter else "none"),
-        ("FRONTS", f'{p.doors} door, {p.drawers} drw'),
-        ("KERF", fmt_in(p.kerf)),
-        ("DATE", datetime.date.today().isoformat()),
+        ("CASE", f'{fmt_in(p.width)} x {fmt_in(p.depth)} x {fmt_in(p.height)}'),
         ("SHEET", f"{sheet} OF {sheets}"),
+        ("DATE", datetime.date.today().isoformat()),
+        ("KERF", fmt_in(p.kerf)),
+        ("FRONTS", f'{p.doors} door, {p.drawers} drw'),
+        ("COUNTER", "yes" if p.has_counter else "none"),
     ]
-    y = y0 + 0.18
-    for k, v in rows:
-        svg.text(rail_x + 0.06, y, k, size=0.05, weight="bold")
-        y += 0.09
-        shown = v if len(v) < 28 else v[:26] + "…"
-        svg.text(rail_x + 0.06, y, shown, size=0.058)
-        y += 0.16
-    return MARGIN + 0.02, MARGIN + 0.40, rail_x - MARGIN - 0.1, PAGE_H - MARGIN - 0.42 - 0.02
+    yy = y + 0.78
+    for i, (k, v) in enumerate(rows):
+        col, row = i % 2, i // 2
+        xx = x + 0.12 + col * (SHOP_BLOCK_W - 0.24) / 2
+        svg.text(xx, yy + row * 0.42, k, size=0.055)
+        svg.text(xx, yy + row * 0.42 + 0.14, v, size=0.08, weight="bold")
+    ux, uy = MARGIN + 0.04, MARGIN + 0.08
+    uw = PAGE_W - 2 * MARGIN - 0.1
+    uh = y - uy - 0.08
+    lx, ly = ux, y + 0.04
+    lw = x - lx - 0.08
+    lh = PAGE_H - MARGIN - ly - 0.02
+    return (ux, uy, uw, uh), (lx, ly, lw, lh)
 
 
 def _title_block(svg: Svg, p: Params, layout: Layout, box: tuple[float, float, float, float],
@@ -506,25 +509,25 @@ def shop_drawing(p: Params, parts: list[Part], layout: Layout) -> tuple[Svg, lis
     the cut list sheet).
     """
     svg = Svg(PAGE_W, PAGE_H)
-    # Same row budget the cut-list box below uses, so the rail can say 1 of 1 or 1 of 2.
-    box_h = (PAGE_H - MARGIN - 0.42 - 0.02) * 0.34
-    max_rows = int((box_h - 0.42) / 0.155)
-    sheets = 1 if len(parts) <= max(1, max_rows) else 2
-    cx, cy, cw, ch = _shop_chrome(svg, p, sheet=1, sheets=sheets)
-    # The rail is narrow, so the elevations and the cut list can be larger.
-    keys = _front_elevation(svg, p, layout, (cx, cy, cw * 0.62, ch * 0.64))
-    _side_elevation(svg, p, layout, (cx + cw * 0.64, cy, cw * 0.36, ch * 0.36))
-    _key_block(svg, keys, (cx + cw * 0.64, cy + ch * 0.38, cw * 0.36, ch * 0.26))
-    _notes_block(svg, p, layout, parts, (cx + cw * 0.64, cy + ch * 0.66, cw * 0.36, ch * 0.34))
-    drawn = _cutlist_table(svg, parts, (cx, cy + ch * 0.66, cw * 0.62, ch * 0.34))
+    (cx, cy, cw, ch), (lx, ly, lw, lh) = _shop_chrome(svg, p, sheet=1, sheets=1)
+    side_w = 4.4
+    keys = _front_elevation(svg, p, layout, (cx, cy, cw - side_w - 0.12, ch))
+    _side_elevation(svg, p, layout, (cx + cw - side_w, cy, side_w, ch * 0.46))
+    _key_block(svg, keys, (cx + cw - side_w, cy + ch * 0.50, side_w * 0.46, ch * 0.48))
+    _notes_block(svg, p, layout, parts, (cx + cw - side_w * 0.5, cy + ch * 0.50, side_w * 0.5, ch * 0.48))
+    drawn = _cutlist_table(svg, parts, (lx, ly, lw, lh))
+    sheets = 1 if len(parts) <= drawn else 2
+    if sheets == 2:
+        svg.text(PAGE_W - MARGIN - SHOP_BLOCK_W + 0.12, PAGE_H - MARGIN - 0.18,
+                 "also sheet 2", size=0.06)
     return svg, parts[drawn:]
 
 
 def cutlist_sheet(p: Params, parts: list[Part], page: int = 1, pages: int = 1) -> Svg:
     """Extra sheet when the cut list runs past sheet 1."""
     svg = Svg(PAGE_W, PAGE_H)
-    cx, cy, cw, ch = _shop_chrome(svg, p, sheet=page, sheets=pages)
-    _cutlist_table(svg, parts, (cx, cy + 0.15, cw, ch - 0.15), page=page, pages=pages)
+    (cx, cy, cw, ch), (lx, ly, lw, lh) = _shop_chrome(svg, p, sheet=page, sheets=pages)
+    _cutlist_table(svg, parts, (cx, cy, max(cw, lw), ch), page=page, pages=pages)
     return svg
 
 

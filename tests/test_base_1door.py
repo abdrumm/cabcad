@@ -197,5 +197,5 @@ def test_client_sheet_shows_the_handle_side(tmp_path: Path):
     text = {s: pages[i].to_string() for i, s in enumerate(["overview", "counter"] + styles)}
     one = text["base_1door"]
     assert "BASE, 1 DOOR" in one
-    assert "handle on the left" in one
+    assert "handle on the left" not in one and "WHAT IT IS" not in one
     assert "stroke-dasharray" in one

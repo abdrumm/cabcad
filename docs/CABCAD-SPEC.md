@@ -459,7 +459,9 @@ Bases are under a countertop (32" case, Oct 30).
 - **No row titles** in the model (Brook, Oct 23; the `row_labels` code is disabled).
 - "Show in Omacad" opens it full screen on workspace 3 and focuses it. Building takes about a minute.
 
-### 9.3 Client sheet (`client_sheet.py`, "Client sheet (PDF)" button). BUILT
+### 9.3 Carpenter 2D (`client_sheet.py`). BUILT
+Nov 11: the form button and the document title are **Carpenter 2D**. `POST /client-sheet` still returns the same PDF. **Countertop 2D** (`POST /counter-2d`, `cabgen.cli counter`) is that countertop page by itself, for laminate or solid surface. Cabinet detail pages are drawings and dimensions only: no "WHAT IT IS" list and no style width table. The title block is a bottom-right block about one third of the sheet, not a full-height rail.
+
 - **11×17 landscape, multi-page PDF.**
   - **Page 1, the whole kitchen:** title, front elevation (uppers over bases, doors, drawers, filler), isometric shaded 3D, plan view, end view, the cabinet schedule (it goes to 2 columns of W×H×D on long jobs), and a title block.
   - **Page 2, the countertop** (if any): sections, plus seam and dogbone details.
@@ -519,7 +521,7 @@ Bases are under a countertop (32" case, Oct 30).
 ### 9.9 Email drafts (Oct 30). BUILT (draft only, never sends)
 - **Email AR to me** (`POST /email-ar`, `drafts.draft_ar_email`): writes `out/email-ar/<job-slug>/` with `cabcad.usdz` (iPhone), `cabcad.glb` (Android), `email.eml` (To brook@printrbot.com, `X-Unsent: 1`, both files attached) and `mailto.txt`, then opens the folder (`xdg-open`, detached).
   - Recipients in `config/email.json`, enabled entries only: **brook@printrbot.com**. **Rick, ricks@cexhibits.com, is listed but `enabled: false`** (future recipient; do not include until Brook says so).
-- **Draft client email** (`POST /client-email`, test mode): writes `out/client-email/<job-slug>/` with `<job>-client-sheet.pdf`, `<job>-render.png`, `<job>.usdz`, `<job>.glb`, `email.txt` (subject + copy-paste body) and `email.eml` (no To: address; all four files attached), opens the folder, and shows the body with a **Copy email text** button.
+- **Draft client email** was removed from the form on Nov 11 (Brook). `POST /client-email` is not a route. The writer in `drafts.py` is unused. Nothing is sent. **Email AR to me** stays.
 - Neither route contains any mail-sending code; the tests replace `smtplib.SMTP` to prove nothing tries to send.
 
 ### 9.10 Plans dashboard (Oct 30). BUILT

@@ -224,6 +224,24 @@ def cmd_client(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_counter(args: argparse.Namespace) -> int:
+    from .client_sheet import load_job, write_counter_sheet
+    from .kitchen import KitchenError
+
+    sheet = Path(args.sheet)
+    try:
+        job = load_job(sheet, args.name)
+        files = write_counter_sheet(job, Path(args.out), args.stem or f"{sheet.stem}-counter-2d",
+                                    png=True)
+    except KitchenError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  {files['pdf']}")
+    if files.get("png"):
+        print(f"  {files['png']}")
+    return 0
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     from .client_sheet import load_job
     from .kitchen import KitchenError
@@ -339,12 +357,19 @@ def build_parser() -> argparse.ArgumentParser:
     k.add_argument("--sheet-l", type=float, default=None, help="sheet length, inches (default 96)")
     k.set_defaults(func=cmd_kitchen)
 
-    cs = sub.add_parser("client", help="one-page client sheet (PDF + PNG) for a kitchen sheet")
+    cs = sub.add_parser("client", help="Carpenter 2D PDF (elevations, countertop page, one page per style)")
     cs.add_argument("sheet", help="kitchen CSV")
     cs.add_argument("--out", default="out/client-sheet")
     cs.add_argument("--name", default=None, help="job name on the page (default: file name)")
     cs.add_argument("--stem", default=None, help="output file name stem")
     cs.set_defaults(func=cmd_client)
+
+    ct = sub.add_parser("counter", help="one-page Countertop 2D drawing (laminate or solid surface)")
+    ct.add_argument("sheet", help="kitchen CSV")
+    ct.add_argument("--out", default="out/counter-2d")
+    ct.add_argument("--name", default=None, help="job name on the page (default: file name)")
+    ct.add_argument("--stem", default=None, help="output file name stem")
+    ct.set_defaults(func=cmd_counter)
 
     rd = sub.add_parser("render", help="client render (PNG) of a kitchen sheet, logo in the corner")
     rd.add_argument("sheet", help="kitchen CSV")
