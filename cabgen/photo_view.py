@@ -54,6 +54,7 @@ def fingerprint(job) -> str:
         "name": job.name,
         "counter": settings.get("counter"),
         "splash": [settings.get("splash_left"), settings.get("splash_right")],
+        "walls": settings.get("base_walls") or "0",
         "finishes": {k: settings.get(k) for k in
                      ("finish_fronts", "finish_box", "finish_counter")},
         "cabs": cabs,
@@ -93,10 +94,11 @@ def job_payload(job) -> dict:
     return {
         "name": job.name,
         "version": SCRIPT_VERSION,
-        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "64")),
+        "samples": int(os.environ.get("CABCAD_BLENDER_SAMPLES", "80")),
         "width": int(os.environ.get("CABCAD_BLENDER_WIDTH", "1920")),
         "height": int(os.environ.get("CABCAD_BLENDER_HEIGHT", "1080")),
         "denoise": denoise,
+        "walls": str((job.settings or {}).get("base_walls") or "0"),
         "boxes": export_boxes(job),
     }
 
@@ -181,10 +183,10 @@ OpenImageDenoise on the CPU. If that denoiser cannot be set, the picture is
 rendered without it. <code>CABCAD_BLENDER_DENOISE=0</code> skips it.</p>
 <pre>export CABCAD_BLENDER={html.escape(PROVEN_BLENDER)}</pre>
 <p>Current <code>CABCAD_BLENDER</code>: <code>{html.escape(binary)}</code></p>
-<p>Measured on that machine: 960×540, 64 samples, no denoise, 28.7 seconds for
-a 4-base 4-upper kitchen, and the picture was washed out. The current frame
-is 1920×1080 and 64 samples. Four times the pixels. That time has not been
-measured. One render at a time. Opening this form does not start it.</p>
+<p>Measured on that machine: version 6 at 1920×1080, 20 samples, OIDN on,
+55.7 seconds. The current frame is the same size, 80 samples, a sunset
+level of light. Estimate about 240 seconds, four times that measurement.
+Not measured. One render at a time. Opening this form does not start it.</p>
 """)
 
 
